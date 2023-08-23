@@ -30,18 +30,9 @@ class ReactorTest(gym.Env):
         User-determined simulation length
     
     '''
-    def __init__(self,*args, **kwargs):
+    def __init__(self):
+        self.Tf  = 350
         
-
-        return None
-    
-    def _step(self,item):
-        
-         y                = odeint(cstr,x0,ts,args=(u[i+1],Tf,Caf))
-        return None
-    
-    def _reset(self):
-    
     def cstr(self,x,t,u,Tf,Caf):
         Tc = u # Temperature of cooling jacket (K)
         # Tf = Feed Temperature (K)
@@ -71,4 +62,23 @@ class ReactorTest(gym.Env):
         xdot[0] = dCadt
         xdot[1] = dTdt
         return xdot
+    
+    def _step(self,action):
+       
+        next_state = odeint(cstr,self.x0,self.ts,args=(action,self.Tf,self.Caf))
+        reward = 1
+        done = False 
+        info = None
+        return next_state, reward, done,info
+    
+    
+    def _reset(self):
+        pass
+    
+    def step(self, action):
+        return self._step(action)
+    
+
+    
+
        
