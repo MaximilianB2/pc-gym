@@ -34,8 +34,9 @@ class Models_env(gym.Env):
 
         #Constraints
         self.constraint_active = False
-        self.info = []
-        if len(env_params['constraints']) > 0:
+        self.r_penalty = False
+        self.info = {}
+        if env_params.get('constraints') is not None:
             self.constraints = env_params['constraints']
             self.done_on_constraint = env_params['done_on_cons_vio']
             self.r_penalty = env_params['r_penalty']
@@ -45,7 +46,7 @@ class Models_env(gym.Env):
 
         #Disturbances
         self.disturbance_active = False
-        if len(env_params['disturbances']) > 0:
+        if env_params.get('disturbances') is not None:
             self.disturbance_active = True
             self.disturbances = env_params['disturbances']
             self.Nu += len(self.disturbances)
@@ -89,6 +90,7 @@ class Models_env(gym.Env):
         
         self.state = self.x0
         self.t = 0
+        self.done = False
         return self.state, {}
     
     def step(self, action):
@@ -114,24 +116,28 @@ class Models_env(gym.Env):
         # Create control vector 
         uk = np.zeros(self.Nu)
 
-        # Add action to control vector
-        uk[:self.Nu-len(self.disturbances)] = action
-
+      
+   
         # Add disturbance to control vector
         if self.disturbance_active:
+            uk[:self.Nu-len(self.disturbances)] = action
             for i, k in enumerate(self.disturbances, start=0):
+              
                 uk[self.Nu-len(self.disturbances)+i] = self.disturbances[k][self.t]
                 if self.disturbances[k][self.t] == None:
                     uk[self.Nu-len(self.disturbances)+i] = default_values[self.env_params['model']][str(k)]
+        else:
+            uk = action  # Add action to control vector
 
         # Simulate one timestep
         plant_func = self.casadi_model_func
         discretised_plant = self.discretise_model(plant_func, self.dt)
         xk = self.state[:self.Nx]
-        Fk = discretised_plant(x0=xk.numpy(), p=uk)
-        self.state[:self.Nx] = torch.tensor(Fk['xf'].full()).reshape(self.Nx)
+        Fk = discretised_plant(x0=xk, p=uk)
+        self.state[:self.Nx] = np.array(Fk['xf'].full()).reshape(self.Nx)
 
         # Check if constraints are violated
+        
         constraint_violated = False
         if self.constraint_active:
             constraint_violated = self.constraint_check(self.state)
@@ -144,7 +150,7 @@ class Models_env(gym.Env):
         for k in self.SP.keys():
             if k in self.SP:
                 SP_t.append(self.SP[k][self.t]) 
-        self.state[self.Nx:] = torch.tensor(SP_t)   
+        self.state[self.Nx:] = np.array(SP_t)   
                 
        
         # Update timestep
@@ -152,7 +158,8 @@ class Models_env(gym.Env):
         if self.t == self.N:
             self.done = True
       
-
+        # add noise to state
+        self.state[:self.Nx] += np.random.normal(0,0.001,self.Nx)
         return self.state, rew, self.done, False, self.info
     def reward_fn(self, state,c_violated):
         """
@@ -163,9 +170,10 @@ class Models_env(gym.Env):
 
         for i in range(self.Nx):
             if str(i) in self.SP:
-                r +=  (-(abs(state[i] - torch.tensor(self.SP[str(i)][self.t]))))*self.r_scale[i]
+                r +=  (-((state[i] - np.array(self.SP[str(i)][self.t]))**2))*self.r_scale[i]
                 if self.r_penalty and c_violated:
-                    r += 1000
+                    
+                    r -= 1000
         return r
     
     def constraint_check(self,state):
@@ -174,12 +182,13 @@ class Models_env(gym.Env):
         """
         constraint_violated = False
         for c_i in self.constraints:
-            if ((self.cons_type[c_i] == '>=' and state[int(c_i)] >= self.constraints[c_i]) or
-                (self.cons_type[c_i] == '<=' and state[int(c_i)] <= self.constraints[c_i])):
-                self.info[int(c_i), self.t, :] = abs(state[int(c_i)] - self.constraints[c_i])
-                constraint_violated = True
-                self.done = self.done_on_constraint
-                    
+            if self.constraints[c_i] is not None:
+                if ((self.cons_type[c_i] == '>=' and state[int(c_i)] <= self.constraints[c_i]) or
+                    (self.cons_type[c_i] == '<=' and state[int(c_i)] >= self.constraints[c_i])):
+                    self.info[int(c_i), self.t, :] = abs(state[int(c_i)] - self.constraints[c_i])
+                    constraint_violated = True
+                    self.done = self.done_on_constraint
+                        
 
        
         return constraint_violated
@@ -263,7 +272,7 @@ class Models_env(gym.Env):
             variable_names = {}
             variable_names["x"] = ["x_" + str(i) for i in range(self.Nx)]
             variable_names["u"] = ["u_" + str(i) for i in range(self.Nu)]
-            variable_names["d"] = ["d_" + str(i) for i in range(len(self.disturbances))]
+            
         # Plot states, setpoints and constraints
         for j in range(self.Nx):
             plt.plot(t, x[:,j],"k")
@@ -278,7 +287,10 @@ class Models_env(gym.Env):
             plt.show()
         
         # Plot control inputs
-        for k in range(self.Nu-len(self.disturbances)):
+        len_d = 0
+        if self.disturbance_active:
+            len_d = len(self.disturbances)
+        for k in range(self.Nu-len_d):
             plt.plot(t, u[:,k],"r--")
             plt.grid()
             plt.xlabel("Time")
@@ -287,6 +299,7 @@ class Models_env(gym.Env):
 
         # Plot disturbances
         if self.disturbance_active:
+            variable_names["d"] = ["d_" + str(i) for i in range(len(self.disturbances))]
             for k in self.disturbances.keys():
                 if self.disturbances[k].any() != None:
                     plt.plot(t, self.disturbances[k],"r")

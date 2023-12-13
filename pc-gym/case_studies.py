@@ -42,7 +42,11 @@ def cstr_ode(x,u):
 
     ###Model equations###
     ca,T = x[0],x[1]
-    Tc,Ti,caf = u[0],u[1],u[2]
+    
+    if u.shape == (1,1):
+        Tc = u[0]
+    else:
+        Tc,Ti,caf = u[0],u[1],u[2]
 
   
     rA = k0 * np.exp(-EA_over_R/T)*ca
