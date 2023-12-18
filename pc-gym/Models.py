@@ -29,6 +29,7 @@ class Models_env(gym.Env):
         self.tsim = env_params['tsim']
         self.x0 = env_params['x0']
         self.r_scale = env_params['r_scale']
+        self.normalise = env_params['normalise']
         self.done = False
 
 
@@ -42,7 +43,7 @@ class Models_env(gym.Env):
             self.r_penalty = env_params['r_penalty']
             self.cons_type = env_params['cons_type']
             self.constraint_active = True
-            self.info = np.zeros((len(self.constraints),self.N,1))
+            self.info['cons_info'] = np.zeros((len(self.constraints),self.N,1))
 
         #Disturbances
         self.disturbance_active = False
@@ -115,14 +116,12 @@ class Models_env(gym.Env):
         """
         # Create control vector 
         uk = np.zeros(self.Nu)
-
-      
-   
+        if self.normalise == True:
+            action = action*(action_norms[self.env_params['model']]['high'] - action_norms[self.env_params['model']]['low']) + action_norms[self.env_params['model']]['low']
         # Add disturbance to control vector
         if self.disturbance_active:
             uk[:self.Nu-len(self.disturbances)] = action
             for i, k in enumerate(self.disturbances, start=0):
-              
                 uk[self.Nu-len(self.disturbances)+i] = self.disturbances[k][self.t]
                 if self.disturbances[k][self.t] == None:
                     uk[self.Nu-len(self.disturbances)+i] = default_values[self.env_params['model']][str(k)]
@@ -132,6 +131,7 @@ class Models_env(gym.Env):
         # Simulate one timestep
         plant_func = self.casadi_model_func
         discretised_plant = self.discretise_model(plant_func, self.dt)
+      
         xk = self.state[:self.Nx]
         Fk = discretised_plant(x0=xk, p=uk)
         self.state[:self.Nx] = np.array(Fk['xf'].full()).reshape(self.Nx)
@@ -160,10 +160,19 @@ class Models_env(gym.Env):
       
         # add noise to state
         self.state[:self.Nx] += np.random.normal(0,0.001,self.Nx)
-        return self.state, rew, self.done, False, self.info
+        if self.normalise == True:
+            self.normstate = (self.state - self.observation_space.low)/(self.observation_space.high - self.observation_space.low)
+        return self.normstate, rew, self.done, False, self.info
+    
     def reward_fn(self, state,c_violated):
         """
         Compute reward for one timestep and penalise constraint violation if requested by the user.
+
+        Inputs:
+            state - current state of the system
+            c_violated - boolean indicating if constraint is violated
+        Outputs:
+            r - reward for current timestep
 
         """
         r = 0.
@@ -172,25 +181,27 @@ class Models_env(gym.Env):
             if str(i) in self.SP:
                 r +=  (-((state[i] - np.array(self.SP[str(i)][self.t]))**2))*self.r_scale[i]
                 if self.r_penalty and c_violated:
-                    
                     r -= 1000
         return r
     
     def constraint_check(self,state):
         """
         Check if constraints are violated and update info array accordingly.
+
+        Inputs: state - current state of the system
+
+        Outputs: constraint_violated - boolean indicating if constraint is violated
         """
         constraint_violated = False
         for c_i in self.constraints:
             if self.constraints[c_i] is not None:
                 if ((self.cons_type[c_i] == '>=' and state[int(c_i)] <= self.constraints[c_i]) or
                     (self.cons_type[c_i] == '<=' and state[int(c_i)] >= self.constraints[c_i])):
-                    self.info[int(c_i), self.t, :] = abs(state[int(c_i)] - self.constraints[c_i])
+                    self.info['cons_info'][int(c_i), self.t, :] = abs(state[int(c_i)] - self.constraints[c_i])
                     constraint_violated = True
                     self.done = self.done_on_constraint
                         
-
-       
+      
         return constraint_violated
             
               
@@ -249,8 +260,94 @@ class Models_env(gym.Env):
 
         return function
 
+    def rollout(self,policy):
+        '''
+        Rollout the policy for N steps and return the total reward, states and actions
 
+        Input:
+            policy - policy to be rolled out
+
+        Outputs:
+            total_reward - total reward obtained
+            states - states obtained from rollout
+            actions - actions obtained from rollout
+
+        '''
+        
+        total_reward = 0
+        states = np.zeros((self.x0.shape[0], self.N))
+        actions = np.zeros((self.action_space.low.shape[0], self.N))
+
+        o, _ = self.reset()
+        for i in range(self.N):
+            a, _states = policy.predict(o)
+            o, r, term, trunc, info = self.step(a)
+            actions[:, i] = a*(action_norms[self.env_params['model']]['high'] - action_norms[self.env_params['model']]['low']) + action_norms[self.env_params['model']]['low']
+            states[:, i] = o*(self.observation_space.high - self.observation_space.low) + self.observation_space.low
+            total_reward += r
+
+        return total_reward, states, actions
     
+
+    def plot_rollout(self,policy,reps):
+        '''
+        Function to plot the rollout of the policy
+
+        Inputs:
+            policy - policy to be rolled out
+            reps - number of rollouts to be performed
+
+        Outputs:
+            Plot of states and actions with setpoints and constraints if they exist]
+        
+        '''
+        states = np.zeros((self.x0.shape[0],self.N,reps))
+        actions = np.zeros((self.Nu,self.N,reps))
+        rew = np.zeros((self.N,reps))
+        for r_i in range(reps):
+            rew[:,r_i], states[:,:,r_i], actions[:,:,r_i] = self.rollout(policy)
+        t = np.linspace(0,self.tsim,self.N)
+        len_d = 0
+        if self.disturbance_active:
+            len_d = len(self.disturbances)
+
+        plt.figure(figsize=(10, 8))
+        for i in range(self.Nx):
+            plt.subplot(self.Nx + self.Nu+len_d,1,i+1)
+            plt.plot(t, np.median(states[i,:,:],axis=1), 'r-', lw=3)
+            plt.gca().fill_between(t, np.min(states[i,:,:],axis=1), np.max(states[i,:,:],axis=1), 
+                            color='r', alpha=0.2)
+            if str(i) in self.SP:
+                plt.plot(t, self.SP[str(i)], color = 'black', linestyle = '--', label='Set Point')
+            if self.constraint_active:
+                if str(i) in self.constraints:
+                    plt.hlines(self.constraints[str(i)], 0,self.tsim,'r',label='Constraint')
+            plt.ylabel('x_'+str(i))
+            plt.xlabel('Time (min)')
+            plt.legend(loc='best')
+            plt.xlim(min(t), max(t))
+
+        for j in range(self.Nu-len_d):
+            plt.subplot(self.Nx+self.Nu+len_d,1,j+self.Nx+1)
+            plt.step(t, np.median(actions[j,:,:],axis=1), 'b--', lw=3)
+            plt.ylabel('u_'+str(j))
+            plt.xlabel('Time (min)')
+            plt.legend(loc='best')
+            plt.xlim(min(t), max(t))
+
+        if self.disturbance_active:       
+            for k in self.disturbances.keys():
+                if self.disturbances[k].any() != None:
+                    i=0
+                    plt.subplot(self.Nx+self.Nu+len_d,1,i+self.Nx+self.Nu-len_d+1)
+                    plt.plot(t, self.disturbances[k],"r")
+                    plt.xlabel('Time (min)')
+                    plt.ylabel('d_'+str(i))
+                    plt.xlim(min(t), max(t))
+                    i+=1
+
+        plt.tight_layout()
+        plt.show()
 
 
     def plot_simulation_results(self, x, u, cons, variable_names = None):

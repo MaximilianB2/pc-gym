@@ -1,9 +1,11 @@
 import numpy as np
 
 '''
-This file contains the case studies models and default disturbance values.
+This file contains the case studies models, action normalisation and default disturbance values.
 '''
-
+#Define the action normalisation for each case study
+action_norms = {  'cstr_ode':{'high': 303, 'low': 297},
+                 }
 #Default values for disturbance variables
 default_values = {  'cstr_ode':{'0': 350, '1': 1}, }
 
