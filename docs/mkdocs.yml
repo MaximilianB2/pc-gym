@@ -9,14 +9,26 @@ repo_url: https://github.com/MaximilianB2/pc-gym
 nav: 
  - Home: index.md
  - Environments:
-    - CSTR: env/cstr.md
+    - Continuously Stirred Tank Reactor: env/cstr.md
+    - Second Order System: env/second-order-system.md
+    - Four Tank System: env/4-tank-system.md 
+    - CSTR in Series with Recyle Loop: env/CSTR in Series with Recycle loop.md
+    - Distillation Column: env/distillation-column.md
+    - Extraction Column: env/extraction-column.md
+    - Extraction Column (Reactive): env/extraction-column-react.md
+    - Shell and Tube Heat Exchanger: env/STHE.md
+    - Reactor-Separator-Recycle: env/RSR.md
+    - Biofilm Reactor: env/Biofilm-Reactor.md
+
  - User Guides:
     - Training: guides/training.md
     - Disturbances: guides/disturbances.md
     - Constraints: guides/constraints.md
+    - Models: guides/models.md
 #  - API Reference: Auto-generate with mkdocstrings
 
 # theme
+
 markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
@@ -25,6 +37,7 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.superfences
+
 theme: 
   name: material
   logo: img/pc-gym.png

@@ -3,36 +3,104 @@
   <img src="img/pc-gym%20dark.png#only-dark" alt="Image title" style="width:100%">
   <img src="img/pc-gym.png#only-light" alt="Image title" style="width:100%">
 </figure>
+
 ## Welcome to pc-gym 💪
 
-pc-gym is a suite of environments designed to aid the development of safe-rl algorithms used for chemical process control.
+The pc-gym is a suite of environments and tools designed to aid the development of safe-rl algorithms used for chemical process control.
+
+The pc-gym has been developed to address the lack of chemical process environments setup to test reinforcemnent learning algorithms. However, pc-gym is not only a collection of environements it also allows the user access to constraint violation information, input custom disturbances and visualise the policy's performance. The pc-gym has been developed by a team of researchers in <a href="https://www.imperial.ac.uk/process-systems-engineering">The Sargent Centre for Process Systems Engineering</a>.
+
+### Environments 🌍
+
+pc-gym provides a range of chemical process control environments ranging from first-order sytems to plantwide and bioprocess control. These environments are tabulated below along with links to their documentation and code. 
 
 
-### Overview
+<div style="display: flex; justify-content: center;">
+<table style="width:100%">
+  <tr>
+    <th>Environment</th>
+    <th>Category</th> 
+    <th>Source Code</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td>CSTR</td>
+    <td>Reactor</td> 
+    <td><a href="link_to_code">code</a></td>
+    <td><a href="link_to_doc">doc</a></td>
+  </tr>
+  <tr>
+    <td>First Order System</td>
+    <td>Simple Model</td> 
+    <td><a href="link_to_code">code</a></td>
+    <td><a href="link_to_doc">doc</a></td>
+  </tr>
+  <tr>
+    <td>Second Order System</td>
+    <td>Simple Model</td> 
+    <td><a href="link_to_code">code</a></td>
+    <td><a href="link_to_doc">doc</a></td>
+  </tr>
+  <tr>
+    <td>Reactor-Separator-Recycle</td>
+    <td>Plantwide Control</td> 
+    <td><a href="link_to_code">code</a></td>
+    <td><a href="link_to_doc">doc</a></td>
+  </tr>
+  <tr>
+    <td>Distillation Column</td>
+    <td>Column</td> 
+    <td><a href="link_to_code">code</a></td>
+    <td><a href="link_to_doc">doc</a></td>
+  </tr>
+  <tr>
+    <td>Multistage Extration</td>
+    <td>Column</td> 
+    <td><a href="link_to_code">code</a></td>
+    <td><a href="link_to_doc">doc</a></td>
+  </tr>
+  <tr>
+    <td>Multistage Extraction</td>
+    <td>Column/Reactor</td> 
+    <td><a href="link_to_code">code</a></td>
+    <td><a href="link_to_doc">doc</a></td>
+  </tr>
+  <tr>
+    <td>Heat Exchanger</td>
+    <td>Heat transfer</td> 
+    <td><a href="link_to_code">code</a></td>
+    <td><a href="link_to_doc">doc</a></td>
+  </tr>
+  <tr>
+    <td>Poltmerisation Reactor</td>
+    <td>Reactor</td> 
+    <td><a href="link_to_code">code</a></td>
+    <td><a href="link_to_doc">doc</a></td>
+  </tr>
+  <tr>
+    <td>Biofilm Reactor</td>
+    <td>Bioprocess</td> 
+    <td><a href="link_to_code">code</a></td>
+    <td><a href="link_to_doc">doc</a></td>
+  </tr>
+  <tr>
+    <td>Four Tank</td>
+    <td>Settling Tank</td> 
+    <td><a href="link_to_code">code</a></td>
+    <td><a href="link_to_doc">doc</a></td>
+  </tr>
+</table>
+</div>
 
 
-| Environment                              | Category  | Source                                                                                           | Description                                                            |
-|------------------------------------------|-----------|--------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
-| CSTR                              | Reactor           |                              [code]                                                             | [doc]  |
-| First Order System                              | Simple Model                                           |                              [code]                                           | [doc]  |
-| Second Order System                              | Simple Model           |                              [code]                                         | [doc]  |
-| Reactor-Separator-Recycle                              | Plantwide Control           |                              [code]                                 | [doc]  |
-| Distillation Column                              | Column           |                              [code]                                                  | [doc]  |
-| Multistage Extration                               | Column          |                              [code]                                                 | [doc]  |
-| Multistage Extraction                              | Column/Reactor           |                              [code]                                        | [doc]  |
-| Heat Exchanger                              | Heat transfer        |                              [code]                                                   | [doc]  |
-| Poltmerisation Reactor                           | Reactor          |                              [code]                                                  | [doc]  |
-| Biofilm Reactor                           | Bioprocess         |           [code]                                                                          | [doc]  |
-| Four Tank                          | Settling Tank         |                              [code]                                                           | [doc]  |
 
-
-### Installation
+### Installation ⚙️
 You can install the latest version of pc-gym from PyPI:
 ```bash
 pip install pc-gym
 ```
 
-### Getting Started
+### Getting Started 🚀
 
 Those from the RL community will recognise pc-gym's interface as it is built upon the [OpenAI Gym](https://github.com/openai/gym). Below is an example of how to define an environment.
 
@@ -87,3 +155,5 @@ env.plot_rollout(policy,reps)
 <figure>
   <img src="img/init-policy.png" alt="Image title" style="width:100%">
 </figure>
+
+
