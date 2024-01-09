@@ -42,7 +42,7 @@ The action space is a `ContinuousBox` of `[290,302]` which corresponds to a jack
 
 ## Reward
 
-The reward is a continuous value corresponding to L2 norm of the state and its setpoint. For multiple states, these are scaled with a factor $\gamma_i$ and summed to give a single value.
+The reward is a continuous value corresponding to square error of the state and its setpoint. For multiple states, these are scaled with a factor $\gamma_i$ and summed to give a single value.
 
 
 \begin{align}

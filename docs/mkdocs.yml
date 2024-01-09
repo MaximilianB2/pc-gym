@@ -25,7 +25,8 @@ nav:
     - Disturbances: guides/disturbances.md
     - Constraints: guides/constraints.md
     - Models: guides/models.md
-#  - API Reference: Auto-generate with mkdocstrings
+ - API Reference:
+    - Environment: API/env.md
 
 # theme
 

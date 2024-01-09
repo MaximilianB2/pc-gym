@@ -18,7 +18,11 @@ class Models_env(gym.Env):
         
         self.env_params = env_params
         # Define action and observation space
-        self.action_space = spaces.Box(low=env_params['a_space']['low'],high = env_params['a_space']['high'])
+        if env_params['normalise_a'] == True:
+            self.action_space = spaces.Box(low = np.array([-1]*env_params['a_space']['low'].shape[0]), high = np.array([1]*env_params['a_space']['high'].shape[0]))
+        else:
+            self.action_space = spaces.Box(low=env_params['a_space']['low'],high = env_params['a_space']['high'])
+        
         self.observation_space = spaces.Box(low = env_params['o_space']['low'],high = env_params['o_space']['high'])  
         
         self.Nx = env_params['Nx']
@@ -29,7 +33,8 @@ class Models_env(gym.Env):
         self.tsim = env_params['tsim']
         self.x0 = env_params['x0']
         self.r_scale = env_params['r_scale']
-        self.normalise = env_params['normalise']
+        self.normalise_a = env_params['normalise_a']
+        self.normalise_o = env_params['normalise_o']
         self.done = False
 
 
@@ -116,8 +121,8 @@ class Models_env(gym.Env):
         """
         # Create control vector 
         uk = np.zeros(self.Nu)
-        if self.normalise == True:
-            action = action*(action_norms[self.env_params['model']]['high'] - action_norms[self.env_params['model']]['low']) + action_norms[self.env_params['model']]['low']
+        if self.normalise_a == True:
+            action = (action + 1)*(self.env_params['a_space']['high'] - self.env_params['a_space']['low'])/2 + self.env_params['a_space']['low']
         # Add disturbance to control vector
         if self.disturbance_active:
             uk[:self.Nu-len(self.disturbances)] = action
@@ -159,9 +164,13 @@ class Models_env(gym.Env):
             self.done = True
       
         # add noise to state
-        self.state[:self.Nx] += np.random.normal(0,0.001,self.Nx)
-        if self.normalise == True:
-            self.normstate = (self.state - self.observation_space.low)/(self.observation_space.high - self.observation_space.low)
+        if self.env_params['noise'] == True:
+            noise_percentage = self.env_params['noise_percentage']
+            self.state[:self.Nx] += np.random.normal(0,1,self.Nx) * self.state[:self.Nx] * noise_percentage
+
+
+        if self.normalise_o == True:
+            self.normstate = 2 * (self.state - self.observation_space.low) / (self.observation_space.high - self.observation_space.low) - 1
         return self.normstate, rew, self.done, False, self.info
     
     def reward_fn(self, state,c_violated):
@@ -179,7 +188,7 @@ class Models_env(gym.Env):
 
         for i in range(self.Nx):
             if str(i) in self.SP:
-                r +=  (-((state[i] - np.array(self.SP[str(i)][self.t]))**2))*self.r_scale[i]
+                r +=  (-((state[i] - np.array(self.SP[str(i)][self.t]))**2))*self.r_scale[str(i)]
                 if self.r_penalty and c_violated:
                     r -= 1000
         return r
@@ -282,8 +291,8 @@ class Models_env(gym.Env):
         for i in range(self.N):
             a, _states = policy.predict(o)
             o, r, term, trunc, info = self.step(a)
-            actions[:, i] = a*(action_norms[self.env_params['model']]['high'] - action_norms[self.env_params['model']]['low']) + action_norms[self.env_params['model']]['low']
-            states[:, i] = o*(self.observation_space.high - self.observation_space.low) + self.observation_space.low
+            actions[:, i] = (a + 1)*(self.env_params['a_space']['high'] - self.env_params['a_space']['low'])/2 + self.env_params['a_space']['low']
+            states[:, i] = (o + 1)*(self.env_params['o_space']['high'] - self.env_params['o_space']['low'])/2 + self.env_params['o_space']['low']
             total_reward += r
 
         return total_reward, states, actions
@@ -311,12 +320,12 @@ class Models_env(gym.Env):
         if self.disturbance_active:
             len_d = len(self.disturbances)
 
-        plt.figure(figsize=(10, 8))
+        plt.figure(figsize=(10, 2*(self.Nx+self.Nu+len_d)))
         for i in range(self.Nx):
             plt.subplot(self.Nx + self.Nu+len_d,1,i+1)
-            plt.plot(t, np.median(states[i,:,:],axis=1), 'r-', lw=3)
+            plt.plot(t, np.median(states[i,:,:],axis=1), 'r-', lw=3,label = 'x_' + str(i))
             plt.gca().fill_between(t, np.min(states[i,:,:],axis=1), np.max(states[i,:,:],axis=1), 
-                            color='r', alpha=0.2)
+                            color='r', alpha=0.2 )
             if str(i) in self.SP:
                 plt.plot(t, self.SP[str(i)], color = 'black', linestyle = '--', label='Set Point')
             if self.constraint_active:
@@ -329,7 +338,7 @@ class Models_env(gym.Env):
 
         for j in range(self.Nu-len_d):
             plt.subplot(self.Nx+self.Nu+len_d,1,j+self.Nx+1)
-            plt.step(t, np.median(actions[j,:,:],axis=1), 'b--', lw=3)
+            plt.step(t, np.median(actions[j,:,:],axis=1), 'b--', lw=3, label='u_'+str(j))
             plt.ylabel('u_'+str(j))
             plt.xlabel('Time (min)')
             plt.legend(loc='best')
@@ -340,7 +349,7 @@ class Models_env(gym.Env):
                 if self.disturbances[k].any() != None:
                     i=0
                     plt.subplot(self.Nx+self.Nu+len_d,1,i+self.Nx+self.Nu-len_d+1)
-                    plt.plot(t, self.disturbances[k],"r")
+                    plt.plot(t, self.disturbances[k],"r",label='d_'+str(i))
                     plt.xlabel('Time (min)')
                     plt.ylabel('d_'+str(i))
                     plt.xlim(min(t), max(t))
