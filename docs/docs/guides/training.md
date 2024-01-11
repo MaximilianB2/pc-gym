@@ -43,9 +43,9 @@ env_params = {
     'o_space' : observation_space, #Observation space
     'a_space' : action_space, # Action space
     'dt': 1., # Time step
-    'x0': np.array([0.8,330,0.8]), # Initial conditions (torch.tensor)
+    'x0': np.array([0.8,330,0.8]), # Initial conditions. Include setpoint!
     'model': 'cstr_ode', #Select the model
-    'r_scale': np.array([5]), #Scale the L1 norm used for reward (|x-x_sp|*r_scale)
+    'r_scale': {'0': 5}, #Scale the L1 norm used for reward (|x-x_sp|*r_scale)
     'normalise': True, #Normalise the states 
 }
 env = Models_env(env_params)
@@ -67,6 +67,7 @@ repitions = 10
 env.plot_rollout(initial_policy,repitions)
 ```
 
+
 <figure>
-  <img src="../init-policy.png" alt="Image title" style="width:100%">
+  <img src="../../img/init-policy.png" alt="Image title" style="width:100%">
 </figure>

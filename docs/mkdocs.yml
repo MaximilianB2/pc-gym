@@ -9,16 +9,17 @@ repo_url: https://github.com/MaximilianB2/pc-gym
 nav: 
  - Home: index.md
  - Environments:
+    - First Order System: env/first_order_system.md
     - Continuously Stirred Tank Reactor: env/cstr.md
-    - Second Order System: env/second-order-system.md
-    - Four Tank System: env/4-tank-system.md 
-    - CSTR in Series with Recyle Loop: env/CSTR in Series with Recycle loop.md
-    - Distillation Column: env/distillation-column.md
+    # - Second Order System: env/second-order-system.md
+    # - Four Tank System: env/4-tank-system.md 
+    # - CSTR in Series with Recyle Loop: env/CSTR in Series with Recycle loop.md
+    # - Distillation Column: env/distillation-column.md
     - Extraction Column: env/extraction-column.md
-    - Extraction Column (Reactive): env/extraction-column-react.md
-    - Shell and Tube Heat Exchanger: env/STHE.md
-    - Reactor-Separator-Recycle: env/RSR.md
-    - Biofilm Reactor: env/Biofilm-Reactor.md
+    # - Extraction Column (Reactive): env/extraction-column-react.md
+    # - Shell and Tube Heat Exchanger: env/STHE.md
+    # - Reactor-Separator-Recycle: env/RSR.md
+    # - Biofilm Reactor: env/Biofilm-Reactor.md
 
  - User Guides:
     - Training: guides/training.md

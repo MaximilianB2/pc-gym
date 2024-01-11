@@ -34,7 +34,7 @@ The continuously stirred tank reactor (CSTR) is a system which converts species 
 where $C_A$, the concentration of species A in the reactor, and $T$, the temperature of the reactor, are the state variables, $\mathbf{x} = [C_A, T]^\intercal \in \mathbb{R}^2$ while, $u = T_c$, the cooling water temperature, is the action variable.
 
 ## Observation
-The observation of the CSTR environment provides information on the state variables and their associated setpoints (if they exist) at the current timestep. The observation is an array of shape `(1, 2 + N_SP)` where `N_SP` is the number of setpoints. Therefore, the observation when there exist a setpoint for both states is
+The observation of the `CSTR` environment provides information on the state variables and their associated setpoints (if they exist) at the current timestep. The observation is an array of shape `(1, 2 + N_SP)` where `N_SP` is the number of setpoints. Therefore, the observation when there exist a setpoint for both states is
 ``[CA, T, CA_Setpoint, T_Setpoint]``.
 
 ## Action
