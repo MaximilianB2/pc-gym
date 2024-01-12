@@ -1,0 +1,12 @@
+numpy
+tqdm
+cloudpickle
+matplotlib
+jupyterlab
+gymnasium
+casadi
+jax
+equinox
+diffrax
+torch --index-url https://download.pytorch.org/whl/cpu
+stable-baselines3
