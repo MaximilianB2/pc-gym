@@ -26,6 +26,7 @@ nav:
     - Disturbances: guides/disturbances.md
     - Constraints: guides/constraints.md
     - Models: guides/models.md
+    - Policy Evaluation: guides/Policy Evaluation.md
  - API Reference:
     - Environment: API/env.md
 
