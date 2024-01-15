@@ -6,6 +6,8 @@ from gymnasium import  spaces
 import torch
 import matplotlib.pyplot as plt
 from case_studies import *
+from Policy_Evaluation import policy_eval
+from Integrator import integration_engine
     
 class Models_env(gym.Env):
     '''
@@ -80,13 +82,9 @@ class Models_env(gym.Env):
         if self.model is None:
             raise ValueError(f"Model '{env_params['model']}' not found in model_mapping.")
         
-        # Generate casadi model
-        self.sym_x = self.gen_casadi_variable(self.Nx, "x")
-        self.sym_u = self.gen_casadi_variable(self.Nu, "u")    
-        self.casadi_sym_model = self.casadify(self.model, self.sym_x, self.sym_u)
-        self.casadi_model_func = self.gen_casadi_function([self.sym_x, self.sym_u],[self.casadi_sym_model],
-                                                          "model_func", ["x","u"], ["model_rhs"])
+        
         self.reset()
+    
     def reset(self, seed=None):
         """
         Resets the state of the system and the noise generator
@@ -119,10 +117,12 @@ class Models_env(gym.Env):
         info :
 
         """
+        
         # Create control vector 
         uk = np.zeros(self.Nu)
         if self.normalise_a == True:
             action = (action + 1)*(self.env_params['a_space']['high'] - self.env_params['a_space']['low'])/2 + self.env_params['a_space']['low']
+        
         # Add disturbance to control vector
         if self.disturbance_active:
             uk[:self.Nu-len(self.disturbances)] = action
@@ -134,11 +134,7 @@ class Models_env(gym.Env):
             uk = action  # Add action to control vector
 
         # Simulate one timestep
-        plant_func = self.casadi_model_func
-        discretised_plant = self.discretise_model(plant_func, self.dt)
-      
-        xk = self.state[:self.Nx]
-        Fk = discretised_plant(x0=xk, p=uk)
+        Fk = integration_engine(Models_env, self.env_params).casadi_step(self.state,uk)
         self.state[:self.Nx] = np.array(Fk['xf'].full()).reshape(self.Nx)
 
         # Check if constraints are violated
@@ -184,6 +180,7 @@ class Models_env(gym.Env):
             r - reward for current timestep
 
         """
+
         r = 0.
 
         for i in range(self.Nx):
@@ -201,6 +198,7 @@ class Models_env(gym.Env):
 
         Outputs: constraint_violated - boolean indicating if constraint is violated
         """
+
         constraint_violated = False
         for c_i in self.constraints:
             if self.constraints[c_i] is not None:
@@ -214,278 +212,15 @@ class Models_env(gym.Env):
         return constraint_violated
             
               
-    def casadify(self, model, sym_x, sym_u):
-        """
-        Given a model with Nx states and Nu inputs and returns rhs of ode,
-        return casadi symbolic model (Not function!)
-        
-        Inputs:
-            model - model to be casidified i.e. a list of ode rhs of size Nx
-            
-        Outputs:
-            dxdt - casadi symbolic model of size Nx of rhs of ode
-        """
 
-        dxdt = model(sym_x, sym_u)
-        dxdt = vertcat(*dxdt) #Return casadi list of size Nx
-
-        return dxdt
-
-
-
-    def gen_casadi_variable(self, n_dim, name = "x"):
-        """
-        Generates casadi symbolic variable given n_dim and name for variable
-        
-        Inputs:
-            n_dim - symbolic variable dimension
-            name - name for symbolic variable
-            
-        Outputs:
-            var - symbolic version of variable
-        """
-
-        var = SX.sym(name, n_dim)
-
-        return var
-
-    def gen_casadi_function(self, casadi_input, casadi_output, name, input_name=[], output_name=[]):
-        """
-        Generates a casadi function which maps inputs (casadi symbolic inputs) to outputs (casadi symbolic outputs)
-        
-        Inputs:
-            casadi_input - list of casadi symbolics constituting inputs
-            casadi_output - list of casadi symbolic output of function
-            name - name of function
-            input_name - list of names for each input
-            output_name - list of names for each output
-        
-        Outputs:
-            casadi function mapping [inputs] -> [outputs]
-        
-        """
-
-        function = Function(name, casadi_input, casadi_output, input_name, output_name)
-
-        return function
-
-    def rollout(self,policy):
-        '''
-        Rollout the policy for N steps and return the total reward, states and actions
-
-        Input:
-            policy - policy to be rolled out
-
-        Outputs:
-            total_reward - total reward obtained
-            states - states obtained from rollout
-            actions - actions obtained from rollout
-
-        '''
-        
-        total_reward = 0
-        states = np.zeros((self.x0.shape[0], self.N))
-        actions = np.zeros((self.action_space.low.shape[0], self.N))
-
-        o, _ = self.reset()
-        for i in range(self.N):
-            a, _states = policy.predict(o)
-            o, r, term, trunc, info = self.step(a)
-            actions[:, i] = (a + 1)*(self.env_params['a_space']['high'] - self.env_params['a_space']['low'])/2 + self.env_params['a_space']['low']
-            states[:, i] = (o + 1)*(self.env_params['o_space']['high'] - self.env_params['o_space']['low'])/2 + self.env_params['o_space']['low']
-            total_reward += r
-
-        return total_reward, states, actions
-    
+   
 
     def plot_rollout(self,policy,reps):
-        '''
-        Function to plot the rollout of the policy
-
-        Inputs:
-            policy - policy to be rolled out
-            reps - number of rollouts to be performed
-
-        Outputs:
-            Plot of states and actions with setpoints and constraints if they exist]
-        
-        '''
-        states = np.zeros((self.x0.shape[0],self.N,reps))
-        actions = np.zeros((self.Nu,self.N,reps))
-        rew = np.zeros((self.N,reps))
-        for r_i in range(reps):
-            rew[:,r_i], states[:,:,r_i], actions[:,:,r_i] = self.rollout(policy)
-        t = np.linspace(0,self.tsim,self.N)
-        len_d = 0
-        if self.disturbance_active:
-            len_d = len(self.disturbances)
-
-        plt.figure(figsize=(10, 2*(self.Nx+self.Nu+len_d)))
-        for i in range(self.Nx):
-            plt.subplot(self.Nx + self.Nu+len_d,1,i+1)
-            plt.plot(t, np.median(states[i,:,:],axis=1), 'r-', lw=3,label = 'x_' + str(i))
-            plt.gca().fill_between(t, np.min(states[i,:,:],axis=1), np.max(states[i,:,:],axis=1), 
-                            color='r', alpha=0.2 )
-            if str(i) in self.SP:
-                plt.plot(t, self.SP[str(i)], color = 'black', linestyle = '--', label='Set Point')
-            if self.constraint_active:
-                if str(i) in self.constraints:
-                    plt.hlines(self.constraints[str(i)], 0,self.tsim,'r',label='Constraint')
-            plt.ylabel('x_'+str(i))
-            plt.xlabel('Time (min)')
-            plt.legend(loc='best')
-            plt.xlim(min(t), max(t))
-
-        for j in range(self.Nu-len_d):
-            plt.subplot(self.Nx+self.Nu+len_d,1,j+self.Nx+1)
-            plt.step(t, np.median(actions[j,:,:],axis=1), 'b--', lw=3, label='u_'+str(j))
-            plt.ylabel('u_'+str(j))
-            plt.xlabel('Time (min)')
-            plt.legend(loc='best')
-            plt.xlim(min(t), max(t))
-
-        if self.disturbance_active:       
-            for k in self.disturbances.keys():
-                if self.disturbances[k].any() != None:
-                    i=0
-                    plt.subplot(self.Nx+self.Nu+len_d,1,i+self.Nx+self.Nu-len_d+1)
-                    plt.plot(t, self.disturbances[k],"r",label='d_'+str(i))
-                    plt.xlabel('Time (min)')
-                    plt.ylabel('d_'+str(i))
-                    plt.xlim(min(t), max(t))
-                    i+=1
-
-        plt.tight_layout()
-        plt.show()
-
-
-    def plot_simulation_results(self, x, u, cons, variable_names = None):
-        """
-        Plots the results of System.simulate()
-        
-        Input:
-            tsim - simulation time as numpy array
-            x - numpy array of output of size len(tsim), Nx
-            u - numpy array of input of size len(tsim), Nu
-            variable_names = dictionary of list of variable names to be used for plotting
-        
-        Output: 
-            Nx + Nu plots for each output and input
-        """
-        t = np.linspace(0,self.tsim,self.N)
-        
-        if variable_names == None:
-            variable_names = {}
-            variable_names["x"] = ["x_" + str(i) for i in range(self.Nx)]
-            variable_names["u"] = ["u_" + str(i) for i in range(self.Nu)]
-            
-        # Plot states, setpoints and constraints
-        for j in range(self.Nx):
-            plt.plot(t, x[:,j],"k")
-            if self.constraint_active:
-                if str(j) in self.constraints:
-                    plt.hlines(self.constraints[str(j)], 0,self.tsim,'r',label='Constraint')
-            plt.plot(t, self.SP[str(j)],"b--",label='Set Point')
-            plt.grid()
-            plt.xlabel("Time")
-            plt.ylabel(variable_names["x"][j])
-            plt.legend()
-            plt.show()
-        
-        # Plot control inputs
-        len_d = 0
-        if self.disturbance_active:
-            len_d = len(self.disturbances)
-        for k in range(self.Nu-len_d):
-            plt.plot(t, u[:,k],"r--")
-            plt.grid()
-            plt.xlabel("Time")
-            plt.ylabel(variable_names["u"][k])
-            plt.show()
-
-        # Plot disturbances
-        if self.disturbance_active:
-            variable_names["d"] = ["d_" + str(i) for i in range(len(self.disturbances))]
-            for k in self.disturbances.keys():
-                if self.disturbances[k].any() != None:
-                    plt.plot(t, self.disturbances[k],"r")
-                    plt.grid()
-                    plt.xlabel("Time")
-                    plt.ylabel(variable_names["d"][int(k)])
-                    plt.show()
-
-        # Plot constraint violation
-        if self.constraint_active:
-            for c_i in self.constraints.keys():
-                plt.plot(t,cons[int(c_i)])
-                plt.grid()
-                plt.xlabel('Time')
-                plt.ylabel(variable_names["x"][int(c_i)]+' Constraint Violation')
-                plt.show()
+        policy_eval(Models_env,policy,reps,self.env_params).plot_rollout()
         
 
-    def discretise_model(self, casadi_func, delta_t):
-        """
-        Input:
-            casadi_func to be discretised
-        
-        Output:
-            discretised casadi func
-        """
-        x = SX.sym("x", self.Nx)
-        u = SX.sym("u", self.Nu)
-        xdot = casadi_func(x, u)
-
-        dae = {'x':x, 'p':u, 'ode':xdot} 
-        t0 = 0
-        tf = delta_t
-        discrete_model = integrator('discrete_model', 'cvodes', dae,t0,tf)
-
-        return discrete_model
     
 
-
-    def generate_inputs(self):
-        """
-        Generate num_steps steps between lower and upper bound for length of simulation
-        
-        Inputs:
-            num_inputs - Number of input signals to generate - integer
-            lb - Lower bound passed as list for each input
-            ub - Upper bound passed as list for each input
-            num_steps - Number of steps - integer
-            tsim - Simulation time passed as numpy array with size indicating number of simulation steps
-            
-        Outputs:
-            u - len(tsim) * num_inputs sized numpy array
-        
-        """
-       
-
-        lb = self.env_params['a_space']['low']
-        ub = self.env_params['a_space']['high']
-
-        num_steps = self.N
-        tsim  = np.linspace(0,self.tsim,self.N)
-        num_inputs = self.Nu - len(self.disturbances)
-   
-  
-        N_sim = len(tsim)
-
-        input_signal = np.ones((N_sim, num_inputs))
-
-        for i in range(num_inputs):
-            lower_bound = lb[i]
-            upper_bound = ub[i]
-            mean = (upper_bound + lower_bound)/2
-            u = np.ones_like(tsim)*mean
-            step_length = int(np.floor(N_sim/num_steps))
-            for j in range(num_steps):
-                u[j*step_length:(j+1)*step_length] = np.random.uniform(lower_bound,upper_bound)
-
-            input_signal[:,i] = u
-
-        return input_signal
 
 
 

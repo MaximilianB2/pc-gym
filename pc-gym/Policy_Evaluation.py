@@ -1,7 +1,7 @@
 # Policy Evaluation Class for pc-gym 
 import numpy as np
 import matplotlib.pyplot as plt
-from Models import Models_env
+
 
 
 
@@ -15,7 +15,7 @@ class policy_eval():
              return distribution (incomplete), expected return (incomplete), 
              oracle trajectories (incomplete) and lower confidence bounds (incomplete)
     '''
-    def __init__(self,policy,reps,env_params):
+    def __init__(self,Models_env,policy,reps,env_params):
         self.env = Models_env(env_params) 
         self.policy = policy 
         self.reps = reps
@@ -36,8 +36,8 @@ class policy_eval():
         '''
         
         total_reward = 0
-        states = np.zeros((self.x0.shape[0], self.N))
-        actions = np.zeros((self.action_space.low.shape[0], self.N))
+        states = np.zeros((self.env.x0.shape[0], self.env.N))
+        actions = np.zeros((self.env.action_space.low.shape[0], self.env.N))
 
         o, _ = self.env.reset()
         for i in range(self.env.N):
@@ -61,11 +61,11 @@ class policy_eval():
                 Plot of states and actions with setpoints and constraints if they exist]
             
             '''
-            states = np.zeros((self.env.x0.shape[0],self.env.N,self.env.reps))
-            actions = np.zeros((self.env.Nu,self.env.N,self.env.reps))
-            rew = np.zeros((self.env.N,self.env.reps))
-            for r_i in range(self.env.reps):
-                rew[:,r_i], states[:,:,r_i], actions[:,:,r_i] = self.env.rollout(self.env.policy)
+            states = np.zeros((self.env.x0.shape[0],self.env.N,self.reps))
+            actions = np.zeros((self.env.Nu,self.env.N,self.reps))
+            rew = np.zeros((self.env.N,self.reps))
+            for r_i in range(self.reps):
+                rew[:,r_i], states[:,:,r_i], actions[:,:,r_i] = self.rollout()
             t = np.linspace(0,self.env.tsim,self.env.N)
             len_d = 0
             if self.env.disturbance_active:
