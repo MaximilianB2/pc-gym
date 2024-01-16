@@ -1,0 +1,19 @@
+name: pc-gym
+channels:
+  - pytorch
+  - conda-forge
+dependencies:
+  - pip
+  - numpy
+  - tqdm
+  - cloudpickle
+  - matplotlib
+  - jupyterlab
+  - pytorch::pytorch
+  - pip:
+    - casadi
+    - jax
+    - equinox
+    - diffrax
+    - gymnasium
+    - stable-baselines3
