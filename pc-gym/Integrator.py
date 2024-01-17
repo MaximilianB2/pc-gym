@@ -1,10 +1,8 @@
-import numpy as np
-from casadi import *
-import matplotlib.pyplot as plt
+from casadi import SX, vertcat, Function, integrator
+from diffrax import diffeqsolve, ODETerm, Tsit5  #SaveAt
+import jax.numpy as jnp
 
-
-
-class integration_engine():
+class integration_engine:
     '''
     Integration class
     Contains both the casadi and JAX integration wrappers.
@@ -20,6 +18,11 @@ class integration_engine():
         
         assert integration_method in ['jax', 'casadi'], "integration_method must be either 'jax' or 'casadi'"
         
+        # NOTE common ode model signature
+        # all self.env.model currently have the signature ODE(states, controls)
+        # diffrax expects the signature ode(t, states, params)
+        # the parameters are fixed within the models so the controllers are the inputs instead
+
         if integration_method == 'casadi':
             # Generate casadi model
             self.sym_x = self.gen_casadi_variable(self.env.Nx, "x")
@@ -29,9 +32,17 @@ class integration_engine():
                                                             "model_func", ["x","u"], ["model_rhs"])
             
         if integration_method == 'jax':
-            pass
+            autonomous_model = lambda t,x,u: jnp.array(self.env.model(x, u))  # ignore time
+            self.jax_ode = ODETerm(autonomous_model)
+            self.jax_solver = Tsit5()
 
-        
+    def jax_step(self, state, uk):
+        t0 = 0.0
+        tf = self.env.dt
+        dt0 = self.env.dt / 10
+        y0 = jnp.array(state)
+        solution = diffeqsolve(self.jax_ode, self.jax_solver, t0, tf, dt0, y0, args=uk)
+        return solution.ys[-1, :]  # return only final state
 
     def casadi_step(self,state,uk):
 
