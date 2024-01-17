@@ -5,8 +5,9 @@ matplotlib
 jupyterlab
 gymnasium
 casadi
-jax
+jax[cpu]
 equinox
 diffrax
 torch
 stable-baselines3
+mkdocs-material

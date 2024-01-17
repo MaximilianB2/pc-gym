@@ -12,8 +12,9 @@ dependencies:
   - pytorch::pytorch
   - pip:
     - casadi
-    - jax
+    - jax[cpu]
     - equinox
     - diffrax
     - gymnasium
     - stable-baselines3
+    - mkdocs-material
