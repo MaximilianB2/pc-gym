@@ -39,9 +39,11 @@ class integration_engine:
     def jax_step(self, state, uk):
         t0 = 0.0
         tf = self.env.dt
-        dt0 = self.env.dt / 10
+        dt0 = self.env.dt / 2
+
         y0 = jnp.array(state[:self.env.Nx]) # Only pass the states of the model (exclude the setpoints)
         uk = jnp.array(uk)
+
         solution = diffeqsolve(self.jax_ode, self.jax_solver, t0, tf, dt0, y0, args=uk)
         return solution.ys[-1, :]  # return only final state
 

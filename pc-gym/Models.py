@@ -40,6 +40,7 @@ class Models_env(gym.Env):
         self.integration_method = env_params['integration_method']
         self.done = False
 
+        
 
         #Constraints
         self.constraint_active = False
@@ -85,7 +86,7 @@ class Models_env(gym.Env):
             raise ValueError(f"Model '{env_params['model']}' not found in model_mapping.")
         
         
-        self.reset()
+       
     
     def reset(self, seed=None):
         """
@@ -93,7 +94,7 @@ class Models_env(gym.Env):
 
         Returns the state of the system
         """
-        
+        self.int_eng = integration_engine(Models_env,self.env_params)
         self.state = self.x0
         self.t = 0
         self.done = False
@@ -140,7 +141,7 @@ class Models_env(gym.Env):
             Fk = integration_engine(Models_env, self.env_params).casadi_step(self.state,uk)
             self.state[:self.Nx] = np.array(Fk['xf'].full()).reshape(self.Nx)
         elif self.integration_method == 'jax':
-            self.state[:self.Nx] = integration_engine(Models_env, self.env_params).jax_step(self.state,uk)
+            self.state[:self.Nx] = self.int_eng.jax_step(self.state,uk)
         # Check if constraints are violated
         
         constraint_violated = False
