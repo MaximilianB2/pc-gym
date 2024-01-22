@@ -37,7 +37,7 @@ class policy_eval():
         
         total_reward = 0
         states = np.zeros((self.env.x0.shape[0], self.env.N))
-        actions = np.zeros((self.env.action_space.low.shape[0], self.env.N))
+        actions = np.zeros((self.env.env_params['a_space']['low'].shape[0], self.env.N))
 
         o, _ = self.env.reset()
         for i in range(self.env.N):
@@ -62,7 +62,7 @@ class policy_eval():
             
             '''
             states = np.zeros((self.env.x0.shape[0],self.env.N,self.reps))
-            actions = np.zeros((self.env.Nu,self.env.N,self.reps))
+            actions = np.zeros((self.env.env_params['a_space']['low'].shape[0],self.env.N,self.reps))
             rew = np.zeros((self.env.N,self.reps))
             for r_i in range(self.reps):
                 rew[:,r_i], states[:,:,r_i], actions[:,:,r_i] = self.rollout()

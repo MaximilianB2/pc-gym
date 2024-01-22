@@ -1,22 +1,23 @@
 import numpy as np
+import jax.numpy as jnp
+
 
 '''
 This file contains the case studies models, action normalisation and default disturbance values.
 '''
-#Define the action normalisation for each case study
-action_norms = {  'cstr_ode':{'high': 303, 'low': 297},
-                 }
+
 #Default values for disturbance variables
-default_values = {  'cstr_ode':{'0': 350, '1': 1}, }
+default_values = {'cstr_ode':{'0': 350, '1': 1}, # '0' = Tf, '1' = Caf
+                  'multistage_extraction_ode':{'0': 0.6, '1': 0.05}} # '0' = X0, '1' = Y6
+                    
 
 #Add default values for other case studies here
-                    # 'first_order_system_ode':,
-                    # 'second_order_system_ode': ,
+                                        # 'second_order_system_ode': ,
                     # 'large_scale_ode': ,
                     # 'cstr_series_recycle_ode': ,
                     # 'cstr_series_recycle_two_ode': ,
                     # 'distillation_ode': ,
-                    # 'multistage_extraction_ode': ,
+                    # 
                     # 'multistage_extraction_reactive_ode': ,
                     # 'heat_ex_ode': ,
                     # 'biofilm_reactor_ode': ,
@@ -44,7 +45,7 @@ def cstr_ode(x,u):
 
     ###Model equations###
     ca,T = x[0],x[1]
-    
+         
     if u.shape == (1,1):
         Tc = u[0]
     else:
@@ -55,6 +56,34 @@ def cstr_ode(x,u):
     dxdt = [
         q/V*(caf-ca) - rA,
         q/V*(Ti-T) + ((-deltaHr)*rA)*(1/(rho*C)) + UA*(Tc-T)*(1/(rho*C*V))]
+
+    return dxdt
+def cstr_ode_jax(x,u):
+    
+    #defines cstr ode model 
+
+    ###Parameters### (May want to pass these externally)
+    q = 100 #m3/s
+    V = 100 #m3
+    rho = 1000 #kg/m3
+    C = 0.239 #Joules/kg K
+    deltaHr = -5e4 #Joules/kg K
+    EA_over_R = 8750 #K 
+    k0 = 7.2e10 #1/sec
+    UA = 5e4 # W/K
+    Ti = 350 #K
+    caf = 1
+
+    ###Model equations###
+    ca,T = x[0],x[1]
+         
+    Tc = u[0]
+
+  
+    rA = k0 * jnp.exp(-EA_over_R/T)*ca
+    dxdt = jnp.array([
+        q/V*(caf-ca) - rA,
+        q/V*(Ti-T) + ((-deltaHr)*rA)*(1/(rho*C)) + UA*(Tc-T)*(1/(rho*C*V))])
 
     return dxdt
 
@@ -321,7 +350,10 @@ def multistage_extraction_ode(x, u):
     X0 = 0.6 #Feed concentration of liquid
     Y6 = 0.05 #Feed conc of gas
 
-
+    if u.shape == (2,1):
+        L, G = u[0], u[1]
+    else:
+        L, G, X0, Y6 = u[0], u[1], u[2], u[3]
     ###Model Equations###
 
     ##States##
@@ -334,7 +366,7 @@ def multistage_extraction_ode(x, u):
     #L - Liquid flowrate m3/hr
     #G - Gas flowrate m3/hr
 
-    L, G = u[0], u[1]
+   
 
     X1_eq = ((Y1**eq_exponent)/m)
     X2_eq = ((Y2**eq_exponent)/m)

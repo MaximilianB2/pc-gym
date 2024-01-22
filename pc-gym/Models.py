@@ -37,6 +37,7 @@ class Models_env(gym.Env):
         self.r_scale = env_params['r_scale']
         self.normalise_a = env_params['normalise_a']
         self.normalise_o = env_params['normalise_o']
+        self.integration_method = env_params['integration_method']
         self.done = False
 
 
@@ -73,7 +74,8 @@ class Models_env(gym.Env):
         'heat_ex_ode': heat_ex_ode,
         'biofilm_reactor_ode': biofilm_reactor_ode,
         'polymerisation_ode': polymerisation_ode,
-        'four_tank_ode': four_tank_ode
+        'four_tank_ode': four_tank_ode,
+        'cstr_ode_jax': cstr_ode_jax,
         }   
 
         self.model = model_mapping.get(env_params['model'], None)
@@ -134,9 +136,11 @@ class Models_env(gym.Env):
             uk = action  # Add action to control vector
 
         # Simulate one timestep
-        Fk = integration_engine(Models_env, self.env_params).casadi_step(self.state,uk)
-        self.state[:self.Nx] = np.array(Fk['xf'].full()).reshape(self.Nx)
-
+        if self.integration_method == 'casadi':
+            Fk = integration_engine(Models_env, self.env_params).casadi_step(self.state,uk)
+            self.state[:self.Nx] = np.array(Fk['xf'].full()).reshape(self.Nx)
+        elif self.integration_method == 'jax':
+            self.state[:self.Nx] = integration_engine(Models_env, self.env_params).jax_step(self.state,uk)
         # Check if constraints are violated
         
         constraint_violated = False
@@ -156,6 +160,7 @@ class Models_env(gym.Env):
        
         # Update timestep
         self.t += 1
+    
         if self.t == self.N:
             self.done = True
       
