@@ -5,7 +5,23 @@ import gymnasium as gym
 from gymnasium import  spaces
 import torch
 import matplotlib.pyplot as plt
-from case_studies import *
+from case_studies import (
+        default_values,
+        cstr_ode,
+        first_order_system_ode,
+        second_order_system_ode,
+        large_scale_ode,
+        cstr_series_recycle_ode,
+        cstr_series_recycle_two_ode,
+        distillation_ode,
+        multistage_extraction_ode,
+        multistage_extraction_reactive_ode,
+        heat_ex_ode,
+        biofilm_reactor_ode,
+        polymerisation_ode,
+        four_tank_ode,
+        cstr_ode_jax,
+)
 from Policy_Evaluation import policy_eval
 from Integrator import integration_engine
     
@@ -20,7 +36,7 @@ class Models_env(gym.Env):
         
         self.env_params = env_params
         # Define action and observation space
-        if env_params['normalise_a'] == True:
+        if env_params['normalise_a'] is True:
             self.action_space = spaces.Box(low = np.array([-1]*env_params['a_space']['low'].shape[0]), high = np.array([1]*env_params['a_space']['high'].shape[0]))
         else:
             self.action_space = spaces.Box(low=env_params['a_space']['low'],high = env_params['a_space']['high'])
@@ -123,7 +139,7 @@ class Models_env(gym.Env):
         
         # Create control vector 
         uk = np.zeros(self.Nu)
-        if self.normalise_a == True:
+        if self.normalise_a is True:
             action = (action + 1)*(self.env_params['a_space']['high'] - self.env_params['a_space']['low'])/2 + self.env_params['a_space']['low']
         
         # Add disturbance to control vector
@@ -166,12 +182,12 @@ class Models_env(gym.Env):
             self.done = True
       
         # add noise to state
-        if self.env_params['noise'] == True:
+        if self.env_params['noise'] is True:
             noise_percentage = self.env_params['noise_percentage']
             self.state[:self.Nx] += np.random.normal(0,1,self.Nx) * self.state[:self.Nx] * noise_percentage
 
 
-        if self.normalise_o == True:
+        if self.normalise_o is True:
             self.normstate = 2 * (self.state - self.observation_space.low) / (self.observation_space.high - self.observation_space.low) - 1
         return self.normstate, rew, self.done, False, self.info
     

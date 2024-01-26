@@ -33,7 +33,8 @@ class integration_engine:
                                                             "model_func", ["x","u"], ["model_rhs"])
         
         if integration_method == 'jax':
-            autonomous_model = lambda t,x,u: jnp.array(self.env.model(x, u))  # ignore time
+            def autonomous_model(t,x,u): # ignore time
+                return jnp.array(self.env.model(x, u)) # ignore time
             self.jax_ode = ODETerm(autonomous_model)
             self.jax_solver = Tsit5() 
             self.t0 = 0.0
