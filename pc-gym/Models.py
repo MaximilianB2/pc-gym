@@ -138,12 +138,12 @@ class Models_env(gym.Env):
 
         # Simulate one timestep
         if self.integration_method == 'casadi':
-            Fk = integration_engine(Models_env, self.env_params).casadi_step(self.state,uk)
+            Fk = self.int_eng.casadi_step(self.state,uk)
             self.state[:self.Nx] = np.array(Fk['xf'].full()).reshape(self.Nx)
         elif self.integration_method == 'jax':
             self.state[:self.Nx] = self.int_eng.jax_step(self.state,uk)
+
         # Check if constraints are violated
-        
         constraint_violated = False
         if self.constraint_active:
             constraint_violated = self.constraint_check(self.state)

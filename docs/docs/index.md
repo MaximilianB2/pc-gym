@@ -6,7 +6,7 @@
 
 ## Welcome to pc-gym 💪
 
-The pc-gym is a suite of environments and tools designed to aid the development of safe-rl algorithms used for chemical process control.
+The process control (pc) gym is a suite of environments and tools designed to aid the development of safe-rl algorithms used for chemical process control.
 
 The pc-gym has been developed to address the lack of chemical process environments setup to test reinforcemnent learning algorithms. However, pc-gym is not only a collection of environements it also allows the user access to constraint violation information, input custom disturbances and visualise the policy's performance. The pc-gym has been developed by a team of researchers in <a href="https://www.imperial.ac.uk/process-systems-engineering">The Sargent Centre for Process Systems Engineering</a>.
 

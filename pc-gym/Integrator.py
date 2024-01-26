@@ -1,6 +1,7 @@
 from casadi import SX, vertcat, Function, integrator
-from diffrax import diffeqsolve, ODETerm, Tsit5  #SaveAt
+from diffrax import diffeqsolve, ODETerm, Tsit5,PIDController  #SaveAt
 import jax.numpy as jnp
+import jax
 
 class integration_engine:
     '''
@@ -30,21 +31,26 @@ class integration_engine:
             self.casadi_sym_model = self.casadify(self.env.model, self.sym_x, self.sym_u)
             self.casadi_model_func = self.gen_casadi_function([self.sym_x, self.sym_u],[self.casadi_sym_model],
                                                             "model_func", ["x","u"], ["model_rhs"])
-            
+        
         if integration_method == 'jax':
             autonomous_model = lambda t,x,u: jnp.array(self.env.model(x, u))  # ignore time
             self.jax_ode = ODETerm(autonomous_model)
-            self.jax_solver = Tsit5()
-
+            self.jax_solver = Tsit5() 
+            self.t0 = 0.0
+            self.tf = self.env.dt
+            self.dt0 = None # adaptive step size
+            self.step_controller = PIDController(rtol=1e-5, atol=1e-5)   
+ 
     def jax_step(self, state, uk):
-        t0 = 0.0
-        tf = self.env.dt
-        dt0 = self.env.dt / 2
+        '''
+        Integrate one time step with JAX.
 
+        input: x0, uk
+        output: x+
+        '''
         y0 = jnp.array(state[:self.env.Nx]) # Only pass the states of the model (exclude the setpoints)
         uk = jnp.array(uk)
-
-        solution = diffeqsolve(self.jax_ode, self.jax_solver, t0, tf, dt0, y0, args=uk)
+        solution = diffeqsolve(self.jax_ode, self.jax_solver, self.t0, self.tf, self.dt0, y0, args=uk,stepsize_controller=self.step_controller)
         return solution.ys[-1, :]  # return only final state
 
     def casadi_step(self,state,uk):
