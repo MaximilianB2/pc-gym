@@ -1,26 +1,24 @@
-# Policy Evaluation Class for pc-gym 
+# Policy Evaluation Class for pc-gym
 import numpy as np
 import matplotlib.pyplot as plt
 
 
-
-
 class policy_eval():
     '''
-    Policy Evaluation Class 
+    Policy Evaluation Class
 
     Inputs: Environment, policy and number of policy repitions
 
     Outputs: Plots of states/control/constraints/setpoints (complete),
-             return distribution (incomplete), expected return (incomplete), 
+             return distribution (incomplete), expected return (incomplete),
              oracle trajectories (incomplete) and lower confidence bounds (incomplete)
     '''
     def __init__(self,Models_env,policy,reps,env_params):
-        self.env = Models_env(env_params) 
-        self.policy = policy 
+        self.env = Models_env(env_params)
+        self.policy = policy
         self.reps = reps
-        
-   
+
+
     def rollout(self):
         '''
         Rollout the policy for N steps and return the total reward, states and actions
@@ -34,7 +32,7 @@ class policy_eval():
             actions - actions obtained from rollout
 
         '''
-        
+
         total_reward = 0
         states = np.zeros((self.env.x0.shape[0], self.env.N))
         actions = np.zeros((self.env.env_params['a_space']['low'].shape[0], self.env.N))
@@ -59,7 +57,7 @@ class policy_eval():
 
             Outputs:
                 Plot of states and actions with setpoints and constraints if they exist]
-            
+
             '''
             states = np.zeros((self.env.x0.shape[0],self.env.N,self.reps))
             actions = np.zeros((self.env.env_params['a_space']['low'].shape[0],self.env.N,self.reps))
@@ -75,7 +73,7 @@ class policy_eval():
             for i in range(self.env.Nx):
                 plt.subplot(self.env.Nx + self.env.Nu+len_d,1,i+1)
                 plt.plot(t, np.median(states[i,:,:],axis=1), 'r-', lw=3,label = 'x_' + str(i))
-                plt.gca().fill_between(t, np.min(states[i,:,:],axis=1), np.max(states[i,:,:],axis=1), 
+                plt.gca().fill_between(t, np.min(states[i,:,:],axis=1), np.max(states[i,:,:],axis=1),
                                 color='r', alpha=0.2 )
                 if str(i) in self.env.SP:
                     plt.plot(t, self.env.SP[str(i)], color = 'black', linestyle = '--', label='Set Point')
@@ -95,9 +93,9 @@ class policy_eval():
                 plt.legend(loc='best')
                 plt.xlim(min(t), max(t))
 
-            if self.env.disturbance_active:       
+            if self.env.disturbance_active:
                 for k in self.env.disturbances.keys():
-                    if self.env.disturbances[k].any() != None:
+                    if self.env.disturbances[k].any() is not None:
                         i=0
                         plt.subplot(self.env.Nx+self.env.Nu+len_d,1,i+self.env.Nx+self.env.Nu-len_d+1)
                         plt.plot(t, self.env.disturbances[k],"r",label='d_'+str(i))

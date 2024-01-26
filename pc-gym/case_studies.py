@@ -9,7 +9,7 @@ This file contains the case studies models, action normalisation and default dis
 #Default values for disturbance variables
 default_values = {'cstr_ode':{'0': 350, '1': 1}, # '0' = Tf, '1' = Caf
                   'multistage_extraction_ode':{'0': 0.6, '1': 0.05}} # '0' = X0, '1' = Y6
-                    
+
 
 #Add default values for other case studies here
                                         # 'second_order_system_ode': ,
@@ -17,19 +17,19 @@ default_values = {'cstr_ode':{'0': 350, '1': 1}, # '0' = Tf, '1' = Caf
                     # 'cstr_series_recycle_ode': ,
                     # 'cstr_series_recycle_two_ode': ,
                     # 'distillation_ode': ,
-                    # 
+                    #
                     # 'multistage_extraction_reactive_ode': ,
                     # 'heat_ex_ode': ,
                     # 'biofilm_reactor_ode': ,
                     # 'polymerisation_ode': ,
-                    # 'four_tank_ode': 
+                    # 'four_tank_ode':
 
 
 
 # Define the case studies
 
 def cstr_ode(x,u):
-    #defines cstr ode model 
+    #defines cstr ode model
 
     ###Parameters### (May want to pass these externally)
     q = 100 #m3/s
@@ -37,7 +37,7 @@ def cstr_ode(x,u):
     rho = 1000 #kg/m3
     C = 0.239 #Joules/kg K
     deltaHr = -5e4 #Joules/kg K
-    EA_over_R = 8750 #K 
+    EA_over_R = 8750 #K
     k0 = 7.2e10 #1/sec
     UA = 5e4 # W/K
     Ti = 350 #K
@@ -45,13 +45,13 @@ def cstr_ode(x,u):
 
     ###Model equations###
     ca,T = x[0],x[1]
-         
+
     if u.shape == (1,1):
         Tc = u[0]
     else:
         Tc,Ti,caf = u[0],u[1],u[2]
 
-  
+
     rA = k0 * np.exp(-EA_over_R/T)*ca
     dxdt = [
         q/V*(caf-ca) - rA,
@@ -59,8 +59,8 @@ def cstr_ode(x,u):
 
     return dxdt
 def cstr_ode_jax(x,u):
-    
-    #defines cstr ode model 
+
+    #defines cstr ode model
 
     ###Parameters### (May want to pass these externally)
     q = 100 #m3/s
@@ -68,7 +68,7 @@ def cstr_ode_jax(x,u):
     rho = 1000 #kg/m3
     C = 0.239 #Joules/kg K
     deltaHr = -5e4 #Joules/kg K
-    EA_over_R = 8750 #K 
+    EA_over_R = 8750 #K
     k0 = 7.2e10 #1/sec
     UA = 5e4 # W/K
     Ti = 350 #K
@@ -76,10 +76,10 @@ def cstr_ode_jax(x,u):
 
     ###Model equations###
     ca,T = x[0],x[1]
-         
+
     Tc = u[0]
 
-  
+
     rA = k0 * jnp.exp(-EA_over_R/T)*ca
     dxdt = jnp.array([
         q/V*(caf-ca) - rA,
@@ -108,12 +108,12 @@ def second_order_system_ode(x,u):
     tau = 0.5
     zeta = 0.25
 
-    #Model Equations 
+    #Model Equations
     x, dxdt = x[0], x[1]
 
     dzdt = [
         dxdt,
-        (K*u - x - 2*zeta*tau*dxdt) * (1/(tau**2))  
+        (K*u - x - 2*zeta*tau*dxdt) * (1/(tau**2))
         ]
 
     return dzdt
@@ -130,20 +130,20 @@ def large_scale_ode(x, u):
     k_2 = 0.0167 #Rate constant
     A_R = 5 #Vessel area
     A_M = 10 #Vessel area
-    A_B = 5 #Vessel area  
+    A_B = 5 #Vessel area
     x1_O = 1.00
 
     ###Model Equations###
 
     ##States##
     #H_R - Liquid level of reactor
-    #x1_R - Molar liquid fraction of component 1 in reactor 
-    #x2_R - Molar liquid fraction of component 2 in reactor 
-    #x3_R - Molar liquid fraction of component 3 in reactor 
+    #x1_R - Molar liquid fraction of component 1 in reactor
+    #x2_R - Molar liquid fraction of component 2 in reactor
+    #x3_R - Molar liquid fraction of component 3 in reactor
     #H_M - Liquid level of storage tank
-    #x1_M - Molar liquid fraction of component 1 in storage tank 
+    #x1_M - Molar liquid fraction of component 1 in storage tank
     #x2_M - Molar liquid fraction of component 2 in storage tank
-    #x3_M - Molar liquid fraction of component 3 in storage tank 
+    #x3_M - Molar liquid fraction of component 3 in storage tank
     #H_B - Liquid level of flash tank
     #x1_B - Molar liquid fraction of component 1 in bottoms
     #x2_B - Molar liquid fraction of component 2 in bottoms
@@ -192,8 +192,8 @@ def cstr_series_recycle_ode(x, u):
     #https://en.wikipedia.org/wiki/Belousov%E2%80%93Zhabotinsky_reaction
 
     #Parameters
-    V1 = 400 
-    V2 = 300 
+    V1 = 400
+    V2 = 300
     f = 1
     s = 77.27
     q = 8.375-6
@@ -206,7 +206,7 @@ def cstr_series_recycle_ode(x, u):
     ###Model Equations###
 
     ##States##
-    #X1 - Reactant X in reactor 1 
+    #X1 - Reactant X in reactor 1
     #Y1 - Reactant Y in reactor 1
     #Z1 - Reactant Z in reactor 1
     #X2 - Reactant X in reactor 2
@@ -254,7 +254,7 @@ def cstr_series_recycle_two_ode(x, u):
     ###Model Equations###
 
     ##States##
-    #C1 - Reactant 1 in reactor 1 
+    #C1 - Reactant 1 in reactor 1
     #T1 - Temp in reactor 1
     #C2 - Reactant 1 in reactor 2
     #T2 - Temp in reactor 2
@@ -331,7 +331,7 @@ def distillation_ode(x, u):
         (1/M) * (L_dash*(Xf-X4) + V_dash*(Y5-Y4)), #Plate 4
         (1/M) * (L_dash*(X4-X5) + V_dash*(Y6-Y5)), #Plate 5
         (1/M) * (L_dash*(X5-X6) + V_dash*(Yb-Y6)), #Plate 6
-        (1/Mb) * (L_dash*X6 - W*Xb - V_dash*Yb) #Reboiler 
+        (1/Mb) * (L_dash*X6 - W*Xb - V_dash*Yb) #Reboiler
         ]
 
     return dxdt
@@ -345,7 +345,7 @@ def multistage_extraction_ode(x, u):
     Vl = 5 #Liquid volume in each stage
     Vg = 5 #Gas volume in each stage
     m = 1 #Equilibrium constant [-]
-    Kla = 5 #Mass transfer capacity constant 1/hr 
+    Kla = 5 #Mass transfer capacity constant 1/hr
     eq_exponent = 2 #Change the nonlinearity of the equilibrium relationship
     X0 = 0.6 #Feed concentration of liquid
     Y6 = 0.05 #Feed conc of gas
@@ -366,7 +366,7 @@ def multistage_extraction_ode(x, u):
     #L - Liquid flowrate m3/hr
     #G - Gas flowrate m3/hr
 
-   
+
 
     X1_eq = ((Y1**eq_exponent)/m)
     X2_eq = ((Y2**eq_exponent)/m)
@@ -390,7 +390,7 @@ def multistage_extraction_ode(x, u):
         (1/Vl)*(L * (X3 - X4) - Q4),
         (1/Vg)*(G * (Y5 - Y4) + Q4),
         (1/Vl)*(L * (X4 - X5) - Q5),
-        (1/Vg)*(G * (Y6 - Y5) + Q5), 
+        (1/Vg)*(G * (Y6 - Y5) + Q5),
         ]
 
     return dxdt
@@ -408,8 +408,8 @@ def multistage_extraction_reactive_ode(x, u):
     Vl = 5 #Liquid volume in each stage
     Vg = 5 #Gas volume in each stage
     m = 1 #Equilibrium constant [-]
-    Kla = 0.01 #Mass transfer capacity constant 1/hr 
-    k = 0.1 #reaction equilibrium constant 
+    Kla = 0.01 #Mass transfer capacity constant 1/hr
+    k = 0.1 #reaction equilibrium constant
     eq_exponent = 2 #Change the nonlinearity of the equilibrium relationship
     XA0 = 2.00 #Feed concentration of component A in liquid phase
     YA6 = 0.00 #Feed conc of component A in gas phase
@@ -575,7 +575,7 @@ def heat_ex_ode(x, u):
 
 def biofilm_reactor_ode(x, u):
     #Based on Ingham pg 569 (547)
-    #a fluidised biofilm sand bed reactor for nitrification, as investigated by Tanaka et al. (1981), 
+    #a fluidised biofilm sand bed reactor for nitrification, as investigated by Tanaka et al. (1981),
     #is modelled as three tanks-in-series with a recycle loop (Fig. 1).
     #More info in pages
     #https://onlinelibrary.wiley.com/doi/epdf/10.1002/bit.260230803
@@ -619,7 +619,7 @@ def biofilm_reactor_ode(x, u):
     #Si_F - Nitrogen  compound i in feed stream, F, to absorber
     F, Fr, S1_F, S2_F, S3_F = u[0], u[1], u[2], u[3], u[4]
 
-    #Reaction rates and stoichiometry 
+    #Reaction rates and stoichiometry
     r1_1 = ((vm_1 * S1_1)/(K1 + S1_1)) * ((O_1)/(KO_1 + O_1))
     r2_1 = ((vm_2 * S2_1)/(K2 + S2_1)) * ((O_1)/(KO_2 + O_1))
     ro_1 = -r1_1 * 3.5 - r2_1 *1.1
@@ -670,7 +670,7 @@ def biofilm_reactor_ode(x, u):
 
 
 def polymerisation_ode(x, u):
-    #We are using a simplified model as per Ingham pg 332 (310) but 
+    #We are using a simplified model as per Ingham pg 332 (310) but
     #based on https://reader.elsevier.com/reader/sd/pii/0009250981801741?token=FB9B6D3024D079EF7764FE6C1D6DD504F88AC920171DAC207B160DE945D789A9F8255D9466C6709844990B5902DE52D5&originRegion=eu-west-1&originCreation=20220926101218
     #and the reference in Ingham and the main reason for interest is that its typically used as a benchmark problem for
     #large scale systems: https://reader.elsevier.com/reader/sd/pii/S0098135414001938?token=686A3316355AB1A4C0BA7325C0B8F0FA4A5FF45AAA4E0485CC7AFA9EAAFA26A76D0DD7D8BA11D0D46861E7524A800905&originRegion=eu-west-1&originCreation=20220926101053
@@ -703,7 +703,7 @@ def polymerisation_ode(x, u):
     #M - Monomer concentration [kmol/m3]
     #I - Initiator concetration [kmol/m3]
     #X - Degree of polymerisation or average chain length [-]
-    #We are ignorning the solvent 
+    #We are ignorning the solvent
 
     T, M, I = x[0], x[1], x[2]
 

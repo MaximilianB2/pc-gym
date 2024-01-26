@@ -9,15 +9,15 @@ class integration_engine:
 
     Inputs: Environment, x0, dt,u_t
 
-    Output: x+  
+    Output: x+
     '''
 
     def __init__(self,Models_env,env_params):
         self.env = Models_env(env_params)
         integration_method = env_params['integration_method']
-        
+
         assert integration_method in ['jax', 'casadi'], "integration_method must be either 'jax' or 'casadi'"
-        
+
         # NOTE common ode model signature
         # all self.env.model currently have the signature ODE(states, controls)
         # diffrax expects the signature ode(t, states, params)
@@ -26,13 +26,14 @@ class integration_engine:
         if integration_method == 'casadi':
             # Generate casadi model
             self.sym_x = self.gen_casadi_variable(self.env.Nx, "x")
-            self.sym_u = self.gen_casadi_variable(self.env.Nu, "u")    
+            self.sym_u = self.gen_casadi_variable(self.env.Nu, "u")
             self.casadi_sym_model = self.casadify(self.env.model, self.sym_x, self.sym_u)
             self.casadi_model_func = self.gen_casadi_function([self.sym_x, self.sym_u],[self.casadi_sym_model],
                                                             "model_func", ["x","u"], ["model_rhs"])
-            
+
         if integration_method == 'jax':
-            autonomous_model = lambda t,x,u: jnp.array(self.env.model(x, u))  # ignore time
+            def autonomous_model(t,x,u): # ignore time
+                return jnp.array(self.env.model(x, u))
             self.jax_ode = ODETerm(autonomous_model)
             self.jax_solver = Tsit5()
 
@@ -57,7 +58,7 @@ class integration_engine:
         '''
         plant_func = self.casadi_model_func
         discretised_plant = self.discretise_model(plant_func, self.env.dt)
-      
+
         xk = state[:self.env.Nx]
         Fk = discretised_plant(x0=xk, p=uk)
         return Fk
@@ -66,10 +67,10 @@ class integration_engine:
         """
         Given a model with Nx states and Nu inputs and returns rhs of ode,
         return casadi symbolic model (Not function!)
-        
+
         Inputs:
             model - model to be casidified i.e. a list of ode rhs of size Nx
-            
+
         Outputs:
             dxdt - casadi symbolic model of size Nx of rhs of ode
         """
@@ -84,11 +85,11 @@ class integration_engine:
     def gen_casadi_variable(self, n_dim, name = "x"):
         """
         Generates casadi symbolic variable given n_dim and name for variable
-        
+
         Inputs:
             n_dim - symbolic variable dimension
             name - name for symbolic variable
-            
+
         Outputs:
             var - symbolic version of variable
         """
@@ -100,28 +101,28 @@ class integration_engine:
     def gen_casadi_function(self, casadi_input, casadi_output, name, input_name=[], output_name=[]):
         """
         Generates a casadi function which maps inputs (casadi symbolic inputs) to outputs (casadi symbolic outputs)
-        
+
         Inputs:
             casadi_input - list of casadi symbolics constituting inputs
             casadi_output - list of casadi symbolic output of function
             name - name of function
             input_name - list of names for each input
             output_name - list of names for each output
-        
+
         Outputs:
             casadi function mapping [inputs] -> [outputs]
-        
+
         """
 
         function = Function(name, casadi_input, casadi_output, input_name, output_name)
 
         return function
-    
+
     def discretise_model(self, casadi_func, delta_t):
         """
         Input:
             casadi_func to be discretised
-        
+
         Output:
             discretised casadi func
         """
@@ -129,10 +130,9 @@ class integration_engine:
         u = SX.sym("u", self.env.Nu)
         xdot = casadi_func(x, u)
 
-        dae = {'x':x, 'p':u, 'ode':xdot} 
+        dae = {'x':x, 'p':u, 'ode':xdot}
         t0 = 0
         tf = delta_t
         discrete_model = integrator('discrete_model', 'cvodes', dae,t0,tf)
 
         return discrete_model
-    
