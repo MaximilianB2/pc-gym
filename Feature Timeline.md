@@ -5,6 +5,7 @@
      - Oracle
      - Return distribution
      - Reproducibility Metric
+     - Real plot axis naming
  - Customisation
     - Model parameters
     - Model Dynamics
