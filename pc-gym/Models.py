@@ -5,23 +5,7 @@ import gymnasium as gym
 from gymnasium import  spaces
 import torch
 import matplotlib.pyplot as plt
-from case_studies import (
-        default_values,
-        cstr_ode,
-        first_order_system_ode,
-        second_order_system_ode,
-        large_scale_ode,
-        cstr_series_recycle_ode,
-        cstr_series_recycle_two_ode,
-        distillation_ode,
-        multistage_extraction_ode,
-        multistage_extraction_reactive_ode,
-        heat_ex_ode,
-        biofilm_reactor_ode,
-        polymerisation_ode,
-        four_tank_ode,
-        cstr_ode_jax,
-)
+from model_classes import *
 from Policy_Evaluation import policy_eval
 from Integrator import integration_engine
     
@@ -70,36 +54,38 @@ class Models_env(gym.Env):
             self.constraint_active = True
             self.info['cons_info'] = np.zeros((len(self.constraints),self.N,1))
 
+    
+
+        #Select model 
+        model_mapping = {
+        'cstr_ode': cstr_ode,
+        # 'first_order_system_ode': first_order_system_ode,
+        # 'second_order_system_ode': second_order_system_ode,
+        # 'large_scale_ode': large_scale_ode,
+        # 'cstr_series_recycle_ode': cstr_series_recycle_ode,
+        # 'cstr_series_recycle_two_ode': cstr_series_recycle_two_ode,
+        # 'distillation_ode': distillation_ode,
+        # 'multistage_extraction_ode': multistage_extraction_ode,
+        # 'multistage_extraction_reactive_ode': multistage_extraction_reactive_ode,
+        # 'heat_ex_ode': heat_ex_ode,
+        # 'biofilm_reactor_ode': biofilm_reactor_ode,
+        # 'polymerisation_ode': polymerisation_ode,
+        # 'four_tank_ode': four_tank_ode,
+        # 'cstr_ode_jax': cstr_ode_jax,
+        }   
+
+        m = model_mapping.get(env_params['model'], None)
+        self.model = m(int_method=self.integration_method)
+        # Handle the case where the model is not found (do this for all)
+        if self.model is None:
+            raise ValueError(f"Model '{env_params['model']}' not found in model_mapping.")
+    
         #Disturbances
         self.disturbance_active = False
         if env_params.get('disturbances') is not None:
             self.disturbance_active = True
             self.disturbances = env_params['disturbances']
-            self.Nu += len(self.disturbances)
-
-        #Select model 
-        model_mapping = {
-        'cstr_ode': cstr_ode,
-        'first_order_system_ode': first_order_system_ode,
-        'second_order_system_ode': second_order_system_ode,
-        'large_scale_ode': large_scale_ode,
-        'cstr_series_recycle_ode': cstr_series_recycle_ode,
-        'cstr_series_recycle_two_ode': cstr_series_recycle_two_ode,
-        'distillation_ode': distillation_ode,
-        'multistage_extraction_ode': multistage_extraction_ode,
-        'multistage_extraction_reactive_ode': multistage_extraction_reactive_ode,
-        'heat_ex_ode': heat_ex_ode,
-        'biofilm_reactor_ode': biofilm_reactor_ode,
-        'polymerisation_ode': polymerisation_ode,
-        'four_tank_ode': four_tank_ode,
-        'cstr_ode_jax': cstr_ode_jax,
-        }   
-
-        self.model = model_mapping.get(env_params['model'], None)
-        
-        # Handle the case where the model is not found (do this for all)
-        if self.model is None:
-            raise ValueError(f"Model '{env_params['model']}' not found in model_mapping.")
+            self.Nu += len(self.model.info()['disturbances'])
         
         
        
@@ -144,11 +130,12 @@ class Models_env(gym.Env):
         
         # Add disturbance to control vector
         if self.disturbance_active:
-            uk[:self.Nu-len(self.disturbances)] = action
-            for i, k in enumerate(self.disturbances, start=0):
-                uk[self.Nu-len(self.disturbances)+i] = self.disturbances[k][self.t]
-                if self.disturbances[k][self.t] == None:
-                    uk[self.Nu-len(self.disturbances)+i] = default_values[self.env_params['model']][str(k)]
+            uk[:self.Nu-len(self.model.info()['disturbances'])] = action # Add action to control vector
+            for i, k in enumerate(self.model.info()['disturbances'], start=0):
+                if k in self.disturbances:
+                    uk[self.Nu-len(self.model.info()['disturbances'])+i] = self.disturbances[k][self.t] # Add disturbance to control vector
+                else:
+                    uk[self.Nu-len(self.model.info()['disturbances'])+i] = self.model.info()['parameters'][str(k)] # if there is no disturbance at this timestep, use the default value
         else:
             uk = action  # Add action to control vector
 
@@ -222,14 +209,15 @@ class Models_env(gym.Env):
         """
 
         constraint_violated = False
-        for c_i in self.constraints:
-            if self.constraints[c_i] is not None:
-                if ((self.cons_type[c_i] == '>=' and state[int(c_i)] <= self.constraints[c_i]) or
-                    (self.cons_type[c_i] == '<=' and state[int(c_i)] >= self.constraints[c_i])):
-                    self.info['cons_info'][int(c_i), self.t, :] = abs(state[int(c_i)] - self.constraints[c_i])
+        for s in self.model.info()['states']:
+            i = 0
+            if s in self.constraints.keys():
+                if ((self.cons_type[s] == '>=' and state[i] <= self.constraints[s]) or
+                    (self.cons_type[s] == '<=' and state[i] >= self.constraints[s])):
+                    self.info['cons_info'][int(s), self.t, :] = abs(state[i] - self.constraints[s])
                     constraint_violated = True
                     self.done = self.done_on_constraint
-                        
+            i += 1 
       
         return constraint_violated
             

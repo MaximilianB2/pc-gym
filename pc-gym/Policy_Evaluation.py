@@ -67,28 +67,28 @@ class policy_eval():
             t = np.linspace(0,self.env.tsim,self.env.N)
             len_d = 0
             if self.env.disturbance_active:
-                len_d = len(self.env.disturbances)
+                len_d = len(self.env.model.info()['disturbances'])
 
             plt.figure(figsize=(10, 2*(self.env.Nx+self.env.Nu+len_d)))
             for i in range(self.env.Nx):
                 plt.subplot(self.env.Nx + self.env.Nu+len_d,1,i+1)
-                plt.plot(t, np.median(states[i,:,:],axis=1), 'r-', lw=3,label = 'x_' + str(i))
+                plt.plot(t, np.median(states[i,:,:],axis=1), 'r-', lw=3,label = self.env.model.info()['states'][i])
                 plt.gca().fill_between(t, np.min(states[i,:,:],axis=1), np.max(states[i,:,:],axis=1),
                                 color='r', alpha=0.2 )
-                if str(i) in self.env.SP:
-                    plt.plot(t, self.env.SP[str(i)], color = 'black', linestyle = '--', label='Set Point')
+                if self.env.model.info()['states'][i] in self.env.SP:
+                    plt.plot(t, self.env.SP[self.env.model.info()['states'][i]], color = 'black', linestyle = '--', label='Set Point')
                 if self.env.constraint_active:
-                    if str(i) in self.env.constraints:
-                        plt.hlines(self.env.constraints[str(i)], 0,self.env.tsim,'r',label='Constraint')
-                plt.ylabel('x_'+str(i))
+                    if self.env.model.info()['states'][i] in self.env.constraints:
+                        plt.hlines(self.env.constraints[self.env.model.info()['states'][i]], 0,self.env.tsim,'r',label='Constraint')
+                plt.ylabel(self.env.model.info()['states'][i])
                 plt.xlabel('Time (min)')
                 plt.legend(loc='best')
                 plt.xlim(min(t), max(t))
 
             for j in range(self.env.Nu-len_d):
                 plt.subplot(self.env.Nx+self.env.Nu+len_d,1,j+self.env.Nx+1)
-                plt.step(t, np.median(actions[j,:,:],axis=1), 'b--', lw=3, label='u_'+str(j))
-                plt.ylabel('u_'+str(j))
+                plt.step(t, np.median(actions[j,:,:],axis=1), 'b--', lw=3, label=self.env.model.info()['inputs'][j])
+                plt.ylabel(self.env.model.info()['inputs'][j])
                 plt.xlabel('Time (min)')
                 plt.legend(loc='best')
                 plt.xlim(min(t), max(t))
@@ -98,9 +98,9 @@ class policy_eval():
                     if self.env.disturbances[k].any() is not None:
                         i=0
                         plt.subplot(self.env.Nx+self.env.Nu+len_d,1,i+self.env.Nx+self.env.Nu-len_d+1)
-                        plt.plot(t, self.env.disturbances[k],"r",label='d_'+str(i))
+                        plt.plot(t, self.env.disturbances[k],"r",label=k)
                         plt.xlabel('Time (min)')
-                        plt.ylabel('d_'+str(i))
+                        plt.ylabel(k)
                         plt.xlim(min(t), max(t))
                         i+=1
 

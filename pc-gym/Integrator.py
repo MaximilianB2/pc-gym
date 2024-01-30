@@ -80,7 +80,7 @@ class integration_engine:
         Outputs:
             dxdt - casadi symbolic model of size Nx of rhs of ode
         """
-
+    
         dxdt = model(sym_x, sym_u)
         dxdt = vertcat(*dxdt) #Return casadi list of size Nx
 
