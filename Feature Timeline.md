@@ -12,7 +12,8 @@
     - Constraint Functions
   - Model Reformulation as Python classes
     - Allow disturbances for JAX models
-    - Expose model details (i.e m.info returns variable names for states, controls etc.) 
+    - Expose model details (i.e m.info returns variable names for states, controls etc.)
+    - Change SP, Constraints, and disturbances to use variable names instead of '0', '1' etc.
 
 ## Feature Ideas
   - Policy evaluation
