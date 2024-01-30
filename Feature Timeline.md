@@ -10,6 +10,8 @@
     - Model Dynamics
     - Constraint Functions
   - Model Reformulation as Python classes
+    - Allow disturbances for JAX models
+    - Expose model details (i.e m.info returns variable names for states, controls etc.) 
 
 ## Feature Ideas
   - Policy evaluation
