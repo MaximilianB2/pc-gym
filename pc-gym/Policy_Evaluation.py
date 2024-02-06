@@ -46,7 +46,7 @@ class policy_eval():
             total_reward += r
 
         return total_reward, states, actions
-
+    
     def plot_rollout(self):
             '''
             Function to plot the rollout of the policy

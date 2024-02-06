@@ -32,7 +32,6 @@ class cstr_ode:
     # JAX requires jnp functions and arrays hence two versions
     if self.int_method == 'jax':
       ca,T = x[0],x[1]
-     
       if u.shape == (1,):
         Tc = u[0]
       else:
@@ -49,13 +48,10 @@ class cstr_ode:
           Tc = u[0]
       else:
           Tc,self.Ti,self.caf = u[0],u[1],u[2]
-
-
       rA = self.k0 * np.exp(-self.EA_over_R/T)*ca
       dxdt = [
           self.q/self.V*(self.caf-ca) - rA,
           self.q/self.V*(self.Ti-T) + ((-self.deltaHr)*rA)*(1/(self.rho*self.C)) + self.UA*(Tc-T)*(1/(self.rho*self.C*self.V))]
-
       return dxdt
     
   def info(self):
