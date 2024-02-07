@@ -87,7 +87,6 @@ class integration_engine:
         return dxdt
 
 
-
     def gen_casadi_variable(self, n_dim, name = "x"):
         """
         Generates casadi symbolic variable given n_dim and name for variable
