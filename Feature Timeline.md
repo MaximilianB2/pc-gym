@@ -3,6 +3,9 @@
 ## For the end of Feb
  - Policy evaluation tool
      - <del>Oracle
+       - IMC Tuned FB controller
+       - Fix Changing initial conditions bug
+       - add offset-free term
      - Return distribution
      - Reproducibility Metric
      - <del>Real plot axis naming
