@@ -2,7 +2,7 @@
 
 ## For the end of Feb
  - Policy evaluation tool
-     - Oracle
+     - <del>Oracle
      - Return distribution
      - Reproducibility Metric
      - <del>Real plot axis naming
