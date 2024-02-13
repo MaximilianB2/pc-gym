@@ -19,6 +19,7 @@ class Models_env(gym.Env):
         '''
         
         self.env_params = env_params
+        
         # Define action and observation space
         if env_params['normalise_a'] is True:
             self.action_space = spaces.Box(low = np.array([-1]*env_params['a_space']['low'].shape[0]), high = np.array([1]*env_params['a_space']['high'].shape[0]))
@@ -30,7 +31,7 @@ class Models_env(gym.Env):
         self.Nx = env_params['Nx']
         self.Nu = env_params['Nu']
         self.SP = env_params['SP']
-        self.dt = env_params['dt']
+        
         self.N = env_params['N']
         self.tsim = env_params['tsim']
         self.x0 = env_params['x0']
@@ -38,6 +39,7 @@ class Models_env(gym.Env):
         self.normalise_a = env_params['normalise_a']
         self.normalise_o = env_params['normalise_o']
         self.integration_method = env_params['integration_method']
+        self.dt =  self.tsim/self.N
         self.done = False
 
         
@@ -97,10 +99,16 @@ class Models_env(gym.Env):
         Returns the state of the system
         """
         self.int_eng = integration_engine(Models_env,self.env_params)
-        self.state = self.x0
+        
+        state = np.array([0.8,330,0.8])
         self.t = 0
         self.done = False
-        return self.state, {}
+        self.state = state
+        if self.normalise_o is True:
+            self.normstate = 2 * (self.state - self.observation_space.low) / (self.observation_space.high - self.observation_space.low) - 1
+            return self.normstate, {}
+        else:
+            return self.state,{}
     
     def step(self, action):
         """
@@ -176,7 +184,9 @@ class Models_env(gym.Env):
 
         if self.normalise_o is True:
             self.normstate = 2 * (self.state - self.observation_space.low) / (self.observation_space.high - self.observation_space.low) - 1
-        return self.normstate, rew, self.done, False, self.info
+            return self.normstate, rew, self.done, False, self.info
+        else:
+            return self.state, rew, self.done, False, self.info
     
     def reward_fn(self, state,c_violated):
         """
@@ -192,11 +202,11 @@ class Models_env(gym.Env):
 
         r = 0.
 
-        for i in range(self.Nx):
-            if str(i) in self.SP:
-                r +=  (-((state[i] - np.array(self.SP[str(i)][self.t]))**2))*self.r_scale[str(i)]
-                if self.r_penalty and c_violated:
-                    r -= 1000
+        for k in self.SP:
+            i = self.model.info()['states'].index(k)
+            r +=  (-((state[i] - np.array(self.SP[k][self.t]))**2))*self.r_scale[k]
+            if self.r_penalty and c_violated:
+                r -= 1000
         return r
     
     def constraint_check(self,state):
@@ -225,8 +235,8 @@ class Models_env(gym.Env):
 
    
 
-    def plot_rollout(self,policy,reps):
-        policy_eval(Models_env,policy,reps,self.env_params).plot_rollout()
+    def plot_rollout(self,policy,reps,oracle = False,dist_reward = False):
+        policy_eval(Models_env,policy,reps,self.env_params,oracle).plot_rollout(dist_reward)
         
 
     
