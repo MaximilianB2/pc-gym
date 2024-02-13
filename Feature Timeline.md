@@ -2,7 +2,7 @@
 
 ## For the end of Feb
  - Policy evaluation tool
-     - <del>Oracle
+     - <del>Oracle </del>
        - IMC Tuned FB controller
        - Fix Changing initial conditions bug
        - add offset-free term
