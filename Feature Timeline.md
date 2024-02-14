@@ -16,7 +16,7 @@
     - <del>Expose model details (i.e m.info returns variable names for states, controls etc.)
     - <del>Change SP, Constraints, and disturbances to use variable names instead of '0', '1' etc.
     - <del>Allow for non-sequential definition of disturbances/constraints
-    - First Order system and Multistage extraction reformulation
+    - <del>First Order system and Multistage extraction reformulation
 
 ## Feature Ideas
   - Policy evaluation
