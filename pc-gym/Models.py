@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from model_classes import *
 from Policy_Evaluation import policy_eval
 from Integrator import integration_engine
+import copy
     
 class Models_env(gym.Env):
     '''
@@ -18,7 +19,7 @@ class Models_env(gym.Env):
         Constructor for the class
         '''
         
-        self.env_params = env_params
+        self.env_params = copy.deepcopy(env_params)
         
         # Define action and observation space
         if env_params['normalise_a'] is True:
@@ -61,13 +62,13 @@ class Models_env(gym.Env):
         #Select model 
         model_mapping = {
         'cstr_ode': cstr_ode,
-        # 'first_order_system_ode': first_order_system_ode,
+        'first_order_system_ode': first_order_system_ode,
         # 'second_order_system_ode': second_order_system_ode,
         # 'large_scale_ode': large_scale_ode,
         # 'cstr_series_recycle_ode': cstr_series_recycle_ode,
         # 'cstr_series_recycle_two_ode': cstr_series_recycle_two_ode,
         # 'distillation_ode': distillation_ode,
-        # 'multistage_extraction_ode': multistage_extraction_ode,
+         'multistage_extraction_ode': multistage_extraction_ode,
         # 'multistage_extraction_reactive_ode': multistage_extraction_reactive_ode,
         # 'heat_ex_ode': heat_ex_ode,
         # 'biofilm_reactor_ode': biofilm_reactor_ode,
@@ -98,17 +99,19 @@ class Models_env(gym.Env):
 
         Returns the state of the system
         """
+        self.t = 0
         self.int_eng = integration_engine(Models_env,self.env_params)
         
-        state = np.array([0.8,330,0.8])
-        self.t = 0
+        state = copy.deepcopy(self.env_params['x0'])
+        r_init = self.reward_fn(state,False)
+        
         self.done = False
         self.state = state
         if self.normalise_o is True:
             self.normstate = 2 * (self.state - self.observation_space.low) / (self.observation_space.high - self.observation_space.low) - 1
-            return self.normstate, {}
+            return self.normstate, {'r_init':r_init}
         else:
-            return self.state,{}
+            return self.state,{'r_init':r_init}
     
     def step(self, action):
         """
@@ -235,8 +238,18 @@ class Models_env(gym.Env):
 
    
 
-    def plot_rollout(self,policy,reps,oracle = False,dist_reward = False):
-        policy_eval(Models_env,policy,reps,self.env_params,oracle).plot_rollout(dist_reward)
+    def plot_rollout(self,policy,reps,oracle = False,dist_reward = False,MPC_params = False):
+        '''
+        Plot the rollout of the given policy.
+
+        Parameters:
+        - policy: The policy to evaluate.
+        - reps: The number of rollouts to perform.
+        - oracle: Whether to use an oracle model for evaluation. Default is False.
+        - dist_reward: Whether to use a distance-based reward. Default is False.
+        - MPC_params: Whether to use MPC parameters. Default is False.
+        '''
+        policy_eval(Models_env,policy,reps,self.env_params,oracle,MPC_params).plot_rollout(dist_reward)
         
 
     

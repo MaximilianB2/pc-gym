@@ -13,14 +13,15 @@ class policy_eval():
              return distribution (incomplete), expected return (incomplete),
              oracle trajectories (incomplete) and lower confidence bounds (incomplete)
     '''
-    def __init__(self,Models_env,policy,reps,env_params, oracle):
+    def __init__(self,Models_env,policy,reps,env_params, oracle,MPC_params = False):
         self.Models_env = Models_env
         self.env_params = env_params
         self.env = Models_env(env_params)
         
         self.policy = policy
         self.reps = reps
-        self.oracle = oracle  
+        self.oracle = oracle
+        self.MPC_params  = MPC_params  
         
 
     def rollout(self):
@@ -41,8 +42,8 @@ class policy_eval():
         s_rollout = np.zeros((self.env.x0.shape[0], self.env.N))
         actions = np.zeros((self.env.env_params['a_space']['low'].shape[0], self.env.N))
         
-        o, _ = self.env.reset()
-        
+        o, r = self.env.reset()
+        total_reward = r['r_init']
         s_rollout[:,0] = (o + 1)*(self.env.env_params['o_space']['high'] - self.env.env_params['o_space']['low'])/2 + self.env.env_params['o_space']['low']
         for i in range(self.env.N-1):
             a, _s = self.policy.predict(o)
@@ -81,13 +82,13 @@ class policy_eval():
                 r_opt = np.zeros((1,self.reps))
                 x_opt = np.zeros((self.env.Nx, self.env.N, self.reps))
                 u_opt = np.zeros((action_space_shape, self.env.N, self.reps))
-                oracle_instance = oracle(self.Models_env, self.env_params)
+                oracle_instance = oracle(self.Models_env, self.env_params,self.MPC_params)
                 for i in range(self.reps):
                     x_opt[:, :, i], u_opt[:, :, i] = oracle_instance.mpc()
                     for k in self.env.SP:
                         state_i = self.env.model.info()['states'].index(k)
-                        r_opt[:,i] += np.sum((x_opt[state_i,:,i] - self.env.SP[k])**2)*-1 
-          
+                        r_opt[:,i] += np.sum((x_opt[state_i,:,i] - self.env.SP[k])**2)*-1*self.env_params['r_scale'][k] 
+                      
             states = np.zeros((num_states, self.env.N, self.reps))
             actions = np.zeros((action_space_shape, self.env.N, self.reps))
             rew = np.zeros((1, self.reps))
