@@ -2,7 +2,7 @@
 
 ## For the end of Feb
  - Policy evaluation tool
-     - <del>Oracle </del>
+     - <del>Oracle </del> MPC with perfect model?
        - IMC Tuned FB controller
        - Fix Changing initial conditions bug
        - add offset-free term
