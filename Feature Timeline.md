@@ -3,9 +3,7 @@
 ## For the end of Feb
  - Policy evaluation tool
      - <del>Oracle </del> MPC with perfect model?
-       - IMC Tuned FB controller
-       - Fix Changing initial conditions bug
-       - add offset-free term
+       - IMC Tuned FB controller (i.e. if MPC fails to converge this could be used as a backup?)
      - <del>Return distribution
      - Reproducibility Metric
      - <del>Real plot axis naming
