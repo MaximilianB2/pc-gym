@@ -13,6 +13,11 @@ import numpy as np
 # to be set when the object is created
 
 # ==== CSTR Model ====#
+
+#Temperature Control of an unstable CSTR reactor.
+# highly exothermic reaction. This is an example of a highly nonlinear process prone to 
+# exponential run-away when the temperature rises too quickly.
+#source: https://apmonitor.com/pdc/index.php/Main/StirredReactor
 @dataclass(frozen=False, kw_only=True)
 class cstr_ode:
   # Parameters
