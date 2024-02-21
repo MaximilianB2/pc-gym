@@ -126,6 +126,9 @@ class policy_eval():
                 plt.step(t, np.median(actions[j,:,:],axis=1), color='tab:red', lw=3, label=self.env.model.info()['inputs'][j])
                 if self.oracle:
                     plt.step(t, np.median(u_opt[j,:,:],axis=1), color='tab:blue', lw=3, label='Oracle '+ str(self.env.model.info()['inputs'][j]))
+                if self.env.constraint_active:
+                    if self.env.model.info()['inputs'][j] in self.env.constraints:
+                        plt.hlines(self.env.constraints[self.env.model.info()['inputs'][j]], 0,self.env.tsim,'r',label='Constraint')
                 plt.ylabel(self.env.model.info()['inputs'][j])
                 plt.xlabel('Time (min)')
                 plt.legend(loc='best')

@@ -45,7 +45,7 @@ class Models_env(gym.Env):
 
         
 
-        #Constraints
+        # Constraints
         self.constraint_active = False
         self.r_penalty = False
         self.info = {}
@@ -56,6 +56,11 @@ class Models_env(gym.Env):
             self.cons_type = env_params['cons_type']
             self.constraint_active = True
             self.info['cons_info'] = np.zeros((len(self.constraints),self.N,1))
+
+        if env_params.get('custom_con') is not None:
+            self.done_on_constraint = env_params['done_on_cons_vio']
+            self.r_penalty = env_params['r_penalty']
+            self.custom_constraint_active = True
 
     
 
@@ -77,8 +82,14 @@ class Models_env(gym.Env):
         # 'cstr_ode_jax': cstr_ode_jax,
         }   
 
-        m = model_mapping.get(env_params['model'], None)
-        self.model = m(int_method=self.integration_method)
+        # Load custom model if it is provide else load the selected standard model.
+        if self.env_params.get('custom_model') is not None:
+            m = self.env_params.get('custom_model')
+        else:
+            m = model_mapping.get(env_params['model'], None)
+        self.model = m(int_method=self.integration_method) # Initialise the model with the selected integration method
+
+
         # Handle the case where the model is not found (do this for all)
         if self.model is None:
             raise ValueError(f"Model '{env_params['model']}' not found in model_mapping.")
@@ -159,8 +170,8 @@ class Models_env(gym.Env):
 
         # Check if constraints are violated
         constraint_violated = False
-        if self.constraint_active:
-            constraint_violated = self.constraint_check(self.state)
+        if self.constraint_active or self.custom_constraint_active:
+            constraint_violated = self.constraint_check(self.state,uk)
         
         # Compute reward
         rew = self.reward_fn(self.state, constraint_violated)
@@ -212,7 +223,35 @@ class Models_env(gym.Env):
                 r -= 1000
         return r
     
-    def constraint_check(self,state):
+    def con_checker(self, items, item_values):
+        """
+        Check constraints for given items and their values.
+
+        Parameters:
+        items (list): A list of items (states or inputs).
+        item_values (list): A list of corresponding item values.
+
+        Returns:
+        bool: True if any constraint is violated, False otherwise.
+        """
+        for i, item in enumerate(items):
+            if item in self.constraints:
+                constraint = self.constraints[item]
+                cons_type = self.cons_type[item]
+                item_value = item_values[i]
+
+                is_greater_violated = cons_type == '>=' and item_value <= constraint
+                is_less_violated = cons_type == '<=' and item_value >= constraint
+
+                if is_greater_violated or is_less_violated:
+                    self.info['cons_info'][self.con_i, self.t, :] = abs(item_value - constraint)
+                    return True
+                self.con_i += 1 
+
+        return False
+    
+
+    def constraint_check(self,state,input):
         """
         Check if constraints are violated and update info array accordingly.
 
@@ -220,18 +259,25 @@ class Models_env(gym.Env):
 
         Outputs: constraint_violated - boolean indicating if constraint is violated
         """
-
+        self.con_i = 0
         constraint_violated = False
-        for s in self.model.info()['states']:
-            i = 0
-            if s in self.constraints.keys():
-                if ((self.cons_type[s] == '>=' and state[i] <= self.constraints[s]) or
-                    (self.cons_type[s] == '<=' and state[i] >= self.constraints[s])):
-                    self.info['cons_info'][int(s), self.t, :] = abs(state[i] - self.constraints[s])
-                    constraint_violated = True
-                    self.done = self.done_on_constraint
-            i += 1 
-      
+        states = self.model.info()['states']
+        inputs = self.model.info()['inputs']
+        if self.env_params.get('custom_con') is not None:
+            custom_con_vio_f = self.env_params['custom_con']
+            custom_con_vio = custom_con_vio_f(state,input) # User defined constraint return True if violated
+            assert isinstance(custom_con_vio, bool), "Custom constraint must return a boolean (True == Violated)"
+        else:
+            custom_con_vio = False
+
+        if self.constraint_active and self.custom_constraint_active:
+            constraint_violated = self.con_checker(states, state) or self.con_checker(inputs, input) or False # Check both inputs and states
+        elif self.constraint_active:
+            constraint_violated = self.con_checker(states, state) or self.con_checker(inputs, input) or False # Check both inputs and states
+        elif self.custom_constraint_active:
+            constraint_violated = custom_con_vio
+
+        self.done = self.done_on_constraint 
         return constraint_violated
             
               
