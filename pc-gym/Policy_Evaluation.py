@@ -59,115 +59,116 @@ class policy_eval():
         return total_reward, s_rollout, actions
     
     def plot_rollout(self,reward_dist = False):
-            '''
-            Function to plot the rollout of the policy
+        '''
+        Function to plot the rollout of the policy
 
-            Inputs:
-                policy - policy to be rolled out
-                reps - number of rollouts to be performed
+        Inputs:
+            policy - policy to be rolled out
+            reps - number of rollouts to be performed
 
-            Outputs:
-                Plot of states and actions with setpoints and constraints if they exist]
+        Outputs:
+            Plot of states and actions with setpoints and constraints if they exist]
 
-            '''
-            try:
-                plt.rcParams['text.usetex'] = True
-            except:
-                plt.rcParams['text.usetex'] = False
+        '''
+        data = {}
+        try:
+            plt.rcParams['text.usetex'] = True
+        except:
+            plt.rcParams['text.usetex'] = False
 
-            action_space_shape = self.env.env_params['a_space']['low'].shape[0]
-            num_states = self.env.x0.shape[0]
+        action_space_shape = self.env.env_params['a_space']['low'].shape[0]
+        num_states = self.env.x0.shape[0]
+
+        if self.oracle:
+            r_opt = np.zeros((1,self.reps))
+            x_opt = np.zeros((self.env.Nx, self.env.N, self.reps))
+            u_opt = np.zeros((action_space_shape, self.env.N, self.reps))
+            oracle_instance = oracle(self.Models_env, self.env_params,self.MPC_params)
+            for i in range(self.reps):
+                x_opt[:, :, i], u_opt[:, :, i] = oracle_instance.mpc()
+                for k in self.env.SP:
+                    state_i = self.env.model.info()['states'].index(k)
+                    r_opt[:,i] += np.sum((x_opt[state_i,:,i] - self.env.SP[k])**2)*-1*self.env_params['r_scale'][k] 
+            data.update({'r_opt':r_opt,'x_opt':x_opt,'u_opt':u_opt})        
+        states = np.zeros((num_states, self.env.N, self.reps))
+        actions = np.zeros((action_space_shape, self.env.N, self.reps))
+        rew = np.zeros((1, self.reps))
+
+        for r_i in range(self.reps):
+            rew[:, r_i], states[:, :, r_i], actions[:, :, r_i] = self.rollout()
+        data.update({'r_RL':rew,'x_RL':states,'u_RL':actions})
+        t = np.linspace(0, self.env.tsim, self.env.N)
+        len_d = 0
+
+        if self.env.disturbance_active:
+            len_d = len(self.env.model.info()['disturbances'])
+
+        plt.figure(figsize=(10, 2*(self.env.Nx+self.env.Nu+len_d)))
+        for i in range(self.env.Nx):
+            plt.subplot(self.env.Nx + self.env.Nu+len_d,1,i+1)
+            plt.plot(t, np.median(states[i,:,:],axis=1), color='tab:red', lw=3,label = self.env.model.info()['states'][i])
+            plt.gca().fill_between(t, np.min(states[i,:,:],axis=1), np.max(states[i,:,:],axis=1), color='tab:red', alpha=0.2, edgecolor = 'none')
+            if self.oracle:
+                plt.plot(t, np.median(x_opt[i,:,:],axis=1), color='tab:blue', lw=3,label = 'Oracle '+ self.env.model.info()['states'][i])
+                plt.gca().fill_between(t, np.min(x_opt[i,:,:],axis=1), np.max(x_opt[i,:,:],axis=1), color='tab:blue', alpha=0.2,edgecolor = 'none' )
+            if self.env.model.info()['states'][i] in self.env.SP:
+                plt.step(t, self.env.SP[self.env.model.info()['states'][i]],where = 'post', color = 'black', linestyle = '--', label='Set Point')
+            if self.env.constraint_active:
+                if self.env.model.info()['states'][i] in self.env.constraints:
+                    plt.hlines(self.env.constraints[self.env.model.info()['states'][i]], 0,self.env.tsim,'r',label='Constraint')
+            plt.ylabel(self.env.model.info()['states'][i])
+            plt.xlabel('Time (min)')
+            plt.legend(loc='best')
+            plt.grid('True')
+            plt.xlim(min(t), max(t))
+
+        for j in range(self.env.Nu-len_d):
+            plt.subplot(self.env.Nx+self.env.Nu+len_d,1,j+self.env.Nx+1)
+            plt.step(t, np.median(actions[j,:,:],axis=1), color='tab:red', lw=3, label=self.env.model.info()['inputs'][j])
+            if self.oracle:
+                plt.step(t, np.median(u_opt[j,:,:],axis=1), color='tab:blue', lw=3, label='Oracle '+ str(self.env.model.info()['inputs'][j]))
+            if self.env.constraint_active:
+                if self.env.model.info()['inputs'][j] in self.env.constraints:
+                    plt.hlines(self.env.constraints[self.env.model.info()['inputs'][j]], 0,self.env.tsim,'r',label='Constraint')
+            plt.ylabel(self.env.model.info()['inputs'][j])
+            plt.xlabel('Time (min)')
+            plt.legend(loc='best')
+            plt.grid('True')
+            plt.xlim(min(t), max(t))
+
+        if self.env.disturbance_active:
+            for k in self.env.disturbances.keys():
+                if self.env.disturbances[k].any() is not None:
+                    i=0
+                    plt.subplot(self.env.Nx+self.env.Nu+len_d,1,i+self.env.Nx+self.env.Nu-len_d+1)
+                    plt.plot(t, self.env.disturbances[k],"r",label=k)
+                    plt.xlabel('Time (min)')
+                    plt.ylabel(k)
+                    plt.xlim(min(t), max(t))
+                    i+=1
+
+        plt.tight_layout()
+        plt.show()
+
+        if reward_dist:
+            min_val = min(r_opt.min(), rew.min())
+            max_val = max(r_opt.max(), rew.max())
+            bins = np.linspace(min_val, max_val, 50)  
+
+            plt.figure(figsize=(12, 8))  
+            plt.grid(True, linestyle='--', alpha=0.6)  
 
             if self.oracle:
-                r_opt = np.zeros((1,self.reps))
-                x_opt = np.zeros((self.env.Nx, self.env.N, self.reps))
-                u_opt = np.zeros((action_space_shape, self.env.N, self.reps))
-                oracle_instance = oracle(self.Models_env, self.env_params,self.MPC_params)
-                for i in range(self.reps):
-                    x_opt[:, :, i], u_opt[:, :, i] = oracle_instance.mpc()
-                    for k in self.env.SP:
-                        state_i = self.env.model.info()['states'].index(k)
-                        r_opt[:,i] += np.sum((x_opt[state_i,:,i] - self.env.SP[k])**2)*-1*self.env_params['r_scale'][k] 
-                      
-            states = np.zeros((num_states, self.env.N, self.reps))
-            actions = np.zeros((action_space_shape, self.env.N, self.reps))
-            rew = np.zeros((1, self.reps))
+                plt.hist(r_opt.flatten(), bins=bins, color='tab:blue', alpha=0.5, label='Oracle', edgecolor='black')  
+            plt.hist(rew.flatten(), bins=bins, color='tab:red', alpha=0.5, label='RL Algorithm', edgecolor='black')  
 
-            for r_i in range(self.reps):
-                rew[:, r_i], states[:, :, r_i], actions[:, :, r_i] = self.rollout()
-            
-            t = np.linspace(0, self.env.tsim, self.env.N)
-            len_d = 0
+            plt.xlabel('Return', fontsize=14)  
+            plt.ylabel('Frequency', fontsize=14)  
+            plt.title('Distribution of Expected Return', fontsize=16)  
+            plt.legend(fontsize=12)  
 
-            if self.env.disturbance_active:
-                len_d = len(self.env.model.info()['disturbances'])
-
-            plt.figure(figsize=(10, 2*(self.env.Nx+self.env.Nu+len_d)))
-            for i in range(self.env.Nx):
-                plt.subplot(self.env.Nx + self.env.Nu+len_d,1,i+1)
-                plt.plot(t, np.median(states[i,:,:],axis=1), color='tab:red', lw=3,label = self.env.model.info()['states'][i])
-                plt.gca().fill_between(t, np.min(states[i,:,:],axis=1), np.max(states[i,:,:],axis=1), color='tab:red', alpha=0.2, edgecolor = 'none')
-                if self.oracle:
-                    plt.plot(t, np.median(x_opt[i,:,:],axis=1), color='tab:blue', lw=3,label = 'Oracle '+ self.env.model.info()['states'][i])
-                    plt.gca().fill_between(t, np.min(x_opt[i,:,:],axis=1), np.max(x_opt[i,:,:],axis=1), color='tab:blue', alpha=0.2,edgecolor = 'none' )
-                if self.env.model.info()['states'][i] in self.env.SP:
-                    plt.step(t, self.env.SP[self.env.model.info()['states'][i]],where = 'post', color = 'black', linestyle = '--', label='Set Point')
-                if self.env.constraint_active:
-                    if self.env.model.info()['states'][i] in self.env.constraints:
-                        plt.hlines(self.env.constraints[self.env.model.info()['states'][i]], 0,self.env.tsim,'r',label='Constraint')
-                plt.ylabel(self.env.model.info()['states'][i])
-                plt.xlabel('Time (min)')
-                plt.legend(loc='best')
-                plt.grid('True')
-                plt.xlim(min(t), max(t))
-
-            for j in range(self.env.Nu-len_d):
-                plt.subplot(self.env.Nx+self.env.Nu+len_d,1,j+self.env.Nx+1)
-                plt.step(t, np.median(actions[j,:,:],axis=1), color='tab:red', lw=3, label=self.env.model.info()['inputs'][j])
-                if self.oracle:
-                    plt.step(t, np.median(u_opt[j,:,:],axis=1), color='tab:blue', lw=3, label='Oracle '+ str(self.env.model.info()['inputs'][j]))
-                if self.env.constraint_active:
-                    if self.env.model.info()['inputs'][j] in self.env.constraints:
-                        plt.hlines(self.env.constraints[self.env.model.info()['inputs'][j]], 0,self.env.tsim,'r',label='Constraint')
-                plt.ylabel(self.env.model.info()['inputs'][j])
-                plt.xlabel('Time (min)')
-                plt.legend(loc='best')
-                plt.grid('True')
-                plt.xlim(min(t), max(t))
-
-            if self.env.disturbance_active:
-                for k in self.env.disturbances.keys():
-                    if self.env.disturbances[k].any() is not None:
-                        i=0
-                        plt.subplot(self.env.Nx+self.env.Nu+len_d,1,i+self.env.Nx+self.env.Nu-len_d+1)
-                        plt.plot(t, self.env.disturbances[k],"r",label=k)
-                        plt.xlabel('Time (min)')
-                        plt.ylabel(k)
-                        plt.xlim(min(t), max(t))
-                        i+=1
-
-            plt.tight_layout()
             plt.show()
 
-            if reward_dist:
-                min_val = min(r_opt.min(), rew.min())
-                max_val = max(r_opt.max(), rew.max())
-                bins = np.linspace(min_val, max_val, 50)  
-
-                plt.figure(figsize=(12, 8))  
-                plt.grid(True, linestyle='--', alpha=0.6)  
-
-                if self.oracle:
-                    plt.hist(r_opt.flatten(), bins=bins, color='tab:blue', alpha=0.5, label='Oracle', edgecolor='black')  
-                plt.hist(rew.flatten(), bins=bins, color='tab:red', alpha=0.5, label='RL Algorithm', edgecolor='black')  
-
-                plt.xlabel('Return', fontsize=14)  
-                plt.ylabel('Frequency', fontsize=14)  
-                plt.title('Distribution of Expected Return', fontsize=16)  
-                plt.legend(fontsize=12)  
-
-                plt.show()
-
-
+        return data
 
     
