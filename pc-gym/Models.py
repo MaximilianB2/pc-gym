@@ -49,6 +49,9 @@ class Models_env(gym.Env):
         self.constraint_active = False
         self.r_penalty = False
         self.info = {}
+
+        self.custom_constraint_active = False  # Initialize to False by default
+        
         if env_params.get('constraints') is not None:
             self.constraints = env_params['constraints']
             self.done_on_constraint = env_params['done_on_cons_vio']
