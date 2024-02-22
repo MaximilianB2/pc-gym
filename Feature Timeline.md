@@ -7,6 +7,7 @@
    - Constraints
 -  Model description inc. hard to operate params/setpoints  
 -  Example Notebooks
+-  Constraint violation plots
 -  Reproducibility Metric
 -  Multi Timescale model
 -  Jose pipeline model
