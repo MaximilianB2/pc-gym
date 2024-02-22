@@ -1,26 +1,15 @@
 # Feature Timeline
 
-## For the end of Feb
- - Policy evaluation tool
-     - <del>Oracle </del> MPC with perfect model?
-  
-     - <del>Return distribution
-     - Reproducibility Metric
-     - <del>Real plot axis naming
- - Customisation
-    - <del> Model parameters
-    - <del> Model Dynamics
-    - <del> Constraint Functions
-    - Cusomisation Documentation
-      - Params
-      - Model
-      - Constraints
-  - Model Reformulation as Python classes
-    - <del>Allow disturbances for JAX models
-    - <del>Expose model details (i.e m.info returns variable names for states, controls etc.)
-    - <del>Change SP, Constraints, and disturbances to use variable names instead of '0', '1' etc.
-    - <del>Allow for non-sequential definition of disturbances/constraints
-    - <del>First Order system and Multistage extraction reformulation
+## Before the first internal tests
+ - Cusomisation Documentation
+   - Params
+   - Model
+   - Constraints
+-  Example Notebooks
+-  Reproducibility Metric
+-  Multi Timescale model
+-  Jose pipeline model
+
 
 ## Feature Ideas
   - Policy evaluation
@@ -35,6 +24,23 @@
        used as a backup?)
     - Option to allow/disallow disturbance and setpoint foresight
   - Other
-    - Internal testing (AC & MM's masters/PhDs?)
     - Ability to specify observable states
     - Leaderboard / Hackathon
+
+## Done 
+ - Policy evaluation tool
+     - <del>Oracle </del> MPC with perfect model?
+     - <del>Return distribution
+     - Reproducibility Metric
+     - <del>Real plot axis naming
+ - Customisation
+    - <del> Model parameters
+    - <del> Model Dynamics
+    - <del> Constraint Functions
+
+  - Model Reformulation as Python classes
+    - <del>Allow disturbances for JAX models
+    - <del>Expose model details (i.e m.info returns variable names for states, controls etc.)
+    - <del>Change SP, Constraints, and disturbances to use variable names instead of '0', '1' etc.
+    - <del>Allow for non-sequential definition of disturbances/constraints
+    - <del>First Order system and Multistage extraction reformulation
