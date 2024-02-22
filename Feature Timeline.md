@@ -29,6 +29,7 @@
     - Plot custom constraints
   - Customisation
     - Reward function
+    - Update MPC to use the control/Custom constraints as currently only does state
   - Oracle
     - IMC Tuned FB controller (i.e. if MPC fails to converge this could be 
        used as a backup?)
