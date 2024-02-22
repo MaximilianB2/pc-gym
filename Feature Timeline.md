@@ -34,5 +34,6 @@
        used as a backup?)
     - Option to allow/disallow disturbance and setpoint foresight
   - Other
+    - Internal testing (AC & MM's masters/PhDs?)
     - Ability to specify observable states
     - Leaderboard / Hackathon
