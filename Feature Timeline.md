@@ -5,6 +5,7 @@
    - Params
    - Model
    - Constraints
+-  Model description inc. hard to operate params/setpoints  
 -  Example Notebooks
 -  Reproducibility Metric
 -  Multi Timescale model
