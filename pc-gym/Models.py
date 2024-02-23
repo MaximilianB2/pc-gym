@@ -82,7 +82,7 @@ class Models_env(gym.Env):
         # 'biofilm_reactor_ode': biofilm_reactor_ode,
         # 'polymerisation_ode': polymerisation_ode,
         # 'four_tank_ode': four_tank_ode,
-        # 'cstr_ode_jax': cstr_ode_jax,
+        'cstr_ode_jax': cstr_ode_jax,
         }   
 
         # Load custom model if it is provide else load the selected standard model.
