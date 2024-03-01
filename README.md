@@ -1,22 +1,25 @@
 # pc-gym
-OpenAi gym for Process Control Problems
+A reinforcement learning gym for process control problems.
 
-## Prerequisites
+## Installation
+We recommend to start from a fresh python environment.
 
-Before installing requirements, ensure you have the following system packages installed (these are required for successfully plotting at the current stage the code is):
+```
+git clone https://github.com/MaximilianB2/pc-gym.git
+cd pc-gym
+```
 
-- LaTeX
-- dvipng
-- CM-Super package
+### Pip
+```
+python -m venv .venv
+source .venv/bin/activate
 
-### Installation on Debian/Ubuntu
+python -m pip install -r requirements.txt 
+```
 
-Run the following commands to install these dependencies:
+### Conda / Mamba
+```
+conda env create -f environment.yml
 
-```bash
-sudo apt-get update
-sudo apt-get install texlive texlive-xetex texlive-latex-extra pandoc cm-super dvipng
-
-
-
-
+conda activate pc-gym
+```
