@@ -107,7 +107,7 @@ class Models_env(gym.Env):
         
        
     
-    def reset(self, seed=None):
+    def reset(self, seed=None, **kwargs):  # Accept arbitrary keyword arguments
         """
         Resets the state of the system and the noise generator
 
