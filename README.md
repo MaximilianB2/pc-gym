@@ -9,10 +9,12 @@ git clone https://github.com/MaximilianB2/pc-gym.git
 cd pc-gym
 ```
 
-### Pip
+### Pip
 ```
 python -m venv .venv
-source .venv/bin/activate
+
+source .venv/bin/activate  # on macOS and Linux
+.venv\Scripts\activate  # on Windows
 
 python -m pip install -r requirements.txt 
 ```
