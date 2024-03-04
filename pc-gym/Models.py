@@ -295,7 +295,7 @@ class Models_env(gym.Env):
         - policy: The policy to evaluate.
         - reps: The number of rollouts to perform.
         - oracle: Whether to use an oracle model for evaluation. Default is False.
-        - dist_reward: Whether to use a distance-based reward. Default is False.
+        - dist_reward: Whether to use reward distribution for plotting. Default is False.
         - MPC_params: Whether to use MPC parameters. Default is False.
         '''
         policy_eval(Models_env,policy,reps,self.env_params,oracle,MPC_params).plot_rollout(dist_reward)
