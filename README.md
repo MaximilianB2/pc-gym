@@ -12,7 +12,10 @@ You can read the full documentation [here](https://maximilianb2.github.io/pc-gym
 
 ## Installation
 
-**TODO**: Provide installation directly from _pyproject.toml_ file config.
+**TODO**:
+Test installation directly from _pyproject.toml_ file config.
+This should allow remote installation from github or local installation in editable mode: `pip install -e .`
+
 Clone this repository and install the dependencies with pip or conda.
 We recommend to start from a fresh python environment.
 
