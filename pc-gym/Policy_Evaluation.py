@@ -140,7 +140,7 @@ class policy_eval():
             for k,i in enumerate(self.env.disturbances.keys()):
                 if self.env.disturbances[k].any() is not None:
                     plt.subplot(self.env.Nx+self.env.Nu+len_d,1,i+self.env.Nx+self.env.Nu-len_d+1)
-                    plt.plot(t, self.env.disturbances[k],"r",label=k)
+                    plt.step(t, self.env.disturbances[k],"r",label=k)
                     plt.xlabel('Time (min)')
                     plt.ylabel(k)
                     plt.xlim(min(t), max(t))
