@@ -137,7 +137,7 @@ class policy_eval():
             plt.xlim(min(t), max(t))
 
         if self.env.disturbance_active:
-            for k,i in enumerate(self.env.disturbances.keys()):
+            for i, k in enumerate(self.env.disturbances.keys()):
                 if self.env.disturbances[k].any() is not None:
                     plt.subplot(self.env.Nx+self.env.Nu+len_d,1,i+self.env.Nx+self.env.Nu-len_d+1)
                     plt.step(t, self.env.disturbances[k],"r",label=k)
