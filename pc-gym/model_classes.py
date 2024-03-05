@@ -41,11 +41,11 @@ class cstr_ode:
       if u.shape == (1,):
         Tc = u[0]
       else:
-         Tc,self.Ti,self.caf = u[0],u[1],u[2]
+         Tc,self.Ti,self.Caf = u[0],u[1],u[2]
       Tc = u[0]
       rA = self.k0 * jnp.exp(-self.EA_over_R/T)*ca
       dxdt = jnp.array([
-          self.q/self.V*(self.caf-ca) - rA,
+          self.q/self.V*(self.Caf-ca) - rA,
           self.q/self.V*(self.Ti-T) + ((-self.deltaHr)*rA)*(1/(self.rho*self.C)) + self.UA*(Tc-T)*(1/(self.rho*self.C*self.V))])
       return dxdt
     else:
@@ -53,10 +53,10 @@ class cstr_ode:
       if u.shape == (1,1):
           Tc = u[0]
       else:
-          Tc,self.Ti,self.caf = u[0],u[1],u[2]
+          Tc,self.Ti,self.Caf = u[0],u[1],u[2]
       rA = self.k0 * np.exp(-self.EA_over_R/T)*ca
       dxdt = [
-          self.q/self.V*(self.caf-ca) - rA,
+          self.q/self.V*(self.Caf-ca) - rA,
           self.q/self.V*(self.Ti-T) + ((-self.deltaHr)*rA)*(1/(self.rho*self.C)) + self.UA*(Tc-T)*(1/(self.rho*self.C*self.V))]
       return dxdt
     
