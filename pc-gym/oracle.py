@@ -127,7 +127,7 @@ class oracle():
         opti.subject_to(x[:, k+1] == F(x[:, k], u[:, k]))
       
       # Control constraints
-      for i in range(self.env.Nu):
+      for i in range(self.env.Nu - self.Nd):
         opti.subject_to(u[i,:] >= self.env_params['a_space']['low'][i])
         opti.subject_to(u[i,:] <= self.env_params['a_space']['high'][i])
       
