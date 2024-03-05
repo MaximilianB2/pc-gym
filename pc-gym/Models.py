@@ -102,7 +102,7 @@ class Models_env(gym.Env):
         if env_params.get('disturbances') is not None:
             self.disturbance_active = True
             self.disturbances = env_params['disturbances']
-            self.Nd = len(self.disturbances)
+            self.Nd = self.model.info()['disturbances']
             self.Nu += self.Nd
         
         
