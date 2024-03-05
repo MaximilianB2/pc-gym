@@ -99,6 +99,7 @@ class Models_env(gym.Env):
     
         #Disturbances
         self.disturbance_active = False
+        self.Nd = 0
         if env_params.get('disturbances') is not None:
             self.disturbance_active = True
             self.disturbances = env_params['disturbances']
