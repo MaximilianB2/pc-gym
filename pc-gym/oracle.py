@@ -96,7 +96,7 @@ class oracle():
       opti = Opti()
       F = self.integrator_gen()
       x = opti.variable(self.env.Nx, self.N+1)
-      u = opti.variable(self.env.Nu, self.N)       
+      u = opti.variable(self.env.Nu - self.env.Nd, self.N)       
       p = opti.parameter(self.env.Nx, 1)
       setpoint = opti.parameter(len(self.env_params['SP']), self.N+1)
     
@@ -165,7 +165,7 @@ class oracle():
       initial_x_values = np.zeros((self.env.Nx, self.N+1))
       initial_x_values = (self.x0[:self.env.Nx]*np.ones((self.N+1,self.env.Nx))).T  
       opti.set_initial(x, initial_x_values)
-      for i in range(self.env.Nu):     
+      for i in range(self.env.Nu - self.env.Nd):     
         opti.set_initial(u[i,:], self.env_params['a_space']['low'][i]*np.ones((1,self.N))) 
      
       # Silence the solver
