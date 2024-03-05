@@ -103,7 +103,7 @@ class Models_env(gym.Env):
             self.disturbance_active = True
             self.disturbances = env_params['disturbances']
             self.Nd = len(self.disturbances)
-            self.Nu += len(self.Nd)
+            self.Nu += self.Nd
         
         
        
