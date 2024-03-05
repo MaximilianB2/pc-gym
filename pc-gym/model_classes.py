@@ -30,7 +30,7 @@ class cstr_ode:
   k0:float = 7.2e10 #1/sec
   UA:float = 5e4 # W/K
   Ti:float = 350 #K
-  caf:float = 1
+  Caf:float = 1
   int_method:str = 'jax'
 
      
