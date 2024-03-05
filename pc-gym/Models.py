@@ -102,7 +102,8 @@ class Models_env(gym.Env):
         if env_params.get('disturbances') is not None:
             self.disturbance_active = True
             self.disturbances = env_params['disturbances']
-            self.Nu += len(self.model.info()['disturbances'])
+            self.Nd = len(self.disturbances)
+            self.Nu += len(self.Nd)
         
         
        
@@ -158,9 +159,9 @@ class Models_env(gym.Env):
             uk[:self.Nu-len(self.model.info()['disturbances'])] = action # Add action to control vector
             for i, k in enumerate(self.model.info()['disturbances'], start=0):
                 if k in self.disturbances:
-                    uk[self.Nu-len(self.model.info()['disturbances'])+i] = self.disturbances[k][self.t] # Add disturbance to control vector
+                    uk[self.Nu-self.Nd+i] = self.disturbances[k][self.t] # Add disturbance to control vector
                 else:
-                    uk[self.Nu-len(self.model.info()['disturbances'])+i] = self.model.info()['parameters'][str(k)] # if there is no disturbance at this timestep, use the default value
+                    uk[self.Nu-self.Nd+i] = self.model.info()['parameters'][str(k)] # if there is no disturbance at this timestep, use the default value
         else:
             uk = action  # Add action to control vector
 
