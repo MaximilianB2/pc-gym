@@ -142,7 +142,7 @@ class policy_eval():
             if self.env.constraint_active:
                 for con_i in self.env.constraints:
                     if self.env.model.info()['inputs'][j] == con_i:
-                        plt.hlines(self.env.constraints[self.env.model.info()['inputs'][j]], 0,self.env.tsim,'r',label='Constraint')
+                        plt.hlines(self.env.constraints[self.env.model.info()['inputs'][j]], 0,self.env.tsim,'black',label='Constraint')
             plt.ylabel(self.env.model.info()['inputs'][j])
             plt.xlabel('Time (min)')
             plt.legend(loc='best')
@@ -153,7 +153,7 @@ class policy_eval():
             for i, k in enumerate(self.env.disturbances.keys()):
                 if self.env.disturbances[k].any() is not None:
                     plt.subplot(self.env.Nx+self.env.Nu+len_d,1,i+self.env.Nx+self.env.Nu-len_d+1)
-                    plt.step(t, self.env.disturbances[k],"r",label=k)
+                    plt.step(t, self.env.disturbances[k], color = 'tab:orange',label=k)
                     plt.xlabel('Time (min)')
                     plt.ylabel(k)
                     plt.xlim(min(t), max(t))

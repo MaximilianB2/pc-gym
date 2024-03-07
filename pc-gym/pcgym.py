@@ -12,7 +12,7 @@ import copy
     
 class Models_env(gym.Env):
     '''
-    Class for Reactor RL-Gym Environment
+    Class for RL-Gym Environment
     '''
     def __init__(self,env_params):
         '''
@@ -29,8 +29,7 @@ class Models_env(gym.Env):
         
         self.observation_space = spaces.Box(low = env_params['o_space']['low'],high = env_params['o_space']['high'])  
         
-        self.Nx = env_params['Nx']
-        self.Nu = env_params['Nu']
+ 
         self.SP = env_params['SP']
         
         self.N = env_params['N']
@@ -99,8 +98,12 @@ class Models_env(gym.Env):
         # Handle the case where the model is not found (do this for all)
         if self.model is None:
             raise ValueError(f"Model '{env_params['model']}' not found in model_mapping.")
-    
-        #Disturbances
+        
+        # Import states and controls from model info
+        self.Nx = len(self.model.info()['states'])
+        self.Nu = len(self.model.info()['inputs'])
+
+        # Disturbances
         self.disturbance_active = False
         self.Nd = 0
         if env_params.get('disturbances') is not None:
