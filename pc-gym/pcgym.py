@@ -20,25 +20,31 @@ class Models_env(gym.Env):
         '''
         
         self.env_params = copy.deepcopy(env_params)
+        try:
+            self.normalise_a = env_params['normalise_a']
+            self.normalise_o = env_params['normalise_o']
+        except:
+            self.normalise_a = True
+            self.normalise_o = True
         
         # Define action and observation space
-        if env_params['normalise_a'] is True:
+        if self.normalise_a is True:
             self.action_space = spaces.Box(low = np.array([-1]*env_params['a_space']['low'].shape[0]), high = np.array([1]*env_params['a_space']['high'].shape[0]))
         else:
             self.action_space = spaces.Box(low=env_params['a_space']['low'],high = env_params['a_space']['high'])
         
         self.observation_space = spaces.Box(low = env_params['o_space']['low'],high = env_params['o_space']['high'])  
-        
- 
         self.SP = env_params['SP']
-        
         self.N = env_params['N']
         self.tsim = env_params['tsim']
         self.x0 = env_params['x0']
-        self.r_scale = env_params['r_scale']
-        self.normalise_a = env_params['normalise_a']
-        self.normalise_o = env_params['normalise_o']
-        self.integration_method = env_params['integration_method']
+
+
+        try :
+            self.integration_method = env_params['integration_method']
+        except:
+            self.integration_method = 'casadi'
+
         self.dt =  self.tsim/self.N
         self.done = False
 
@@ -117,7 +123,7 @@ class Models_env(gym.Env):
     
     def reset(self, seed=None, **kwargs):  # Accept arbitrary keyword arguments
         """
-        Resets the state of the system and the noise generator
+        Resets the state of the system 
 
         Returns the state of the system
         """
@@ -202,9 +208,9 @@ class Models_env(gym.Env):
             self.done = True
       
         # add noise to state
-        if self.env_params['noise'] is True:
-            noise_percentage = self.env_params['noise_percentage']
-            self.state[:self.Nx] += np.random.normal(0,1,self.Nx) * self.state[:self.Nx] * noise_percentage
+        if self.env_params.get('noise', False):
+            noise_percentage = self.env_params.get('noise_percentage', 0)
+            self.state[:self.Nx] += np.random.normal(0, 1, self.Nx) * self.state[:self.Nx] * noise_percentage
 
 
         if self.normalise_o is True:
@@ -229,7 +235,8 @@ class Models_env(gym.Env):
 
         for k in self.SP:
             i = self.model.info()['states'].index(k)
-            r +=  (-((state[i] - np.array(self.SP[k][self.t]))**2))*self.r_scale[k]
+            r_scale = self.env_params.get('r_scale', {})
+            r +=  (-((state[i] - np.array(self.SP[k][self.t]))**2))*r_scale.get(k, 1)
             if self.r_penalty and c_violated:
                 r -= 1000
         return r

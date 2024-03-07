@@ -15,8 +15,10 @@ class integration_engine:
 
     def __init__(self,Models_env,env_params):
         self.env = Models_env(env_params)
-        integration_method = env_params['integration_method']
-        
+        try:
+            integration_method = env_params['integration_method']
+        except:
+            integration_method = 'casadi'
         assert integration_method in ['jax', 'casadi'], "integration_method must be either 'jax' or 'casadi'"
         
         # NOTE common ode model signature

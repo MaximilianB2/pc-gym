@@ -115,7 +115,8 @@ class oracle():
         x_normalized = (x[i,:] - o_space_low) / (o_space_high- o_space_low)
         setpoint_normalized = (setpoint[Sp_i,:] - o_space_low ) / (o_space_high- o_space_low)
        
-        cost += sum1(sum2((x_normalized - setpoint_normalized)**2))*self.env_params['r_scale'][k]  #TODO: Remember to change this when custom rewards are implemented
+        r_scale = self.env_params.get('r_scale', {}) # if no r_scale: set r_scale to 1
+        cost += sum1(sum2((x_normalized - setpoint_normalized)**2))*r_scale.get(k, 1)
         Sp_i += 1
       u_normalized = (u - self.env_params['a_space']['low']) / (self.env_params['a_space']['high'] - self.env_params['a_space']['low'])
 
@@ -208,12 +209,15 @@ class oracle():
               x_log[:,i] = x
           except:
               x_log[:,i] = x.reshape(-1)
-          if self.env_params['noise'] is True:
-            noise_percentage = self.env_params['noise_percentage']
-            try:
-              x += np.random.normal(0,1,(self.env.Nx)) * x * noise_percentage
-            except:
-              x += np.random.normal(0,1,(self.env.Nx,1)) * x * noise_percentage
+          if self.env_params.get('noise', False):
+              noise_percentage = self.env_params.get('noise_percentage', 0)
+              try:
+
+                x += np.random.normal(0,1,(self.env.Nx)) * x * noise_percentage
+
+              except:
+
+                x += np.random.normal(0,1,(self.env.Nx,1)) * x * noise_percentage
           u = M(x).full()
           u_log[:,i] = u[0]
           x = F(x,u).full() 

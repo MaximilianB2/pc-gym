@@ -47,8 +47,7 @@ class policy_eval():
         total_reward = r['r_init']
         s_rollout[:,0] = (o + 1)*(self.env.env_params['o_space']['high'] - self.env.env_params['o_space']['low'])/2 + self.env.env_params['o_space']['low']
         for i in range(self.env.N-1):
-            a, _s = self.policy.predict(o)
-            
+            a, _s = self.policy.predict(o, deterministic = True) # Rollout with a deterministic policy
             o, r, term, trunc, info = self.env.step(a)
             
             actions[:, i] = (a + 1)*(self.env.env_params['a_space']['high'] - self.env.env_params['a_space']['low'])/2 + self.env.env_params['a_space']['low']
@@ -94,7 +93,8 @@ class policy_eval():
                 x_opt[:, :, i], u_opt[:, :, i] = oracle_instance.mpc()
                 for k in self.env.SP:
                     state_i = self.env.model.info()['states'].index(k)
-                    r_opt[:,i] += np.sum((x_opt[state_i,:,i] - self.env.SP[k])**2)*-1*self.env_params['r_scale'][k] 
+                    r_scale = self.env_params.get('r_scale', {})
+                    r_opt[:,i] += np.sum((x_opt[state_i,:,i] - self.env.SP[k])**2)*-1*r_scale.get(k, 1)
             data.update({'r_opt':r_opt,'x_opt':x_opt,'u_opt':u_opt})   
      
         try:
