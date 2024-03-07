@@ -12,8 +12,10 @@ class oracle():
     '''
 
     def __init__(self,env,env_params,MPC_params = False):  
-      self.env = env(env_params)
       self.env_params = env_params
+      self.env_params['integration_method'] = 'casadi'
+      self.env = env(env_params)
+   
       self.x0 = env_params['x0']
       self.T = self.env.tsim
       if not MPC_params:
@@ -127,7 +129,7 @@ class oracle():
         opti.subject_to(x[:, k+1] == F(x[:, k], u[:, k]))
       
       # Control constraints
-      for i in range(self.env.Nu):
+      for i in range(self.env.Nu - self.env.Nd):
         opti.subject_to(u[i,:] >= self.env_params['a_space']['low'][i])
         opti.subject_to(u[i,:] <= self.env_params['a_space']['high'][i])
       
@@ -165,7 +167,7 @@ class oracle():
       initial_x_values = np.zeros((self.env.Nx, self.N+1))
       initial_x_values = (self.x0[:self.env.Nx]*np.ones((self.N+1,self.env.Nx))).T  
       opti.set_initial(x, initial_x_values)
-      for i in range(self.env.Nu):     
+      for i in range(self.env.Nu - self.env.Nd):     
         opti.set_initial(u[i,:], self.env_params['a_space']['low'][i]*np.ones((1,self.N))) 
      
       # Silence the solver

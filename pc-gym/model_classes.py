@@ -30,7 +30,7 @@ class cstr_ode:
   k0:float = 7.2e10 #1/sec
   UA:float = 5e4 # W/K
   Ti:float = 350 #K
-  caf:float = 1
+  Caf:float = 1
   int_method:str = 'jax'
 
      
@@ -41,11 +41,11 @@ class cstr_ode:
       if u.shape == (1,):
         Tc = u[0]
       else:
-         Tc,self.Ti,self.caf = u[0],u[1],u[2]
+         Tc,self.Ti,self.Caf = u[0],u[1],u[2]
       Tc = u[0]
       rA = self.k0 * jnp.exp(-self.EA_over_R/T)*ca
       dxdt = jnp.array([
-          self.q/self.V*(self.caf-ca) - rA,
+          self.q/self.V*(self.Caf-ca) - rA,
           self.q/self.V*(self.Ti-T) + ((-self.deltaHr)*rA)*(1/(self.rho*self.C)) + self.UA*(Tc-T)*(1/(self.rho*self.C*self.V))])
       return dxdt
     else:
@@ -53,10 +53,10 @@ class cstr_ode:
       if u.shape == (1,1):
           Tc = u[0]
       else:
-          Tc,self.Ti,self.caf = u[0],u[1],u[2]
+          Tc,self.Ti,self.Caf = u[0],u[1],u[2]
       rA = self.k0 * np.exp(-self.EA_over_R/T)*ca
       dxdt = [
-          self.q/self.V*(self.caf-ca) - rA,
+          self.q/self.V*(self.Caf-ca) - rA,
           self.q/self.V*(self.Ti-T) + ((-self.deltaHr)*rA)*(1/(self.rho*self.C)) + self.UA*(Tc-T)*(1/(self.rho*self.C*self.V))]
       return dxdt
     
@@ -127,7 +127,7 @@ class multistage_extraction_ode:
       if u.shape == (2,):
         L, G = u[0], u[1]
       else:
-          L, G, X0, Y6 = u[0], u[1], u[2], u[3]
+          L, G, self.X0, self.Y6 = u[0], u[1], u[2], u[3]
       ###Model Equations###
 
       ##States##
@@ -167,7 +167,7 @@ class multistage_extraction_ode:
       if u.shape == (2,1):
         L, G = u[0], u[1]
       else:
-          L, G, X0, Y6 = u[0], u[1], u[2], u[3]
+          L, G, self.X0, self.Y6 = u[0], u[1], u[2], u[3]
       ###Model Equations###
 
       ##States##
