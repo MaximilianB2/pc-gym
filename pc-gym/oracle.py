@@ -12,8 +12,10 @@ class oracle():
     '''
 
     def __init__(self,env,env_params,MPC_params = False):  
-      self.env = env(env_params)
       self.env_params = env_params
+      self.env_params['integration_method'] = 'casadi'
+      self.env = env(env_params)
+   
       self.x0 = env_params['x0']
       self.T = self.env.tsim
       if not MPC_params:
@@ -96,7 +98,7 @@ class oracle():
       opti = Opti()
       F = self.integrator_gen()
       x = opti.variable(self.env.Nx, self.N+1)
-      u = opti.variable(self.env.Nu - self.env.Nd, self.N)       
+      u = opti.variable(self.env.Nu, self.N)       
       p = opti.parameter(self.env.Nx, 1)
       setpoint = opti.parameter(len(self.env_params['SP']), self.N+1)
     

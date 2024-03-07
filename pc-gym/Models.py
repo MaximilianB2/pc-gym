@@ -58,7 +58,10 @@ class Models_env(gym.Env):
             self.r_penalty = env_params['r_penalty']
             self.cons_type = env_params['cons_type']
             self.constraint_active = True
-            self.info['cons_info'] = np.zeros((len(self.constraints),self.N,1))
+            self.n_con = 0
+            for _, con_list in self.constraints.items():
+                self.n_con += len(con_list)
+            self.info['cons_info'] = np.zeros((self.n_con,self.N,1))
 
         if env_params.get('custom_con') is not None:
             self.done_on_constraint = env_params['done_on_cons_vio']
@@ -228,32 +231,32 @@ class Models_env(gym.Env):
                 r -= 1000
         return r
     
-    def con_checker(self, items, item_values):
+    def con_checker(self, model_states, curr_state):
         """
-        Check constraints for given items and their values.
+        Check constraints for given model_states and their values.
 
         Parameters:
-        items (list): A list of items (states or inputs).
-        item_values (list): A list of corresponding item values.
+        model_states (list): A list of model_states (states or inputs).
+        curr_state (list): A list of corresponding item values.
 
         Returns:
         bool: True if any constraint is violated, False otherwise.
         """
-        for i, item in enumerate(items):
-            if item in self.constraints:
-                constraint = self.constraints[item]
-                cons_type = self.cons_type[item]
-                item_value = item_values[i]
+        for i, state in enumerate(model_states):
+            if state in self.constraints:
+                constraint = self.constraints[state] # List of constraints
+                cons_type = self.cons_type[state] # List of cons type
+                for j in range(len(constraint)):
+                
+                    curr_state_i = curr_state[i]
+                    is_greater_violated = cons_type[j] == '>=' and curr_state_i <= constraint[j]
+                    is_less_violated = cons_type[j] == '<=' and curr_state_i >= constraint[j]
 
-                is_greater_violated = cons_type == '>=' and item_value <= constraint
-                is_less_violated = cons_type == '<=' and item_value >= constraint
-
-                if is_greater_violated or is_less_violated:
-                    self.info['cons_info'][self.con_i, self.t, :] = abs(item_value - constraint)
-                    return True
-                self.con_i += 1 
-
-        return False
+                    if is_greater_violated or is_less_violated:
+                        self.info['cons_info'][self.con_i, self.t, :] = abs(curr_state_i - constraint[j])
+                        return True
+                    self.con_i += 1 
+            return False
     
 
     def constraint_check(self,state,input):
@@ -289,7 +292,7 @@ class Models_env(gym.Env):
 
    
 
-    def plot_rollout(self,policy,reps,oracle = False,dist_reward = False,MPC_params = False):
+    def plot_rollout(self, policy, reps, oracle = False, dist_reward = False, MPC_params = False, cons_viol = False):
         '''
         Plot the rollout of the given policy.
 
@@ -300,7 +303,7 @@ class Models_env(gym.Env):
         - dist_reward: Whether to use reward distribution for plotting. Default is False.
         - MPC_params: Whether to use MPC parameters. Default is False.
         '''
-        policy_eval(Models_env,policy,reps,self.env_params,oracle,MPC_params).plot_rollout(dist_reward)
+        policy_eval(Models_env,policy,reps,self.env_params,oracle,MPC_params).plot_rollout(dist_reward, cons_viol)
         
 
     

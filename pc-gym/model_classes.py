@@ -127,7 +127,7 @@ class multistage_extraction_ode:
       if u.shape == (2,):
         L, G = u[0], u[1]
       else:
-          L, G, X0, Y6 = u[0], u[1], u[2], u[3]
+          L, G, self.X0, self.Y6 = u[0], u[1], u[2], u[3]
       ###Model Equations###
 
       ##States##
@@ -167,7 +167,7 @@ class multistage_extraction_ode:
       if u.shape == (2,1):
         L, G = u[0], u[1]
       else:
-          L, G, X0, Y6 = u[0], u[1], u[2], u[3]
+          L, G, self.X0, self.Y6 = u[0], u[1], u[2], u[3]
       ###Model Equations###
 
       ##States##
