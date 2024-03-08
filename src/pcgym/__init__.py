@@ -1,1 +1,1 @@
-from .pcgym import Models_env
+from .pcgym import make_env

@@ -38,35 +38,10 @@ env = pcgym.Models_env(env_params)
 
 You can read the full documentation [here](https://maximilianb2.github.io/pc-gym/)!
 
-## Installation
+## Installation ⏳
 
-**TODO**:
-Test installation directly from _pyproject.toml_ file config.
-This should allow remote installation from github or local installation in editable mode: `pip install -e .`
-
-Clone this repository and install the dependencies with pip or conda.
-We recommend to start from a fresh python environment.
+The latest pc-gym version can be installed from PyPI:
 
 ```bash
-git clone https://github.com/MaximilianB2/pc-gym.git
-cd pc-gym
-```
-
-### Pip
-
-```bash
-python -m venv .venv
-
-source .venv/bin/activate  # on macOS and Linux
-.venv\Scripts\activate  # on Windows
-
-python -m pip install -r requirements.txt
-```
-
-### Conda / Mamba
-
-```bash
-conda env create -f environment.yml
-
-conda activate pc-gym
+pip install pcgym
 ```

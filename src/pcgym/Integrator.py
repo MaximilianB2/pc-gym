@@ -13,8 +13,8 @@ class integration_engine:
     Output: x+  
     '''
 
-    def __init__(self,Models_env,env_params):
-        self.env = Models_env(env_params)
+    def __init__(self,make_env,env_params):
+        self.env = make_env(env_params)
         try:
             integration_method = env_params['integration_method']
         except:

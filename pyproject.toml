@@ -1,6 +1,6 @@
 [project]
 name = "pcgym"
-version = "0.0.5"
+version = "0.0.6"
 description = "Reinforcement learning suite of process control problems."
 requires-python = "~=3.10"
 license = { file = "LICENSE" }

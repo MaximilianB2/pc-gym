@@ -4,11 +4,11 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 from .model_classes import *
-from .Policy_Evaluation import policy_eval
-from .Integrator import integration_engine
+from .policy_Evaluation import policy_eval
+from .integrator import integration_engine
 import copy 
     
-class Models_env(gym.Env):
+class make_env(gym.Env):
     '''
     Class for RL-Gym Environment
     '''
@@ -126,7 +126,7 @@ class Models_env(gym.Env):
         Returns the state of the system
         """
         self.t = 0
-        self.int_eng = integration_engine(Models_env,self.env_params)
+        self.int_eng = integration_engine(make_env,self.env_params)
         
         state = copy.deepcopy(self.env_params['x0'])
         r_init = self.reward_fn(state,False)
@@ -311,7 +311,7 @@ class Models_env(gym.Env):
         - dist_reward: Whether to use reward distribution for plotting. Default is False.
         - MPC_params: Whether to use MPC parameters. Default is False.
         '''
-        policy_eval(Models_env,policy,reps,self.env_params,oracle,MPC_params).plot_rollout(dist_reward, cons_viol)
+        policy_eval(make_env,policy,reps,self.env_params,oracle,MPC_params).plot_rollout(dist_reward, cons_viol)
         
 
     
