@@ -1,6 +1,9 @@
-# pc-gym
+<h1 align="center">
+  <a href="https://github.com/MaximilianB2/pc-gym/blob/main/docs/img/pc-gym-blue-nobg.png">
+    <img src="https://github.com/MaximilianB2/pc-gym/blob/main/docs/img/pc-gym-blue-nobg.png"/></a><br>
+  <b>Reinforcement learning environments for process control applications 🧪</b><br>
+</h1>
 
-Reinforcement learning environments for process control applications.
 
 ## Quick start
 Setup a CSTR environment with a setpoint change
