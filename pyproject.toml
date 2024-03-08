@@ -1,6 +1,6 @@
 [project]
 name = "pcgym"
-version = "0.0.3"
+version = "0.0.4"
 description = "Reinforcement learning suite of process control problems."
 requires-python = "~=3.10"
 license = { file = "LICENSE" }
@@ -26,7 +26,7 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Mathematics",
 ]
 
-
+dynamic = ["dependencies"]
 [project.urls]
 Documentation = "https://maximilianb2.github.io/pc-gym/"
 Repository = "https://github.com/MaximilianB2/pc-gym"
@@ -36,4 +36,5 @@ requires = ["setuptools >= 61.0"]
 build-backend = "setuptools.build_meta"
 
 
+[tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
