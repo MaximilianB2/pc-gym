@@ -1,7 +1,7 @@
 # Policy Evaluation Class for pc-gym
 import numpy as np
 import matplotlib.pyplot as plt
-from oracle import oracle
+from .oracle import oracle
 
 class policy_eval():
     '''

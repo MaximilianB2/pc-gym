@@ -2,13 +2,11 @@ import numpy as np
 from casadi import *
 import numpy as np
 import gymnasium as gym
-from gymnasium import  spaces
-import torch
-import matplotlib.pyplot as plt
-from model_classes import *
-from Policy_Evaluation import policy_eval
-from Integrator import integration_engine
-import copy
+from gymnasium import spaces
+from .model_classes import *
+from .Policy_Evaluation import policy_eval
+from .Integrator import integration_engine
+import copy 
     
 class Models_env(gym.Env):
     '''
