@@ -1,7 +1,7 @@
 <h1 align="center">
   <a href="https://github.com/MaximilianB2/pc-gym/blob/main/docs/img/pc-gym-blue-Ai.png">
     <img src="https://github.com/MaximilianB2/pc-gym/blob/main/docs/img/pc-gym-blue-Ai.png"/></a><br>
-  <b>Reinforcement learning environments for process control 🧪</b><br>
+  <b>Reinforcement learning environments for process control </b><br>
 </h1>
 <p align="center">
       <a href="https://www.python.org/doc/versions/">
