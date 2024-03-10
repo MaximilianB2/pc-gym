@@ -255,7 +255,6 @@ class make_env(gym.Env):
                 constraint = self.constraints[state] # List of constraints
                 cons_type = self.cons_type[state] # List of cons type
                 for j in range(len(constraint)):
-                
                     curr_state_i = curr_state[i]
                     is_greater_violated = cons_type[j] == '>=' and curr_state_i <= constraint[j]
                     is_less_violated = cons_type[j] == '<=' and curr_state_i >= constraint[j]
@@ -264,7 +263,7 @@ class make_env(gym.Env):
                         self.info['cons_info'][self.con_i, self.t, :] = abs(curr_state_i - constraint[j])
                         return True
                     self.con_i += 1 
-            return False
+        return False
     
 
     def constraint_check(self,state,input):
