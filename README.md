@@ -15,6 +15,7 @@
 Setup a CSTR environment with a setpoint change
 
 ```python 
+import pcgym
 
 # Setpoint
 SP = {'Ca': [0.85 for i in range(int(nsteps/2))] + [0.9 for i in range(int(nsteps/2))]} 
