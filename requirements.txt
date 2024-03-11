@@ -3,12 +3,9 @@ numpy
 tqdm
 cloudpickle
 matplotlib
-jupyterlab
 gymnasium
 casadi
 jax[cpu]
 equinox
 diffrax
-torch
-stable-baselines3
-mkdocs-material
+
