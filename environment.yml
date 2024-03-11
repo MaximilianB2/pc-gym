@@ -3,19 +3,9 @@ channels:
   - pytorch
   - conda-forge
 dependencies:
-  - pip
-  - ruff
-  - numpy
-  - tqdm
-  - cloudpickle
-  - matplotlib
   - jupyterlab
   - pytorch::pytorch
   - pip:
-    - casadi
-    - jax[cpu]
-    - equinox
-    - diffrax
-    - gymnasium
+    - pcgym
     - stable-baselines3
     - mkdocs-material
