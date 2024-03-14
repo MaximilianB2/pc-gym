@@ -310,7 +310,14 @@ class make_env(gym.Env):
         - dist_reward: Whether to use reward distribution for plotting. Default is False.
         - MPC_params: Whether to use MPC parameters. Default is False.
         '''
-        policy_eval(make_env,policy,reps,self.env_params,oracle,MPC_params).plot_rollout(dist_reward, cons_viol)
+        # policy_eval(make_env,policy,reps,self.env_params,oracle,MPC_params).plot_rollout(dist_reward, cons_viol)
+
+        # policy_eval's plot_rollout returns a data dictionary
+        data = policy_eval(make_env, policy, reps, self.env_params, oracle, MPC_params).plot_rollout(dist_reward, cons_viol)
+        
+        # Now, 'data' contains the results from the inner plot_rollout
+        # We should be able to log it elsewhere, return it, or otherwise use it here
+        return data
         
 
     
