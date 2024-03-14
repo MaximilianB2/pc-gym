@@ -38,3 +38,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
+
+[project.optional-dependencies]
+optional = ["jupyterlab", "torch", "stable-baselines3", "mkdocs-material"]
