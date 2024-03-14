@@ -13,19 +13,20 @@ class policy_eval():
              return distribution (incomplete), expected return (incomplete),
              oracle trajectories (incomplete) and lower confidence bounds (incomplete)
     '''
-    def __init__(self,make_env,policy,reps,env_params, oracle = False, MPC_params = False):
+    def __init__(self,make_env,policies,reps,env_params, oracle = False, MPC_params = False):
         self.make_env = make_env
         self.env_params = env_params
         self.env = make_env(env_params)
         
-        self.policy = policy
+        self.policies = policies
+        self.n_pi = len(policies)
         self.reps = reps
         self.oracle = oracle
  
         self.MPC_params  = MPC_params  
         
 
-    def rollout(self):
+    def rollout(self,policy_i):
         '''
         Rollout the policy for N steps and return the total reward, states and actions
 
@@ -47,7 +48,7 @@ class policy_eval():
         total_reward = r['r_init']
         s_rollout[:,0] = (o + 1)*(self.env.env_params['o_space']['high'] - self.env.env_params['o_space']['low'])/2 + self.env.env_params['o_space']['low']
         for i in range(self.env.N-1):
-            a, _s = self.policy.predict(o, deterministic = True) # Rollout with a deterministic policy
+            a, _s = policy_i.predict(o, deterministic = True) # Rollout with a deterministic policy
             o, r, term, trunc, info = self.env.step(a)
             
             actions[:, i] = (a + 1)*(self.env.env_params['a_space']['high'] - self.env.env_params['a_space']['low'])/2 + self.env.env_params['a_space']['low']
@@ -58,7 +59,7 @@ class policy_eval():
             cons_info = info['cons_info']
         else:
             cons_info = np.zeros((1,self.env.N,1))
-        a, _s = self.policy.predict(o)
+        a, _s = policy_i.predict(o)
         actions[:,self.env.N-1] = (a + 1)*(self.env.env_params['a_space']['high'] - self.env.env_params['a_space']['low'])/2 + self.env.env_params['a_space']['low']
         
         return total_reward, s_rollout, actions,cons_info
@@ -79,9 +80,7 @@ class policy_eval():
         action_space_shape = self.env.env_params['a_space']['low'].shape[0]
         num_states = self.env.x0.shape[0]
         
-        states = np.zeros((num_states, self.env.N, self.reps))
-        actions = np.zeros((action_space_shape, self.env.N, self.reps))
-        rew = np.zeros((1, self.reps))
+
 
         # Collect Oracle data
         if self.oracle:
@@ -96,18 +95,24 @@ class policy_eval():
                     r_scale = self.env_params.get('r_scale', {})
                     r_opt[:,i] += np.sum((x_opt[state_i,:,i] - self.env.SP[k])**2)*-1*r_scale.get(k, 1)
             data.update({'r_opt':r_opt,'x_opt':x_opt,'u_opt':u_opt})   
-     
-        try:
-            cons_info = np.zeros((self.env.n_con,self.env.N,1,self.reps))
-        except:
-            cons_info = np.zeros((1,self.env.N,1,self.reps))
+      
 
-        # Collect RL rollouts
-        for r_i in range(self.reps):
-            rew[:, r_i], states[:, :, r_i], actions[:, :, r_i], cons_info[:,:,:,r_i]= self.rollout()
-        data.update({'r_RL':rew,'x_RL':states,'u_RL':actions})
-        if self.env.constraint_active:
-            data.update({'cons_viol_RL':cons_info})
+        # Collect RL rollouts for all policies
+        for pi_name, pi_i in self.policies.items():
+            states = np.zeros((num_states, self.env.N, self.reps))
+            actions = np.zeros((action_space_shape, self.env.N, self.reps))
+            rew = np.zeros((1, self.reps))
+            try:
+                cons_info = np.zeros((self.env.n_con,self.env.N,1,self.reps))
+            except:
+                cons_info = np.zeros((1,self.env.N,1,self.reps))
+            for r_i in range(self.reps):
+                rew[:, r_i], states[:, :, r_i], actions[:, :, r_i], cons_info[:,:,:,r_i] = self.rollout(pi_i)
+            data.update({'r_RL_' + pi_name :rew,
+                         'x_RL_' + pi_name: states,
+                         'u_RL_' + pi_name: actions})
+            if self.env.constraint_active:
+                data.update({'cons_viol_RL_' + pi_name: cons_info})
 
         t = np.linspace(0, self.env.tsim, self.env.N)
         len_d = 0
@@ -115,11 +120,16 @@ class policy_eval():
         if self.env.disturbance_active:
             len_d = len(self.env.model.info()['disturbances'])
 
+        col = ['tab:red','tab:purple','tab:olive','tab:gray','tab:cyan']
+        if self.n_pi > len(col):
+            raise ValueError(f"Number of policies ({self.n_pi}) is greater than the number of available colors ({len(col)})")
+    
         plt.figure(figsize=(10, 2*(self.env.Nx+self.env.Nu+len_d)))
         for i in range(self.env.Nx):
             plt.subplot(self.env.Nx + self.env.Nu+len_d,1,i+1)
-            plt.plot(t, np.median(states[i,:,:],axis=1), color='tab:red', lw=3,label = self.env.model.info()['states'][i])
-            plt.gca().fill_between(t, np.min(states[i,:,:],axis=1), np.max(states[i,:,:],axis=1), color='tab:red', alpha=0.2, edgecolor = 'none')
+            for ind, (pi_name, pi_i) in enumerate(self.policies.items()):
+                plt.plot(t, np.median(data['x_RL_' + pi_name][i,:,:], axis=1), color=col[ind], lw=3, label = self.env.model.info()['states'][i] + ' (' + pi_name + ')' )
+                plt.gca().fill_between(t, np.min(data['x_RL_' + pi_name][i,:,:], axis=1), np.max(data['x_RL_' + pi_name][i,:,:], axis=1), color=col[ind], alpha=0.2, edgecolor = 'none')
             if self.oracle:
                 plt.plot(t, np.median(x_opt[i,:,:],axis=1), color='tab:blue', lw=3,label = 'Oracle '+ self.env.model.info()['states'][i])
                 plt.gca().fill_between(t, np.min(x_opt[i,:,:],axis=1), np.max(x_opt[i,:,:],axis=1), color='tab:blue', alpha=0.2,edgecolor = 'none' )
@@ -135,8 +145,9 @@ class policy_eval():
             plt.xlim(min(t), max(t))
 
         for j in range(self.env.Nu-len_d):
-            plt.subplot(self.env.Nx+self.env.Nu+len_d,1,j+self.env.Nx+1)
-            plt.step(t, np.median(actions[j,:,:],axis=1), color='tab:red', lw=3, label=self.env.model.info()['inputs'][j])
+            plt.subplot(self.env.Nx + self.env.Nu + len_d, 1, j+self.env.Nx+1)
+            for ind, (pi_name, pi_i) in enumerate(self.policies.items()):
+                plt.step(t, np.median(data['u_RL_' + pi_name][j,:,:], axis=1), color=col[ind], lw=3, label=self.env.model.info()['inputs'][j] + ' (' + pi_name + ')')
             if self.oracle:
                 plt.step(t, np.median(u_opt[j,:,:],axis=1), color='tab:blue', lw=3, label='Oracle '+ str(self.env.model.info()['inputs'][j]))
             if self.env.constraint_active:
@@ -166,7 +177,8 @@ class policy_eval():
                 for j in range(len(self.env.constraints[str(con)])):
                     plt.subplot(self.env.n_con,1,con_i+1)
                     plt.title(f'{con} Constraint')
-                    plt.step(t, np.sum(cons_info[con_i,:,:,:],axis=2), color = 'tab:green', label = f'{con} Violation (Sum over Repetitions)')
+                    for ind, (pi_name, pi_i) in enumerate(self.policies.items()):
+                        plt.step(t, np.sum(data['cons_viol_RL_' + pi_name][con_i,:,:,:],axis=2), color = col[ind], label = f'{con} ({pi_name}) Violation (Sum over Repetitions)')
                     plt.grid('True')
                     plt.xlabel('Time (min)')
                     plt.ylabel(con)
@@ -177,16 +189,15 @@ class policy_eval():
             plt.show()
 
         if reward_dist:
-            min_val = min(r_opt.min(), rew.min())
-            max_val = max(r_opt.max(), rew.max())
-            bins = np.linspace(min_val, max_val, 50)  
+    
 
             plt.figure(figsize=(12, 8))  
             plt.grid(True, linestyle='--', alpha=0.6)  
-
+            bins = int(self.reps/3) + 1
             if self.oracle:
                 plt.hist(r_opt.flatten(), bins=bins, color='tab:blue', alpha=0.5, label='Oracle', edgecolor='black')  
-            plt.hist(rew.flatten(), bins=bins, color='tab:red', alpha=0.5, label='RL Algorithm', edgecolor='black')  
+            for ind, (pi_name, pi_i) in enumerate(self.policies.items()):
+                plt.hist(data['r_RL_' + pi_name].flatten(), bins=bins, color=col[ind], alpha=0.5, label='RL Algorithm', edgecolor='black')  
 
             plt.xlabel('Return', fontsize=14)  
             plt.ylabel('Frequency', fontsize=14)  
