@@ -117,8 +117,6 @@ class make_env(gym.Env):
             self.Nu += self.Nd
         
         
-       
-    
     def reset(self, seed=None, **kwargs):  # Accept arbitrary keyword arguments
         """
         Resets the state of the system 
@@ -296,8 +294,24 @@ class make_env(gym.Env):
         return constraint_violated
             
               
+    def get_rollouts(self, policies, reps, oracle = False, dist_reward = False, MPC_params = False, cons_viol = False):
+        '''
+        Plot the rollout of the given policy.
 
-   
+        Parameters:
+        - policies: dictionary of policies to evaluate
+        - reps: The number of rollouts to perform.
+        - oracle: Whether to use an oracle model for evaluation. Default is False.
+        - dist_reward: Whether to use reward distribution for plotting. Default is False.
+        - MPC_params: Whether to use MPC parameters. Default is False.
+        '''
+        # construct evaluator
+        evaluator = policy_eval(make_env, policies, reps, self.env_params, oracle, MPC_params)
+        # generate rollouts 
+        data = evaluator.get_rollouts()
+        # return evaluator and data
+        return evaluator, data
+
 
     def plot_rollout(self, policies, reps, oracle = False, dist_reward = False, MPC_params = False, cons_viol = False):
         '''
@@ -310,15 +324,14 @@ class make_env(gym.Env):
         - dist_reward: Whether to use reward distribution for plotting. Default is False.
         - MPC_params: Whether to use MPC parameters. Default is False.
         '''
-        # policy_eval(make_env,policy,reps,self.env_params,oracle,MPC_params).plot_rollout(dist_reward, cons_viol)
-
-        # policy_eval's plot_rollout returns a data dictionary
-        #data = policy_eval(make_env, policy, reps, self.env_params, oracle, MPC_params).plot_rollout(dist_reward, cons_viol)
-        
-        data = policy_eval(make_env, policies, reps, self.env_params, oracle, MPC_params).plot_rollout(dist_reward, cons_viol)
-        # Now, 'data' contains the results from the inner plot_rollout
-        # We should be able to log it elsewhere, return it, or otherwise use it here
-        return data
+        # construct evaluator
+        evaluator = policy_eval(make_env, policies, reps, self.env_params, oracle, MPC_params)
+        # generate rollouts 
+        data = evaluator.get_rollouts()
+        # plot data from rollouts via the evaluator method
+        evaluator.plot_data(data, dist_reward, cons_viol)
+        # return constructed evaluator and data
+        return evaluator, data
         
 
     
