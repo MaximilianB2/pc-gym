@@ -5,7 +5,7 @@ import gymnasium as gym
 from gymnasium import spaces
 from .model_classes import *
 from .Policy_Evaluation import policy_eval
-from .integrator import integration_engine
+from .Integrator import integration_engine
 import copy 
     
 class make_env(gym.Env):
