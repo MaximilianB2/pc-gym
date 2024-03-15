@@ -151,12 +151,13 @@ class oracle():
       # Add user-defined constraint
       if self.env_params.get('constraints') is not None:
         for k in self.env_params['constraints']:
-          if self.env_params['cons_type'][k] == '<=':
-            opti.subject_to(x[self.model_info['states'].index(k),:] <= self.env_params['constraints'][k])
-          elif self.env_params['cons_type'][k] == '>=':
-            opti.subject_to(x[self.model_info['states'].index(k),:] >= self.env_params['constraints'][k])
-          else:
-            raise ValueError('Invalid constraint type')
+          for j in range(len(k)):
+            if self.env_params['cons_type'][k][j] == '<=':
+              opti.subject_to(x[self.model_info['states'].index(k),:] <= self.env_params['constraints'][k][j])
+            elif self.env_params['cons_type'][k][j] == '>=':
+              opti.subject_to(x[self.model_info['states'].index(k),:] >= self.env_params['constraints'][k][j])
+            else:
+              raise ValueError('Invalid constraint type')
       
       # Define the setpoint for the cost function
       SP_i = np.fromiter({k: v[t_step] for k, v in self.env_params['SP'].items()}.values(),dtype=float)
