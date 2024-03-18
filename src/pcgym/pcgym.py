@@ -4,8 +4,8 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 from .model_classes import *
-from .policy_Evaluation import policy_eval
-from .integrator import integration_engine
+from .Policy_Evaluation import policy_eval
+from .Integrator import integration_engine
 import copy 
     
 class make_env(gym.Env):
@@ -325,11 +325,11 @@ class make_env(gym.Env):
         - MPC_params: Whether to use MPC parameters. Default is False.
         '''
         # construct evaluator
-        evaluator = policy_eval(make_env, policies, reps, self.env_params, oracle, MPC_params)
+        evaluator = policy_eval(make_env, policies, reps, self.env_params, oracle, MPC_params, cons_viol)
         # generate rollouts 
         data = evaluator.get_rollouts()
         # plot data from rollouts via the evaluator method
-        evaluator.plot_data(data, dist_reward, cons_viol)
+        evaluator.plot_data(data, dist_reward)
         # return constructed evaluator and data
         return evaluator, data
         

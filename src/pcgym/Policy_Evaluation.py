@@ -13,7 +13,7 @@ class policy_eval():
              return distribution (incomplete), expected return (incomplete),
              oracle trajectories (incomplete) and lower confidence bounds (incomplete)
     '''
-    def __init__(self,make_env,policies,reps,env_params, oracle = False, MPC_params = False):
+    def __init__(self,make_env,policies,reps,env_params, oracle = False, MPC_params = False, cons_viol = False):
         self.make_env = make_env
         self.env_params = env_params
         self.env = make_env(env_params)
@@ -22,6 +22,7 @@ class policy_eval():
         self.n_pi = len(policies)
         self.reps = reps
         self.oracle = oracle
+        self.cons_viol = cons_viol
  
         self.MPC_params  = MPC_params  
         
@@ -117,8 +118,7 @@ class policy_eval():
         
         return data
 
-    def plot_data(self, data, cons_viol, reward_dist):
-
+    def plot_data(self, data, reward_dist = False):
         t = np.linspace(0, self.env.tsim, self.env.N)
         len_d = 0
 
@@ -176,7 +176,8 @@ class policy_eval():
                     plt.xlim(min(t), max(t))
         plt.tight_layout()
         plt.show()
-        if cons_viol:
+        
+        if self.cons_viol:
             plt.figure(figsize=(12, 3 * self.env.n_con))
             con_i = 0
             for i, con in enumerate(self.env.constraints):

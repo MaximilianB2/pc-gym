@@ -3,9 +3,9 @@
 """
 import numpy as np
 import matplotlib.pyplot as plt
+from abc import ABC, abstractmethod
 
-
-class metric_base(abstract):
+class metric_base(ABC):
     def __init__(self, scalarised_weight):
         pass
 
