@@ -6,7 +6,9 @@ import gymnasium as gym
 import torch.nn.functional as F
 import copy
 from stable_baselines3 import PPO,SAC
-from pcgym import make_env, reproducibility_metric
+from pcgym.pcgym import make_env
+from pcgym.evaluation_metrics import reproducibility_metric
+
  
 import jax.numpy as jnp
 #Global params
@@ -50,10 +52,12 @@ env_params = {
 }
 env = make_env(env_params)
 
-SAC_init = SAC.load('SAC_cstr.zip')
-PPO_init = PPO.load('PPO_cstr.zip')
+SAC_init = SAC.load('SAC_cstr.zip') # NOTE This will fail unless people run the file from the correct directory
+PPO_init = PPO.load('PPO_cstr.zip') # NOTE This will fail unless people run the file from the correct directory
 
 # NOTE this is how we should roll out and assess the performance of the policies this is untested due to issues with import of reoproducibility_metric
 evaluator, data = env.plot_rollout({'SAC':SAC_init,'PPO':PPO_init}, reps=10, oracle = False,dist_reward=True)
 policy_measure = reproducibility_metric(dispersion='mad', performance='mean', scalarised_weight=0.3)
-scalarised_performance = policy_measure.evaluate(evaluator, data)
+scalarised_performance = policy_measure.evaluate(evaluator, component=None)
+
+print('scalarised_performance', scalarised_performance)

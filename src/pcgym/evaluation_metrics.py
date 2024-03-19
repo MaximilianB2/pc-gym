@@ -63,12 +63,14 @@ class standard_deviation:
         - The policy dispersion metric value.
         - data: numpy array
         """
-        return np.std(data, axis=-1)
+        return np.std(self.data, axis=-1)
 
 
 
 class median_absolute_deviation:
     def __init__(self, data):
+        if data.ndim <2: 
+            data = data.reshape((data.shape[0], 1))
         self.data = data
 
     def get_value(self):
@@ -79,7 +81,7 @@ class median_absolute_deviation:
         - The policy dispersion metric value.
         - data: numpy array
         """
-        return np.median(np.abs(data - np.median(data,axis=-1)), axis=-1)
+        return np.median(np.abs(self.data - np.median(self.data,axis=-1).reshape((self.data.shape[0], self.data.shape[1], 1))), axis=-1)
 
 
 class mean_performance:
@@ -93,7 +95,7 @@ class mean_performance:
         Returns:
         - The policy performance metric value.
         """
-        return np.mean(data, axis=-1)
+        return np.mean(self.data, axis=-1)
 
 
 class median_performance:
@@ -107,7 +109,7 @@ class median_performance:
         Returns:
         - The policy performance metric value.
         """
-        return np.median(data, axis=-1)
+        return np.median(self.data, axis=-1)
 
 
 class reproducibility_metric(metric_base):
@@ -130,7 +132,7 @@ class reproducibility_metric(metric_base):
         else:
             raise ValueError("Invalid performance metric")
 
-    def evaluate(self, policy_evaluator):
+    def evaluate(self, policy_evaluator, component:str=None):
         """
         Evaluate the given policy using the specified environment.
 
@@ -141,7 +143,7 @@ class reproducibility_metric(metric_base):
         """
         self.data = policy_evaluator.get_rollouts()
 
-        return self.scalarised_performance(self.data)
+        return self.scalarised_performance(self.data, component)
 
 
     def policy_dispersion_metric(self, data:dict, component:str):
@@ -153,17 +155,18 @@ class reproducibility_metric(metric_base):
         The policy dispersion metric value.
         """
         values = {k: {} for k in data.keys()}
-
-
+    
         for policy in data.keys(): # has structure n_x x T x reps  - operation always applied along the reps row
+
             if component is None:
-                for component in data[policy].keys():
-                    operation = self.determine_op(component)
-                    values[policy][component] = self.dispersion(operation(data[policy][component])).get_value()
+                for comp in data[policy].keys():
+                    operation = self.determine_op(comp)
+                    values[policy][comp] = self.dispersion(operation(data[policy][comp])).get_value()
             else:
                 operation = self.determine_op(component)
                 values[policy][component] = self.dispersion(operation(data[policy][component])).get_value()
-            
+
+       
 
         return values
 
@@ -179,9 +182,9 @@ class reproducibility_metric(metric_base):
 
         for policy in data.keys():
             if component is None:
-                for component in data[policy].keys():
-                    operation = self.determine_op(component)
-                    values[policy][component] = self.performance(operation(data[policy][component])).get_value()
+                for comp in data[policy].keys():
+                    operation = self.determine_op(comp)
+                    values[policy][comp] = self.performance(operation(data[policy][comp])).get_value()
             else:
                 operation = self.determine_op(component)
                 values[policy][component] = self.performance(operation(data[policy][component])).get_value()
@@ -197,10 +200,11 @@ class reproducibility_metric(metric_base):
         The scalarised policy performance metric value.
         set component to None to scalarise over all components
         """
+
         performance = self.policy_performance_metric(data, component)
         dispersion = self.policy_dispersion_metric(data, component)
 
-        return {k: {component: performance[k][component] + self.scalarised_weight * dispersion[k][component] for component in performance[k].keys()} for k in performance.keys()}
+        return {k: {comp: performance[k][comp] + self.scalarised_weight * dispersion[k][comp] for comp in performance[k].keys()} for k in performance.keys()}
 
     def determine_op(self, component):
 
