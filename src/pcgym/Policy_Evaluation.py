@@ -200,7 +200,7 @@ class policy_eval():
             plt.grid(True, linestyle='--', alpha=0.6)  
             bins = int(self.reps/3) + 1
             if self.oracle:
-                plt.hist(r_opt.flatten(), bins=bins, color='tab:blue', alpha=0.5, label='Oracle', edgecolor='black')  
+                plt.hist(data['oracle']['r'].flatten(), bins=bins, color='tab:blue', alpha=0.5, label='Oracle', edgecolor='black')  
             for ind, (pi_name, pi_i) in enumerate(self.policies.items()):
                 plt.hist(data[pi_name]['r'].flatten(), bins=bins, color=col[ind], alpha=0.5, label='RL Algorithm', edgecolor='black')  
 
