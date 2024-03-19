@@ -43,22 +43,24 @@ markdown_extensions:
 
 theme: 
   name: material
-  logo: img/pc-gym.png
+  logo: img/pc-gym-blue-no-text.png
   icon:
     repo: fontawesome/brands/github
   language: en
   palette:
     - scheme: default
-      primary: white
+      primary: custom
       accent: blue-grey
-      logo: img/pc-gym.png
+      logo: img/pc-gym-blue-no-text.png
+  
       toggle:
         icon: material/weather-sunny
         name: Switch to dark mode
     - scheme: slate
-      primary: white
+      primary: custom
       accent: blue-grey
-      logo: img/pc-gym dark.png
+      logo: img/pc-gym-blue-no-text.png
+  
       toggle:
         icon: material/weather-night
         name: Switch to light mode
@@ -78,6 +80,9 @@ theme:
     - navigation.tabs
     - navigation.top
     - content.code.copy
+
+extra_css:
+  - stylesheets/extra.css
 plugins:
   - search
   # - include-markdown

@@ -67,14 +67,16 @@ pip install pcgym
 
 TODO: Link example notebooks here
 
-## Implemented Process Control Environments
+## Implemented Process Control Environments 🎛️
 
-TODO: Add table of environments
+|          Environment          | Reference | Source | Documentation |
+|:-----------------------------:|:---------:|:------:|---------------|
+|              CSTR             | [Hedengren, 2022](https://github.com/APMonitor/pdc/blob/master/CSTR_Control.ipynb)     | [Source](https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py)      |               |
+|       First Order Sytem       |      N/A  | [Source](https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py)        |               |
+| Multistage Extraction Column  |  [Ingham et al, 2007 (pg 471)](https://onlinelibrary.wiley.com/doi/book/10.1002/9783527614219)         | [Source](https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py)        |               |
 
-## Other Great Gyms 🔍
 
-TODO: Link other gyms such as Jumanji, safety gymnasium etc.
-
+ 
 ## Citing `pc-gym`
 If you use `pc-gym` in your research, please cite using the following 
 ```
@@ -86,3 +88,8 @@ If you use `pc-gym` in your research, please cite using the following
   year = {2024},
 }
 ```
+
+## Other Great Gyms 🔍
+- ✨[safe-control-gym](https://github.com/utiasDSL/safe-control-gym) 
+- ✨[safety-gymnasium](https://github.com/PKU-Alignment/safety-gymnasium)
+- ✨[gymnax](https://github.com/RobertTLange/gymnax)
