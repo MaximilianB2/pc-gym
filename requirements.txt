@@ -8,4 +8,5 @@ casadi
 jax[cpu]
 equinox
 diffrax
-
+torch
+stable-baselines3
