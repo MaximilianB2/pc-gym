@@ -5,6 +5,8 @@ class oracle():
     '''
     Oracle Class - Class to solve the optimal control problem with perfect 
     knowledge of the environment.
+    Oracle is a nonlinear model predictive controller (nMPC), 
+    using the multiple shooting method.
 
     Inputs: Env
 
