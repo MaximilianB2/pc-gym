@@ -115,6 +115,8 @@ class make_env(gym.Env):
             self.disturbances = env_params['disturbances']
             self.Nd = len(self.model.info()['disturbances'])
             self.Nu += self.Nd
+            # Extend the state size by the number of disturbances
+            self.Nx += self.Nd
         
         
     def reset(self, seed=None, **kwargs):  # Accept arbitrary keyword arguments
@@ -127,10 +129,24 @@ class make_env(gym.Env):
         self.int_eng = integration_engine(make_env,self.env_params)
         
         state = copy.deepcopy(self.env_params['x0'])
-        r_init = self.reward_fn(state,False)
         
-        self.done = False
+        # If disturbances are active, expand the initial state with disturbances
+        if self.disturbance_active:
+            initial_disturbances = [] 
+            for k in self.model.info()['disturbances']:
+                if k in self.disturbances:
+                    initial_disturbances.append(self.disturbances[k][0])
+                else:
+                    initial_disturbances.append(self.model.info()['parameters'][str(k)])
+            # Append initial disturbances to the state
+            state = np.concatenate((state, initial_disturbances))
+
         self.state = state
+
+        r_init = self.reward_fn(state,False)
+
+        self.done = False
+
         if self.normalise_o is True:
             self.normstate = 2 * (self.state - self.observation_space.low) / (self.observation_space.high - self.observation_space.low) - 1
             return self.normstate, {'r_init':r_init}
@@ -166,11 +182,19 @@ class make_env(gym.Env):
         # Add disturbance to control vector
         if self.disturbance_active:
             uk[:self.Nu-len(self.model.info()['disturbances'])] = action # Add action to control vector
+            disturbance_values = []
             for i, k in enumerate(self.model.info()['disturbances'], start=0):
+                disturbance_index = self.Nx + i  # Index in state vector for this disturbance     
                 if k in self.disturbances:
+                    current_disturbance_value = self.disturbances[k][self.t]
                     uk[self.Nu-self.Nd+i] = self.disturbances[k][self.t] # Add disturbance to control vector
+                    disturbance_values.append(current_disturbance_value)
                 else:
+                    default_value = self.model.info()['parameters'][str(k)]
                     uk[self.Nu-self.Nd+i] = self.model.info()['parameters'][str(k)] # if there is no disturbance at this timestep, use the default value
+                    disturbance_values.append(default_value)
+            # Update the state vector with current disturbance values
+            self.state[self.Nx:(self.Nx + self.Nd)] = disturbance_values
         else:
             uk = action  # Add action to control vector
 
