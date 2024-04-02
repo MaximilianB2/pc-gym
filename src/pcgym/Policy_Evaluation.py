@@ -115,7 +115,7 @@ class policy_eval():
                          'u' : actions}})
             if self.env.constraint_active:
                 data[pi_name].update({'g' : cons_info})
-        
+        self.data = data
         return data
 
     def plot_data(self, data, reward_dist = False):
@@ -202,7 +202,7 @@ class policy_eval():
             if self.oracle:
                 plt.hist(data['oracle']['r'].flatten(), bins=bins, color='tab:blue', alpha=0.5, label='Oracle', edgecolor='black')  
             for ind, (pi_name, pi_i) in enumerate(self.policies.items()):
-                plt.hist(data[pi_name]['r'].flatten(), bins=bins, color=col[ind], alpha=0.5, label='RL Algorithm', edgecolor='black')  
+                plt.hist(data[pi_name]['r'].flatten(), bins=bins, color=col[ind], alpha=0.5, label=pi_name, edgecolor='black')  
 
             plt.xlabel('Return', fontsize=14)  
             plt.ylabel('Frequency', fontsize=14)  

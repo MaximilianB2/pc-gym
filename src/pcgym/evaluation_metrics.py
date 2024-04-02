@@ -81,7 +81,8 @@ class median_absolute_deviation:
         - The policy dispersion metric value.
         - data: numpy array
         """
-        return np.median(np.abs(self.data - np.median(self.data,axis=-1).reshape((self.data.shape[0], self.data.shape[1], 1))), axis=-1)
+        
+        return np.median(np.abs(self.data - np.median(self.data,axis=-1)), axis=-1) # Currently only works for the reward component
 
 
 class mean_performance:
@@ -141,7 +142,11 @@ class reproducibility_metric(metric_base):
         policy_evaluator : The policy evaluator to generate data for a number of policy rollouts.
                             must be constructed prior to passing to evaluate
         """
-        self.data = policy_evaluator.get_rollouts()
+
+        try:
+            self.data = policy_evaluator.data # Try to get data from policy evaluator if this fails then call the get_rollouts method to generate the data
+        except:
+            self.data = policy_evaluator.get_rollouts()
 
         return self.scalarised_performance(self.data, component)
 
@@ -203,7 +208,6 @@ class reproducibility_metric(metric_base):
 
         performance = self.policy_performance_metric(data, component)
         dispersion = self.policy_dispersion_metric(data, component)
-
         return {k: {comp: performance[k][comp] + self.scalarised_weight * dispersion[k][comp] for comp in performance[k].keys()} for k in performance.keys()}
 
     def determine_op(self, component):
@@ -213,6 +217,6 @@ class reproducibility_metric(metric_base):
         elif component == 'u':
             return lambda x: x
         elif component == 'r':
-            return lambda x: np.sum(x, axis=1) # sum over discrete time indices (undiscounted)
+            return lambda x: x # sum over discrete time indices (undiscounted)
         elif component == 'g':
             return lambda x: np.max(x, axis=0) # return the greatest constraint violation of n_g defined

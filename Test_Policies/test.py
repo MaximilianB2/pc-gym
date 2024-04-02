@@ -56,8 +56,8 @@ SAC_init = SAC.load('SAC_cstr.zip') # NOTE This will fail unless people run the 
 PPO_init = PPO.load('PPO_cstr.zip') # NOTE This will fail unless people run the file from the correct directory
 
 # NOTE this is how we should roll out and assess the performance of the policies this is untested due to issues with import of reoproducibility_metric
-evaluator, data = env.plot_rollout({'SAC':SAC_init,'PPO':PPO_init}, reps=10, oracle = False,dist_reward=True)
+evaluator, data = env.plot_rollout({'SAC':SAC_init,'PPO':PPO_init}, reps=100, oracle = False,dist_reward=True)
 policy_measure = reproducibility_metric(dispersion='mad', performance='mean', scalarised_weight=0.3)
-scalarised_performance = policy_measure.evaluate(evaluator, component=None)
+scalarised_performance = policy_measure.evaluate(evaluator, component='r')
 
 print('scalarised_performance', scalarised_performance)
