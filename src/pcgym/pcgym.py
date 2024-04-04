@@ -30,13 +30,15 @@ class make_env(gym.Env):
             self.action_space = spaces.Box(low = np.array([-1]*env_params['a_space']['low'].shape[0]), high = np.array([1]*env_params['a_space']['high'].shape[0]))
         else:
             self.action_space = spaces.Box(low=env_params['a_space']['low'],high = env_params['a_space']['high'])
-        
-        self.observation_space = spaces.Box(low = env_params['o_space']['low'],high = env_params['o_space']['high'])  
+            
         self.SP = env_params['SP']
         self.N = env_params['N']
         self.tsim = env_params['tsim']
         self.x0 = env_params['x0']
-
+        # Initial setup for observation space based on user-defined bounds
+        base_obs_low = env_params['o_space']['low']
+        base_obs_high = env_params['o_space']['high']
+        self.observation_space = spaces.Box(low=base_obs_low, high=base_obs_high)
 
         try :
             self.integration_method = env_params['integration_method']
@@ -117,6 +119,17 @@ class make_env(gym.Env):
             self.Nu += self.Nd
             # Extend the state size by the number of disturbances
             self.Nx += self.Nd
+            # user has defined disturbance_bounds within env_params
+            disturbance_low = env_params['disturbance_bounds']['low']
+            disturbance_high = env_params['disturbance_bounds']['high']
+            assert disturbance_low.shape[0] == self.Nd, "Mismatch in disturbance low bounds dimension"
+            assert disturbance_high.shape[0] == self.Nd, "Mismatch in disturbance high bounds dimension"
+            # Extend the observation space bounds to include disturbances
+            extended_obs_low = np.concatenate((base_obs_low, disturbance_low))
+            extended_obs_high = np.concatenate((base_obs_high, disturbance_high))
+            # Define the extended observation space
+            self.observation_space = spaces.Box(low=extended_obs_low, high=extended_obs_high, dtype=np.float32)
+        
         
         
     def reset(self, seed=None, **kwargs):  # Accept arbitrary keyword arguments
