@@ -220,3 +220,51 @@ class multistage_extraction_ode:
     }
     info['parameters'].pop('int_method', None)  # Remove 'int_method' from the dictionary since it is not a parameter of the model
     return info
+
+
+# ==== Bang-Bang Control Model ====#
+@dataclass(frozen=False, kw_only=True)
+class bang_bang_control_ode:
+  # Parameters
+  int_method:str = 'jax'
+  a_11:float = 0
+  a_12:float = 1
+  a_21:float = -2
+  a_22:float = -3
+  b_1:float = 0
+  b_2:float = 1
+
+  def __call__(self, x, u):
+    # JAX requires jnp functions and arrays hence two versions
+    if self.int_method == 'jax':
+      # states
+      x1, x2 = x[0], x[1]
+
+      # ode system
+      dxdt = jnp.array([
+          self.a_11*x1 + self.a_12*x2 + self.b_1*u,
+          self.a_21*x1 + self.a_22*x2 + self.b_2*u
+      ])
+        
+      return dxdt
+    else:
+      # states
+      x1, x2 = x[0], x[1]
+
+      dxdt = [
+          self.a_11*x1 + self.a_12*x2 + self.b_1*u,
+          self.a_21*x1 + self.a_22*x2 + self.b_2*u
+      ]
+        
+      return dxdt
+    
+  def info(self):
+    # Return a dictionary with the model information
+    info = {
+        'parameters': self.__dict__.copy(), 
+        'states': ['X1', 'X2'],
+        'inputs': ['U'],
+        'disturbances': ['None'],
+    }
+    info['parameters'].pop('int_method', None)  # Remove 'int_method' from the dictionary since it is not a parameter of the model
+    return info

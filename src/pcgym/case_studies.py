@@ -781,3 +781,27 @@ def four_tank_ode(x, u):
         ]
 
     return dxdt
+
+
+def bang_bang_ode(x, u):
+    """ From: https://pubs.acs.org/doi/epdf/10.1021/i260031a007
+    Regulator problem with bang-bang control
+    - drive the system to the origin in minimum time 
+    - the optimum control is a bang-bang control
+    - the state equations are linear    
+    - control is constrained to be between -1 and 1
+    """
+
+    # parameters 
+    a_11, a_12, a_21, a_22 = 0, 1, -2, -3
+    b_1, b_2 = 0, 1
+
+    # states
+    x1, x2 = x[0], x[1]
+
+    # ode system
+    dxdt = [
+        a_11*x1 + a_12*x2 + b_1*u,
+        a_21*x1 + a_22*x2 + b_2*u
+    ]
+    return dxdt

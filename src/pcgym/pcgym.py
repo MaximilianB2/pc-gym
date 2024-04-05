@@ -79,6 +79,7 @@ class make_env(gym.Env):
         model_mapping = {
         'cstr_ode': cstr_ode,
         'first_order_system_ode': first_order_system_ode,
+        'bang_bang_control_ode': bang_bang_control_ode,
         # 'second_order_system_ode': second_order_system_ode,
         # 'large_scale_ode': large_scale_ode,
         # 'cstr_series_recycle_ode': cstr_series_recycle_ode,

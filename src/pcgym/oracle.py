@@ -179,7 +179,8 @@ class oracle():
       'ipopt.print_level': 0,
       'ipopt.sb': 'no',
       'print_time': 0,
-      'ipopt.print_user_options': 'no'
+      'ipopt.print_user_options': 'no',
+
       }
 
       opti.solver('ipopt', opts)
