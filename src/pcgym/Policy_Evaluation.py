@@ -153,7 +153,6 @@ class policy_eval():
 
         for j in range(self.env.Nu-len_d):
             plt.subplot(self.env.Nx_oracle + self.env.Nu - self.env.Nd, 1, j+self.env.Nx_oracle+1)
-            
             for ind, (pi_name, pi_i) in enumerate(self.policies.items()):
                 plt.step(t, np.median(data[pi_name]['u'][j,:,:], axis=1), color=col[ind], lw=3, label=self.env.model.info()['inputs'][j] + ' (' + pi_name + ')')
             if self.oracle:
@@ -202,7 +201,12 @@ class policy_eval():
         if reward_dist:
             plt.figure(figsize=(12, 8))  
             plt.grid(True, linestyle='--', alpha=0.6)  
-            bins = int(self.reps/3) + 1
+            all_data = np.concatenate([data[key]['r'].flatten() for key in data.keys()])
+
+            min_value = np.min(all_data)
+            max_value = np.max(all_data)
+
+            bins = np.linspace(min_value, max_value, self.reps)
             if self.oracle:
                 plt.hist(data['oracle']['r'].flatten(), bins=bins, color='tab:blue', alpha=0.5, label='Oracle', edgecolor='black')  
             for ind, (pi_name, pi_i) in enumerate(self.policies.items()):
