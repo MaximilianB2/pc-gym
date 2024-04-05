@@ -36,7 +36,7 @@ class oracle():
       '''
 
       self.u  = MX.sym('u',self.env.Nu)
-      self.x = MX.sym('x',self.env.Nx)
+      self.x = MX.sym('x',self.env.Nx_oracle)
       dxdt = self.env.model(self.x,self.u)
       dxdt = vertcat(*dxdt)
       f = Function('f',[self.x,self.u],[dxdt],['x','u'],['dxdt'])
@@ -99,9 +99,9 @@ class oracle():
 
       opti = Opti()
       F = self.integrator_gen()
-      x = opti.variable(self.env.Nx, self.N+1)
+      x = opti.variable(self.env.Nx_oracle, self.N+1)
       u = opti.variable(self.env.Nu, self.N)       
-      p = opti.parameter(self.env.Nx, 1)
+      p = opti.parameter(self.env.Nx_oracle, 1)
       setpoint = opti.parameter(len(self.env_params['SP']), self.N+1)
     
       # Cost function sum of squared error plus control penalty. 
@@ -132,7 +132,8 @@ class oracle():
         opti.subject_to(x[:, k+1] == F(x[:, k], u[:, k]))
       
       # Control constraints
-      for i in range(self.env.Nu - self.env.Nd):
+     
+      for i in range(self.env.Nu - self.env.Nd_model):
         opti.subject_to(u[i,:] >= self.env_params['a_space']['low'][i])
         opti.subject_to(u[i,:] <= self.env_params['a_space']['high'][i])
       
@@ -167,11 +168,11 @@ class oracle():
       opti.set_value(setpoint, setpoint_value.T)
       
       # Initial values
-      opti.set_value(p, self.x0[:self.env.Nx])
-      initial_x_values = np.zeros((self.env.Nx, self.N+1))
-      initial_x_values = (self.x0[:self.env.Nx]*np.ones((self.N+1,self.env.Nx))).T  
+      opti.set_value(p, self.x0[:self.env.Nx_oracle])
+      initial_x_values = np.zeros((self.env.Nx_oracle, self.N+1))
+      initial_x_values = (self.x0[:self.env.Nx_oracle]*np.ones((self.N+1,self.env.Nx_oracle))).T  
       opti.set_initial(x, initial_x_values)
-      for i in range(self.env.Nu - self.env.Nd):     
+      for i in range(self.env.Nu - self.env.Nd_model):     
         opti.set_initial(u[i,:], self.env_params['a_space']['low'][i]*np.ones((1,self.N))) 
      
       # Silence the solver
@@ -204,8 +205,8 @@ class oracle():
       F = self.integrator_gen()
       
       u_log = np.zeros((self.env.Nu, self.env.N))
-      x_log = np.zeros((self.env.Nx, self.env.N))
-      x = np.array(self.x0[:self.env.Nx])
+      x_log = np.zeros((self.env.Nx_oracle, self.env.N))
+      x = np.array(self.x0[:self.env.Nx_oracle])
       for i in range(self.env.N):
           if i-1 in regen_index:
             M = self.ocp(t_step=i)          
@@ -217,11 +218,11 @@ class oracle():
               noise_percentage = self.env_params.get('noise_percentage', 0)
               try:
 
-                x += np.random.normal(0,1,(self.env.Nx)) * x * noise_percentage
+                x += np.random.normal(0,1,(self.env.Nx_oracle)) * x * noise_percentage
 
               except:
 
-                x += np.random.normal(0,1,(self.env.Nx,1)) * x * noise_percentage
+                x += np.random.normal(0,1,(self.env.Nx_oracle,1)) * x * noise_percentage
           u = M(x).full()
           u_log[:,i] = u[0]
           x = F(x,u).full() 

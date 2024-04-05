@@ -107,30 +107,32 @@ class make_env(gym.Env):
             raise ValueError(f"Model '{env_params['model']}' not found in model_mapping.")
         
         # Import states and controls from model info
-        self.Nx = len(self.model.info()['states'])
+        self.Nx = len(self.model.info()['states']) + len(self.SP)
+        self.Nx_oracle = len(self.model.info()['states'])
         self.Nu = len(self.model.info()['inputs'])
 
         # Disturbances
         self.disturbance_active = False
         self.Nd = 0
+        self.Nd_model = 0
         if env_params.get('disturbances') is not None:
             self.disturbance_active = True
             self.disturbances = env_params['disturbances']
-            self.Nd = len(self.model.info()['disturbances'])
-            self.Nu += self.Nd
+            self.Nd = len(self.disturbances)
+            self.Nd_model = len(self.model.info()['disturbances'])
+            self.Nu += len(self.model.info()['disturbances'])
+        
             # Extend the state size by the number of disturbances
             self.Nx += self.Nd
             # user has defined disturbance_bounds within env_params
             disturbance_low = env_params['disturbance_bounds']['low']
             disturbance_high = env_params['disturbance_bounds']['high']
-            assert disturbance_low.shape[0] == self.Nd, "Mismatch in disturbance low bounds dimension"
-            assert disturbance_high.shape[0] == self.Nd, "Mismatch in disturbance high bounds dimension"
             # Extend the observation space bounds to include disturbances
             extended_obs_low = np.concatenate((base_obs_low, disturbance_low))
             extended_obs_high = np.concatenate((base_obs_high, disturbance_high))
             # Define the extended observation space
             self.observation_space = spaces.Box(low=extended_obs_low, high=extended_obs_high, dtype=np.float32)
-        
+          
         
         
     def reset(self, seed=None, **kwargs):  # Accept arbitrary keyword arguments
@@ -150,8 +152,8 @@ class make_env(gym.Env):
             for k in self.model.info()['disturbances']:
                 if k in self.disturbances:
                     initial_disturbances.append(self.disturbances[k][0])
-                else:
-                    initial_disturbances.append(self.model.info()['parameters'][str(k)])
+              
+            
             # Append initial disturbances to the state
             state = np.concatenate((state, initial_disturbances))
 
@@ -197,27 +199,30 @@ class make_env(gym.Env):
         if self.disturbance_active:
             uk[:self.Nu-len(self.model.info()['disturbances'])] = action # Add action to control vector
             disturbance_values = []
+            disturbance_values_state = []
             for i, k in enumerate(self.model.info()['disturbances'], start=0):
                 disturbance_index = self.Nx + i  # Index in state vector for this disturbance     
                 if k in self.disturbances:
                     current_disturbance_value = self.disturbances[k][self.t]
-                    uk[self.Nu-self.Nd+i] = self.disturbances[k][self.t] # Add disturbance to control vector
+                    uk[self.Nu-self.Nd_model+i] = self.disturbances[k][self.t] # Add disturbance to control vector
+                    disturbance_values_state.append(current_disturbance_value)
                     disturbance_values.append(current_disturbance_value)
                 else:
                     default_value = self.model.info()['parameters'][str(k)]
-                    uk[self.Nu-self.Nd+i] = self.model.info()['parameters'][str(k)] # if there is no disturbance at this timestep, use the default value
+                    uk[self.Nu-self.Nd_model+i] = self.model.info()['parameters'][str(k)] # if there is no disturbance at this timestep, use the default value
                     disturbance_values.append(default_value)
+      
             # Update the state vector with current disturbance values
-            self.state[self.Nx:(self.Nx + self.Nd)] = disturbance_values
+            self.state[self.Nx_oracle+len(self.SP):] = disturbance_values_state
         else:
             uk = action  # Add action to control vector
 
         # Simulate one timestep
         if self.integration_method == 'casadi':
             Fk = self.int_eng.casadi_step(self.state,uk)
-            self.state[:self.Nx] = np.array(Fk['xf'].full()).reshape(self.Nx)
+            self.state[:self.Nx_oracle] = np.array(Fk['xf'].full()).reshape(self.Nx_oracle)
         elif self.integration_method == 'jax':
-            self.state[:self.Nx] = self.int_eng.jax_step(self.state,uk)
+            self.state[:self.Nx_oracle] = self.int_eng.jax_step(self.state,uk)
 
         # Check if constraints are violated
         constraint_violated = False
@@ -244,7 +249,7 @@ class make_env(gym.Env):
         # add noise to state
         if self.env_params.get('noise', False):
             noise_percentage = self.env_params.get('noise_percentage', 0)
-            self.state[:self.Nx] += np.random.normal(0, 1, self.Nx) * self.state[:self.Nx] * noise_percentage
+            self.state[:self.Nx_oracle] += np.random.normal(0, 1, self.Nx_oracle) * self.state[:self.Nx_oracle] * noise_percentage
 
 
         if self.normalise_o is True:

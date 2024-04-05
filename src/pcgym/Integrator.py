@@ -28,7 +28,7 @@ class integration_engine:
 
         if integration_method == 'casadi':
             # Generate casadi model
-            self.sym_x = self.gen_casadi_variable(self.env.Nx, "x")
+            self.sym_x = self.gen_casadi_variable(self.env.Nx_oracle, "x")
             self.sym_u = self.gen_casadi_variable(self.env.Nu, "u")    
             self.casadi_sym_model = self.casadify(self.env.model, self.sym_x, self.sym_u)
             self.casadi_model_func = self.gen_casadi_function([self.sym_x, self.sym_u],[self.casadi_sym_model],
@@ -51,7 +51,7 @@ class integration_engine:
         input: x0, uk
         output: x+
         '''
-        y0 = jnp.array(state[:self.env.Nx]) # Only pass the states of the model (exclude the setpoints)
+        y0 = jnp.array(state[:self.env.Nx_oracle]) # Only pass the states of the model (exclude the setpoints)
         uk = jnp.array(uk)
         solution = diffeqsolve(self.jax_ode, self.jax_solver, self.t0, self.tf, self.dt0, y0, args=uk,stepsize_controller=self.step_controller)
         return solution.ys[-1, :]  # return only final state
@@ -66,8 +66,9 @@ class integration_engine:
         '''
         plant_func = self.casadi_model_func
         discretised_plant = self.discretise_model(plant_func, self.env.dt)
-      
-        xk = state[:self.env.Nx]
+   
+        xk = state[:self.env.Nx_oracle]
+
         Fk = discretised_plant(x0=xk, p=uk)
         return Fk
 
@@ -133,7 +134,8 @@ class integration_engine:
         Output:
             discretised casadi func
         """
-        x = SX.sym("x", self.env.Nx)
+        x = SX.sym("x", self.env.Nx_oracle)
+       
         u = SX.sym("u", self.env.Nu)
         xdot = casadi_func(x, u)
 

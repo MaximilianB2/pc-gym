@@ -42,25 +42,26 @@ class policy_eval():
         '''
         
         total_reward = 0
-        s_rollout = np.zeros((self.env.x0.shape[0], self.env.N))
+        s_rollout = np.zeros((self.env.Nx, self.env.N))
         actions = np.zeros((self.env.env_params['a_space']['low'].shape[0], self.env.N))
         
         o, r = self.env.reset()
         total_reward = r['r_init']
-        s_rollout[:,0] = (o + 1)*(self.env.env_params['o_space']['high'] - self.env.env_params['o_space']['low'])/2 + self.env.env_params['o_space']['low']
+        s_rollout[:,0] = (o + 1)*(self.env.observation_space.high - self.env.observation_space.low)/2 + self.env.observation_space.low
         for i in range(self.env.N-1):
             a, _s = policy_i.predict(o, deterministic = True) # Rollout with a deterministic policy
             o, r, term, trunc, info = self.env.step(a)
             
             actions[:, i] = (a + 1)*(self.env.env_params['a_space']['high'] - self.env.env_params['a_space']['low'])/2 + self.env.env_params['a_space']['low']
-            s_rollout[:, i+1] = (o + 1)*(self.env.env_params['o_space']['high'] - self.env.env_params['o_space']['low'])/2 + self.env.env_params['o_space']['low']
+            s_rollout[:, i+1] = (o + 1)*(self.env.observation_space.high - self.env.observation_space.low)/2 + self.env.observation_space.low
+            
             total_reward += r
 
         if self.env.constraint_active:
             cons_info = info['cons_info']
         else:
             cons_info = np.zeros((1,self.env.N,1))
-        a, _s = policy_i.predict(o)
+        a, _s = policy_i.predict(o, deterministic = True)
         actions[:,self.env.N-1] = (a + 1)*(self.env.env_params['a_space']['high'] - self.env.env_params['a_space']['low'])/2 + self.env.env_params['a_space']['low']
         
         return total_reward, s_rollout, actions,cons_info
@@ -79,14 +80,14 @@ class policy_eval():
         '''
         data = {}
         action_space_shape = self.env.env_params['a_space']['low'].shape[0]
-        num_states = self.env.x0.shape[0]
+        num_states = self.env.Nx
         
 
 
         # Collect Oracle data
         if self.oracle:
             r_opt = np.zeros((1,self.reps))
-            x_opt = np.zeros((self.env.Nx, self.env.N, self.reps))
+            x_opt = np.zeros((self.env.Nx_oracle, self.env.N, self.reps))
             u_opt = np.zeros((self.env.Nu, self.env.N, self.reps))
             oracle_instance = oracle(self.make_env, self.env_params,self.MPC_params)
             for i in range(self.reps):
@@ -130,9 +131,9 @@ class policy_eval():
             raise ValueError(f"Number of policies ({self.n_pi}) is greater than the number of available colors ({len(col)})")
 
 
-        plt.figure(figsize=(10, 2*(self.env.Nx+self.env.Nu+len_d)))
-        for i in range(self.env.Nx):
-            plt.subplot(self.env.Nx + self.env.Nu+len_d,1,i+1)
+        plt.figure(figsize=(10, 2*(self.env.Nx_oracle+self.env.Nu-self.env.Nd)))
+        for i in range(self.env.Nx_oracle):
+            plt.subplot(self.env.Nx_oracle + self.env.Nu-self.env.Nd,1,i+1)
             for ind, (pi_name, pi_i) in enumerate(self.policies.items()):
                 plt.plot(t, np.median(data[pi_name]['x'][i,:,:], axis=1), color=col[ind], lw=3, label = self.env.model.info()['states'][i] + ' (' + pi_name + ')' )
                 plt.gca().fill_between(t, np.min(data[pi_name]['x'][i,:,:], axis=1), np.max(data[pi_name]['x'][i,:,:], axis=1), color=col[ind], alpha=0.2, edgecolor = 'none')
@@ -151,7 +152,8 @@ class policy_eval():
             plt.xlim(min(t), max(t))
 
         for j in range(self.env.Nu-len_d):
-            plt.subplot(self.env.Nx + self.env.Nu + len_d, 1, j+self.env.Nx+1)
+            plt.subplot(self.env.Nx_oracle + self.env.Nu - self.env.Nd, 1, j+self.env.Nx_oracle+1)
+            
             for ind, (pi_name, pi_i) in enumerate(self.policies.items()):
                 plt.step(t, np.median(data[pi_name]['u'][j,:,:], axis=1), color=col[ind], lw=3, label=self.env.model.info()['inputs'][j] + ' (' + pi_name + ')')
             if self.oracle:
@@ -167,13 +169,15 @@ class policy_eval():
             plt.xlim(min(t), max(t))
 
         if self.env.disturbance_active:
-            for i, k in enumerate(self.env.disturbances.keys()):
+            for k in self.env.disturbances.keys():
+                i = 1
                 if self.env.disturbances[k].any() is not None:
-                    plt.subplot(self.env.Nx+self.env.Nu+len_d,1,i+self.env.Nx+self.env.Nu-len_d+1)
+                    plt.subplot(self.env.Nx_oracle+self.env.Nu-self.env.Nd,1,i+j+self.env.Nx_oracle+1)
                     plt.step(t, self.env.disturbances[k], color = 'tab:orange',label=k)
                     plt.xlabel('Time (min)')
                     plt.ylabel(k)
                     plt.xlim(min(t), max(t))
+                    i += 1 
         plt.tight_layout()
         plt.show()
         
