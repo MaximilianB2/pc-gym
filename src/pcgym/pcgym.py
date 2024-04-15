@@ -7,8 +7,8 @@ from pcgym.model_classes import (
     multistage_extraction_ode,
     nonsmooth_control_ode,
 )
-from pcgym.policy_evaluation import policy_eval
-from pcgym.integrator import integration_engine
+from pcgym.Policy_Evaluation import policy_eval
+from pcgym.Integrator import integration_engine
 import copy
 
 
