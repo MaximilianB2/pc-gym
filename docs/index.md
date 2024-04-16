@@ -1,7 +1,35 @@
+<script type="text/javascript"
+  src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS_CHTML">
+</script>
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    tex2jax: {
+      inlineMath: [['$','$'], ['\\(','\\)']],
+      processEscapes: true},
+      jax: ["input/TeX","input/MathML","input/AsciiMath","output/CommonHTML"],
+      extensions: ["tex2jax.js","mml2jax.js","asciimath2jax.js","MathMenu.js","MathZoom.js","AssistiveMML.js", "[Contrib]/a11y/accessibility-menu.js"],
+      TeX: {
+      extensions: ["AMSmath.js","AMSsymbols.js","noErrors.js","noUndefined.js"],
+      equationNumbers: {
+      autoNumber: "AMS"
+      }
+    }
+  });
+</script>
+
+ 
 <figure>
   <img src="img/pc-gym%20dark.png#only-dark" alt="Image title" style="width:100%">
   <img src="img/pc-gym.png#only-light" alt="Image title" style="width:100%">
 </figure>
+
+## Welcome!
+Process Control (pc-) gym is a set of benchmark chemical process control problems for reinforcement learning with integrated policy evaluation methods to aid the development of reinforcement learning algorithms.
+
+The pc-gym was developed within the [Sargent Centre for Process Systems Engineering](https://www.imperial.ac.uk/process-systems-engineering/about-sargent-centre/) and is published as an [open-source package](https://github.com/MaximilianB2/pc-gym) which welcomes contributions from the RL and PSE communities.
+
+*Note: this is a pre-release version of the documentation and may not reflect the current version of pc-gym*
+
 
 ## Quick start 
 Setup a CSTR environment with a setpoint change
@@ -43,23 +71,25 @@ action = env.action_space.sample()
 # Perform a step in the environment
 obs, rew, done, term, info = env.step(action)
 ```
-## Documentation
-
-You can read the full documentation [here](https://maximilianb2.github.io/pc-gym/)!
 
 ## Installation 
 
-The latest pc-gym version can be installed from PyPI:
+The latest production pc-gym version can be installed from PyPI:
 
 ```bash
 pip install pcgym
 ```
+Alternatively, you can install the latest development version directly from GitHub:
 
+```bash
+pip install git+https://github.com/MaximilianB2/pc-gym
+```
 ## Examples
 
 TODO: Link example notebooks here
 
-## Implemented Process Control Environments 
+## Environments 
+Currently there are three implemented process control environments, this will be expanded to 10 prior to full release.
 <div style="display: flex; justify-content: center;">
 <table style="width:100%">
   <tr>
@@ -86,15 +116,26 @@ TODO: Link example notebooks here
     <td><a href="link_to_code">code</a></td>
     <td><a href="link_to_doc">doc</a></td>
   </tr>
+    <tr>
+    <td>Nonsmooth Control</td>
+    <td>Linear System</td> 
+    <td><a href="link_to_code">code</a></td>
+    <td><a href="link_to_doc">doc</a></td>
+  </tr>
 </table>
 </div>
 
- 
+All environments use the following observation representation for $i$ states and $j$ disturbances:
+\begin{align}
+\nonumber o = [x_i,..., x_{i,sp}..., d_j,...] 
+\end{align}
+*Note: observation masking is a feature to be added prior to final release as this will allow the user to investigate partial observability problems.*
 ## Citing `pc-gym`
 If you use `pc-gym` in your research, please cite using the following 
 ```
 @software{pcgym2024,
-  author = {Max Bloor and ...},
+  author = {Max Bloor and Jose Neto and Ilya Sandoval and Max Mowbray
+            and Akhil Ahmed and Mehmet Mercangoz and Calvin Tsay and Antonio Del Rio-Chanona},
   title = {{pc-gym}: Reinforcement Learning Envionments for Process Control},
   url = {https://github.com/MaximilianB2/pc-gym},
   version = {0.0.4},
@@ -102,7 +143,9 @@ If you use `pc-gym` in your research, please cite using the following
 }
 ```
 
-## Other Great Gyms 
+## Other great gyms 
+Other works have built upon the [OpenAI Gymnasium](https://gymnasium.farama.org/) framework:
+
 - ✨[safe-control-gym](https://github.com/utiasDSL/safe-control-gym) 
 - ✨[safety-gymnasium](https://github.com/PKU-Alignment/safety-gymnasium)
 - ✨[gymnax](https://github.com/RobertTLange/gymnax)

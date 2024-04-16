@@ -49,4 +49,4 @@ The reward is a continuous value corresponding to square error of the state and 
 
 ## Reference
 
-This model and its description were kindly provided by Akhil Ahmed. 
+This model implementation and its description were kindly provided by [Akhil Ahmed](https://scholar.google.com/citations?user=AS34x7cAAAAJ). 

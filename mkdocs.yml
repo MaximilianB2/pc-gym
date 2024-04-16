@@ -16,6 +16,7 @@ nav:
     # - CSTR in Series with Recyle Loop: env/CSTR in Series with Recycle loop.md
     # - Distillation Column: env/distillation-column.md
     - Extraction Column: env/extraction-column.md
+    - Nonsmooth Control: env/nonsmooth_control.md
     # - Extraction Column (Reactive): env/extraction-column-react.md
     # - Shell and Tube Heat Exchanger: env/STHE.md
     # - Reactor-Separator-Recycle: env/RSR.md
