@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from .oracle import oracle
 
-
 class policy_eval:
     """
     Policy Evaluation Class
@@ -55,23 +54,24 @@ class policy_eval:
         actions = np.zeros((self.env.env_params["a_space"]["low"].shape[0], self.env.N))
 
         o, r = self.env.reset()
+        
         total_reward = r["r_init"]
         s_rollout[:, 0] = (o + 1) * (
-            self.env.observation_space.high - self.env.observation_space.low
-        ) / 2 + self.env.observation_space.low
+            self.env.observation_space_base.high - self.env.observation_space_base.low
+        ) / 2 + self.env.observation_space_base.low
         for i in range(self.env.N - 1):
             a, _s = policy_i.predict(
                 o, deterministic=True
             )  # Rollout with a deterministic policy
             o, r, term, trunc, info = self.env.step(a)
-
+            print(o)
             actions[:, i] = (a + 1) * (
                 self.env.env_params["a_space"]["high"]
                 - self.env.env_params["a_space"]["low"]
             ) / 2 + self.env.env_params["a_space"]["low"]
             s_rollout[:, i + 1] = (o + 1) * (
-                self.env.observation_space.high - self.env.observation_space.low
-            ) / 2 + self.env.observation_space.low
+                self.env.observation_space_base.high - self.env.observation_space_base.low
+            ) / 2 + self.env.observation_space_base.low
 
             total_reward += r
 

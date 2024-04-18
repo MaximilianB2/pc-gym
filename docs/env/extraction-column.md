@@ -43,14 +43,8 @@ The action space is a `ContinuousBox` of `[[5,10],[500,1000]]` which corresponds
 
 ## Reward
 
-The reward is a continuous value corresponding to square error of the state and its setpoint. For multiple states, these are scaled with a factor $\gamma_i$ and summed to give a single value.
-
-
-\begin{align}
-\nonumber \sum_{i=1}^{N_x}{\frac{(x_i-x_{SP,i})^2}{\gamma_i}}
-\end{align}
-
+The reward is a continuous value corresponding to square error of the state and its setpoint. For multiple states, these are scaled with a factor (`r_scale`)and summed to give a single value.
 
 ## Reference
 
-This model and its description were kindly provided by Akhil Ahmed. 
+This model and its description were kindly provided by [Akhil Ahmed](https://scholar.google.com/citations?user=AS34x7cAAAAJ). The original model was created by [Ingham et. al. (2007)](https://onlinelibrary.wiley.com/doi/book/10.1002/9783527614219).

@@ -2,19 +2,19 @@ This is a user guide for the disturbance function in the pc-gym which will walkt
 
 ### Disturbance Definition
 
-In this example we have already set up an environment according to the `Training` user guide. Hence we will update the environment definition with an additional disturbance input to the inlet concentration of species A. This disturbances are defined in a dictionary named `disturbance`. The keys in the dictionary represent the state, and the values are numpy arrays that represent the disturbance for each step in the state. 
+In this example we have already set up an environment according to the `Training` user guide. Hence we will update the environment definition with an additional disturbance input to the inlet temperature. This disturbances are defined in a dictionary named `disturbance`. The keys in the dictionary represent the state, and the values are numpy arrays that represent the disturbance for each step in the state. 
 
-**Note:** All disturbances variable must be defined. Please use `None` for default values of the disturbance variable. For example, in the code snippet, the inlet temperature disturbance is defined as `None` to set it to its default value. 
+The disturbances are added to the RL state which requires a space definition hence the disturbance bounds are added to the environment definition. 
+
 
 ```py
 # Define disturbance dictionary
-disturbance = {
-    '0': np.array([None for i in range(nsteps)]),
-    '1': np.array([1 for i in range(int(nsteps/2))]+[1.05 for i in range(int(nsteps))])
-    }
-    
-env_params.update({'disturbances': disturbance}) # Update environment definition
-env = Models_env(env_params) # Create a new instance of the environment with the disturbance
+disturbance = {'Ti': np.repeat([350, 45, 350], [nsteps//4, nsteps//2, nsteps//4])}
+disturbance_space ={
+  'low': np.array([320]),
+  'high': np.array([350])
+}
+env = make_env({**env_params,'disturbance_bounds':disturbance_space, 'disturbances': disturbance})
 ```
 
 ### Training with a Disturbance Example

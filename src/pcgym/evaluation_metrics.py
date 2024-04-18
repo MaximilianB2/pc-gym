@@ -88,8 +88,9 @@ class median_absolute_deviation:
         """
 
         return np.median(
-            np.abs(self.data - np.median(self.data, axis=-1)), axis=-1 # Currently only works for the reward component
-        )  
+            np.abs(self.data - np.median(self.data, axis=-1)),
+            axis=-1,  # Currently only works for the reward component
+        )
 
 
 class mean_performance:

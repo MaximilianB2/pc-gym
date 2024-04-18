@@ -130,6 +130,13 @@ All environments use the following observation representation for $i$ states and
 \nonumber o = [x_i,..., x_{i,sp}..., d_j,...] 
 \end{align}
 *Note: observation masking is a feature to be added prior to final release as this will allow the user to investigate partial observability problems.*
+## Future Features
+The following features are being worked on to be added in the near future:
+ - Optimality gap visualisation
+ - Observability Mask 
+ - More case studies
+ - Custom reward functions
+
 ## Citing `pc-gym`
 If you use `pc-gym` in your research, please cite using the following 
 ```

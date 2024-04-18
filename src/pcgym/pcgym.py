@@ -1,14 +1,14 @@
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-from pcgym.model_classes import (
+from .model_classes import (
     cstr_ode,
     first_order_system_ode,
     multistage_extraction_ode,
     nonsmooth_control_ode,
 )
-from pcgym.Policy_Evaluation import policy_eval
-from pcgym.Integrator import integration_engine
+from .policy_evaluation import policy_eval
+from .integrator import integration_engine
 import copy
 
 
@@ -48,8 +48,13 @@ class make_env(gym.Env):
         # Initial setup for observation space based on user-defined bounds
         base_obs_low = env_params["o_space"]["low"]
         base_obs_high = env_params["o_space"]["high"]
-        self.observation_space = spaces.Box(low=base_obs_low, high=base_obs_high)
+        self.observation_space_base = spaces.Box(low=base_obs_low, high=base_obs_high)
 
+        if self.normalise_o: 
+            self.observation_space = spaces.Box(low=np.array([-1]*base_obs_low.shape[0]), high=np.array([1]*base_obs_high.shape[0]))
+        else:
+            self.observation_space = spaces.Box(low=base_obs_low, high=base_obs_high)
+        
         try:
             self.integration_method = env_params["integration_method"]
         except Exception:
@@ -129,7 +134,13 @@ class make_env(gym.Env):
             extended_obs_low = np.concatenate((base_obs_low, disturbance_low))
             extended_obs_high = np.concatenate((base_obs_high, disturbance_high))
             # Define the extended observation space
-            self.observation_space = spaces.Box(
+            self.observation_space_base = spaces.Box(
+                low=extended_obs_low, high=extended_obs_high, dtype=np.float32
+            )
+            if self.normalise_o:
+                self.observation_space = spaces.Box(low=np.array([-1]*extended_obs_low.shape[0]), high=np.array([1]*extended_obs_high.shape[0]))
+            else:
+                self.observation_space = spaces.Box(
                 low=extended_obs_low, high=extended_obs_high, dtype=np.float32
             )
 
@@ -159,12 +170,12 @@ class make_env(gym.Env):
         r_init = self.reward_fn(state, False)
 
         self.done = False
-
+       
         if self.normalise_o is True:
             self.normstate = (
                 2
-                * (self.state - self.observation_space.low)
-                / (self.observation_space.high - self.observation_space.low)
+                * (self.state - self.observation_space_base.low)
+                / (self.observation_space_base.high - self.observation_space_base.low)
                 - 1
             )
             return self.normstate, {"r_init": r_init}
@@ -199,8 +210,10 @@ class make_env(gym.Env):
                 self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
             ) / 2 + self.env_params["a_space"]["low"]
 
+
         # Add disturbance to control vector
         if self.disturbance_active:
+            
             uk[: self.Nu - len(self.model.info()["disturbances"])] = (
                 action  # Add action to control vector
             )
@@ -212,6 +225,7 @@ class make_env(gym.Env):
                     uk[self.Nu - self.Nd_model + i] = self.disturbances[k][
                         self.t
                     ]  # Add disturbance to control vector
+                    
                     disturbance_values_state.append(current_disturbance_value)
                     disturbance_values.append(current_disturbance_value)
                 else:
@@ -219,15 +233,18 @@ class make_env(gym.Env):
                     uk[self.Nu - self.Nd_model + i] = self.model.info()["parameters"][
                         str(k)
                     ]  # if there is no disturbance at this timestep, use the default value
+                  
                     disturbance_values.append(default_value)
+                    
 
             # Update the state vector with current disturbance values
             self.state[self.Nx_oracle + len(self.SP) :] = disturbance_values_state
         else:
             uk = action  # Add action to control vector
-
+         
         # Simulate one timestep
         if self.integration_method == "casadi":
+            
             Fk = self.int_eng.casadi_step(self.state, uk)
             self.state[: self.Nx_oracle] = np.array(Fk["xf"].full()).reshape(
                 self.Nx_oracle
@@ -248,8 +265,7 @@ class make_env(gym.Env):
         for k in self.SP.keys():
             if k in self.SP:
                 SP_t.append(self.SP[k][self.t])
-        self.state[self.Nx :] = np.array(SP_t)
-
+        self.state[self.Nx_oracle:self.Nx_oracle+len(self.SP)] = np.array(SP_t)
         # Update timestep
         self.t += 1
 
@@ -268,10 +284,11 @@ class make_env(gym.Env):
         if self.normalise_o is True:
             self.normstate = (
                 2
-                * (self.state - self.observation_space.low)
-                / (self.observation_space.high - self.observation_space.low)
+                * (self.state - self.observation_space_base.low)
+                / (self.observation_space_base.high - self.observation_space_base.low)
                 - 1
             )
+            
             return self.normstate, rew, self.done, False, self.info
         else:
             return self.state, rew, self.done, False, self.info
@@ -287,7 +304,7 @@ class make_env(gym.Env):
             r - reward for current timestep
 
         """
-
+        
         r = 0.0
 
         for k in self.SP:
