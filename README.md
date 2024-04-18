@@ -66,7 +66,7 @@ pip install pcgym
 ```
 
 ## Examples
-Example notebooks with walkthroughs of training, constraints, disturbances and the policy evaluation tool with `pc-gym` can be found [here](https://github.com/MaximilianB2/pc-gym/tree/main/example_notebooks).
+Example notebooks with training walkthroughs, implementing constraints, disturbances and the policy evaluation tool can be found [here](https://github.com/MaximilianB2/pc-gym/tree/main/example_notebooks).
 
 ## Implemented Process Control Environments 🎛️
 
