@@ -101,26 +101,26 @@ Currently there are three implemented process control environments, this will be
   <tr>
     <td>CSTR</td>
     <td>Reactor</td> 
-    <td><a href="link_to_code">code</a></td>
-    <td><a href="link_to_doc">doc</a></td>
+    <td><a href="https://github.com/MaximilianB2/pc-gym/tree/main/example_notebooks">Code</a></td>
+    <td><a href="https://maximilianb2.github.io/pc-gym/env/cstr/">Documentation</a></td>
   </tr>
   <tr>
     <td>First Order System</td>
     <td>Simple Model</td> 
-    <td><a href="link_to_code">code</a></td>
-    <td><a href="link_to_doc">doc</a></td>
+    <td><a href="https://github.com/MaximilianB2/pc-gym/tree/main/example_notebooks">Code</a></td>
+    <td><a href="https://maximilianb2.github.io/pc-gym/env/first_order_system/">Documentation</a></td>
   </tr>
   <tr>
     <td>Multistage Extration</td>
     <td>Column</td> 
-    <td><a href="link_to_code">code</a></td>
-    <td><a href="link_to_doc">doc</a></td>
+    <td><a href="https://github.com/MaximilianB2/pc-gym/tree/main/example_notebooks">Code</a></td>
+    <td><a href="https://maximilianb2.github.io/pc-gym/env/extraction-column/">Documentation</a></td>
   </tr>
     <tr>
     <td>Nonsmooth Control</td>
     <td>Linear System</td> 
-    <td><a href="link_to_code">code</a></td>
-    <td><a href="link_to_doc">doc</a></td>
+    <td><a href="https://github.com/MaximilianB2/pc-gym/tree/main/example_notebooks">Code</a></td>
+    <td><a href="link_to_doc">Documentation</a></td>
   </tr>
 </table>
 </div>
