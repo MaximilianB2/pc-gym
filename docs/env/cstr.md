@@ -17,7 +17,7 @@
   });
 </script>
 <div style="display: flex; justify-content: center;">
-  <img src="\img\cstr_pfd.png" alt="Image title" style="width:40%">
+  <img src="../../img/cstr_pfd.png" alt="Image title" style="width:40%">
 </div>
  
 
