@@ -4,6 +4,7 @@ channels:
   - conda-forge
 dependencies:
   - jupyterlab
+  - pip
   - pytorch::pytorch
   - pip:
     - pcgym
