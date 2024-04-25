@@ -83,10 +83,10 @@ Example notebooks with training walkthroughs, implementing constraints, disturba
 If you use `pc-gym` in your research, please cite using the following 
 ```
 @software{pcgym2024,
-  author = {Max Bloor and and Jose Neto and Ilya Sandoval and Max Mowbray and Akhil Ahmed and Mehmet Mercangoz and Calvin Tsay and Antonio Del Rio-Chanona},
-  title = {{pc-gym}: Reinforcement Learning Envionments for Process Control},
+  author = {Max Bloor and  Jose Neto and Ilya Sandoval and Max Mowbray and Akhil Ahmed and Mehmet Mercangoz and Calvin Tsay and Antonio Del Rio-Chanona},
+  title = {{pc-gym}: Reinforcement Learning Environments for Process Control},
   url = {https://github.com/MaximilianB2/pc-gym},
-  version = {0.0.4},
+  version = {0.1.6},
   year = {2024},
 }
 ```
