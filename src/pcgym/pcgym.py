@@ -159,6 +159,11 @@ class make_env(gym.Env):
                 self.observation_space = spaces.Box(
                 low=extended_obs_low, high=extended_obs_high, dtype=np.float32
             )
+                
+        # Custom reward function
+        if env_params.get("custom_reward") is not None:
+            self.custom_reward = True
+            self.custom_reward_f = env_params["custom_reward"]
 
     def reset(self, seed=None, **kwargs):  # Accept arbitrary keyword arguments
         """
@@ -274,7 +279,10 @@ class make_env(gym.Env):
             constraint_violated = self.constraint_check(self.state, uk)
 
         # Compute reward
-        rew = self.reward_fn(self.state, constraint_violated)
+        if self.custom_reward:
+           rew = self.custom_reward_f(self.state, uk, constraint_violated) 
+        else:
+            rew = self.reward_fn(self.state, constraint_violated)
 
         # For each set point, if it exists, append its value at the current time step to the list
         SP_t = []
