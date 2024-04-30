@@ -64,7 +64,6 @@ class policy_eval:
                 o, deterministic=True
             )  # Rollout with a deterministic policy
             o, r, term, trunc, info = self.env.step(a)
-            print(o)
             actions[:, i] = (a + 1) * (
                 self.env.env_params["a_space"]["high"]
                 - self.env.env_params["a_space"]["low"]
