@@ -1,11 +1,9 @@
-import sys
-sys.path.append("..")  # Adds higher directory to python modules path for callback class. 
-sys.path.append("..\..\..\src\pcgym") # Add local pc-gym files to path.
 
+import sys
+sys.path.append("..\..\..\src\pcgym") # Add local pc-gym files to path.
 from pcgym import make_env
-from callback import LearningCurveCallback
-import numpy as np
 from stable_baselines3 import PPO, DDPG, SAC
+import numpy as np
 
 
 # Define environment
@@ -32,7 +30,7 @@ r_scale = {'Ca':1e3}
 def oracle_reward(self,x,u,con):
     Sp_i = 0
     cost = 0 
-    R = 4
+    R = 0.1
     for k in self.env_params["SP"]:
         i = self.model.info()["states"].index(k)
         SP = self.SP[k]
@@ -76,32 +74,17 @@ env_params = {
 
 env = make_env(env_params)
 
-# Global timesteps
-nsteps_train = 1e4
+# Load trained policies
+SAC_cstr = SAC.load('./policies/SAC_CSTR')
+PPO_cstr = PPO.load('./policies/PPO_CSTR')
+DDPG_cstr = DDPG.load('./policies/DDPG_CSTR')
 
-# Train SAC 
-log_file = "learning_curves\SAC_CSTR_LC.csv"
-SAC_CSTR =  SAC("MlpPolicy", env, verbose=1, learning_rate=0.01)
-callback = LearningCurveCallback(log_file=log_file)
-SAC_CSTR.learn(nsteps_train,callback=callback)
+# Visualise policies with the oracle
+evaluator, data = env.plot_rollout({'SAC':SAC_cstr,'PPO':PPO_cstr,'DDPG':DDPG_cstr}, reps=1, oracle=True, MPC_params={'N':15,'R':4})
+print(data['oracle']['r'])
+print(data['SAC']['r'])
+print(data['PPO']['r'])
+print(data['DDPG']['r'])
+# Visualise the learning curves
 
-# Save SAC Policy 
-SAC_CSTR.save('policies\SAC_CSTR.zip')
-
-# Train PPO 
-log_file = "learning_curves\PPO_CSTR_LC.csv"
-PPO_CSTR =  PPO("MlpPolicy", env, verbose=1, learning_rate=0.001)
-callback = LearningCurveCallback(log_file=log_file)
-PPO_CSTR.learn(nsteps_train*3,callback=callback)
-
-# Save SAC Policy 
-PPO_CSTR.save('policies\PPO_CSTR.zip')
-
-# Train SAC 
-log_file = "learning_curves\DDPG_CSTR_LC.csv"
-DDPG_CSTR =  DDPG("MlpPolicy", env, verbose=1, learning_rate=0.001)
-callback = LearningCurveCallback(log_file=log_file)
-DDPG_CSTR.learn(nsteps_train*3,callback=callback)
-
-# Save DDPG Policy 
-DDPG_CSTR.save('policies\DDPG_CSTR.zip')
+# Visulise the optimality gap 

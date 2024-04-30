@@ -1,7 +1,7 @@
 # Policy Evaluation Class for pc-gym
 import numpy as np
 import matplotlib.pyplot as plt
-from .oracle import oracle
+from oracle import oracle
 
 class policy_eval:
     """
@@ -64,7 +64,6 @@ class policy_eval:
                 o, deterministic=True
             )  # Rollout with a deterministic policy
             o, r, term, trunc, info = self.env.step(a)
-            print(o)
             actions[:, i] = (a + 1) * (
                 self.env.env_params["a_space"]["high"]
                 - self.env.env_params["a_space"]["low"]
@@ -118,7 +117,7 @@ class policy_eval:
                         np.sum((x_opt[state_i, :, i] - self.env.SP[k]) ** 2)
                         * -1
                         * r_scale.get(k, 1)
-                    )
+                    ) #TODO: Update to use environment defined reward function!
             data.update({"oracle": {"r": r_opt, "x": x_opt, "u": u_opt}})
 
         # Collect RL rollouts for all policies
