@@ -2,10 +2,18 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 from .model_classes import (
-    cstr_ode,
-    first_order_system_ode,
-    multistage_extraction_ode,
-    nonsmooth_control_ode,
+    cstr,
+    first_order_system,
+    multistage_extraction,
+    nonsmooth_control,
+    RSR,
+    cstr_series_recycle,
+    distillation_column,
+    multistage_extraction_reactive,
+    four_tank,
+    heat_exchanger,
+    biofilm_reactor,
+    polymerisation_reactor,
 )
 from .policy_evaluation import policy_eval
 from .integrator import integration_engine
@@ -88,13 +96,21 @@ class make_env(gym.Env):
 
         # Select model
         model_mapping = {
-            "cstr_ode": cstr_ode,
-            "first_order_system_ode": first_order_system_ode,
-            "nonsmooth_control_ode": nonsmooth_control_ode,
-            "multistage_extraction_ode": multistage_extraction_ode,
+            "cstr": cstr,
+            "first_order_system": first_order_system,
+            "nonsmooth_control": nonsmooth_control,
+            "multistage_extraction": multistage_extraction,
+            "RSR": RSR,
+            "cstr_series_recycle": cstr_series_recycle,
+            "distillation_column": distillation_column,
+            "multistage_extraction_reactive": multistage_extraction_reactive,
+            "four_tank": four_tank,
+            "heat_exchanger": heat_exchanger,
+            "biofilm_reactor": biofilm_reactor,
+            "polymerisation_reactor": polymerisation_reactor,
         }
 
-        # Load custom model if it is provide else load the selected standard model.
+        # Load custom model if it is provided else load the selected standard model.
         if self.env_params.get("custom_model") is not None:
             m = self.env_params.get("custom_model")
         else:

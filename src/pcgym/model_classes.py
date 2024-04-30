@@ -20,7 +20,7 @@ import numpy as np
 # exponential run-away when the temperature rises too quickly.
 # source: https://apmonitor.com/pdc/index.php/Main/StirredReactor
 @dataclass(frozen=False, kw_only=True)
-class cstr_ode:
+class cstr:
     # Parameters
     q: float = 100  # m3/s
     V: float = 100  # m3
@@ -84,7 +84,7 @@ class cstr_ode:
 
 # ==== First Order System Model ====#
 @dataclass(frozen=False, kw_only=True)
-class first_order_system_ode:
+class first_order_system:
     # Parameters
     K: float = 1
     tau: float = 0.5
@@ -123,7 +123,7 @@ class first_order_system_ode:
 
 
 @dataclass(frozen=False, kw_only=True)
-class multistage_extraction_ode:
+class multistage_extraction:
     # Parameters
     Vl: float = 5  # Liquid volume in each stage
     Vg: float = 5  # Gas volume in each stage
@@ -260,7 +260,7 @@ class multistage_extraction_ode:
 
 # ==== Bang-Bang Control Model ====#
 @dataclass(frozen=False, kw_only=True)
-class nonsmooth_control_ode:
+class nonsmooth_control:
     # Parameters
     int_method: str = "jax"
     a_11: float = 0
@@ -359,7 +359,7 @@ class RSR:
         return info
     
 @dataclass(frozen=False, kw_only=True)
-class cstr_series_recycle_two_ode:
+class cstr_series_recycle:
     # Parameters
     C_O: float = 97.35  # mol/m3
     T_O: float = 298  # K
@@ -400,7 +400,7 @@ class cstr_series_recycle_two_ode:
         }
         return info
 @dataclass(frozen=False, kw_only=True)
-class distillation_ode:
+class distillation_column:
     # Parameters
     D: float = 100.0  # kmol/hr
     q: float = 1.0  # Feed quality (q=1 is saturated liquid)
@@ -457,7 +457,7 @@ class distillation_ode:
         return info
 
 @dataclass(frozen=False, kw_only=True)
-class multistage_extraction_reactive_ode:
+class multistage_extraction_reactive:
     # Parameters
     Vl: float = 5.0  # Liquid volume in each stage
     Vg: float = 5.0  # Gas volume in each stage
@@ -531,7 +531,7 @@ class multistage_extraction_reactive_ode:
         return info
     
 @dataclass(frozen=False, kw_only=True)
-class four_tank_ode:
+class four_tank:
     # Parameters
     g: float = 9.81  # Acceleration due to gravity [m/s2]
     gamma_1: float = 0.2  # Fraction bypassed by valve to tank 1 [-]
@@ -573,7 +573,7 @@ class four_tank_ode:
 
 
 @dataclass(frozen=False, kw_only=True)
-class heat_ex_ode:
+class heat_exchanger:
     # Parameters
     Utm: float = 1.0  # Tube-metal overall heat transfer coefficient [kW/m2 K]
     Usm: float = 1.0  # Shell-metal overall heat transfer coefficient [kW/m2 K]
@@ -656,7 +656,7 @@ class heat_ex_ode:
         }
         return info
 @dataclass(frozen=False, kw_only=True)
-class biofilm_reactor_ode:
+class biofilm_reactor:
     # Parameters
     V: float = 1.0  # Volume of one reactor stage [L]
     Va: float = 1.0  # Volume of absorber tank [L]
@@ -737,7 +737,7 @@ class biofilm_reactor_ode:
         return info
 
 @dataclass(frozen=False, kw_only=True)
-class polymerisation_ode:
+class polymerisation_reactor:
     # Parameters
     Ap: float = 6e10  # Pre-exponential factor for step p [1/sec]
     Ad: float = 4e10  # Pre-exponential factor for step d [1/sec]
