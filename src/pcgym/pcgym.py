@@ -161,6 +161,7 @@ class make_env(gym.Env):
             )
                 
         # Custom reward function
+        self.custom_reward = False # Set custom reward to False by default
         if env_params.get("custom_reward") is not None:
             self.custom_reward = True
             self.custom_reward_f = env_params["custom_reward"]
