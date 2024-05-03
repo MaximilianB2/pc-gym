@@ -23,6 +23,7 @@ class policy_eval:
         oracle=False,
         MPC_params=False,
         cons_viol=False,
+        save_fig=False
     ):
         self.make_env = make_env
         self.env_params = env_params
@@ -32,6 +33,7 @@ class policy_eval:
         self.reps = reps
         self.oracle = oracle
         self.cons_viol = cons_viol
+        self.save_fig = save_fig
 
         self.MPC_params = MPC_params
 
@@ -49,13 +51,13 @@ class policy_eval:
 
         """
 
-        total_reward = 0
+        total_reward = []
         s_rollout = np.zeros((self.env.Nx, self.env.N))
         actions = np.zeros((self.env.env_params["a_space"]["low"].shape[0], self.env.N))
 
         o, r = self.env.reset()
         
-        total_reward = r["r_init"]
+        total_reward.append(r["r_init"])
         s_rollout[:, 0] = (o + 1) * (
             self.env.observation_space_base.high - self.env.observation_space_base.low
         ) / 2 + self.env.observation_space_base.low
@@ -71,8 +73,8 @@ class policy_eval:
             s_rollout[:, i + 1] = (o + 1) * (
                 self.env.observation_space_base.high - self.env.observation_space_base.low
             ) / 2 + self.env.observation_space_base.low
-
-            total_reward += r
+            
+            total_reward.append(r[0])
 
         if self.env.constraint_active:
             cons_info = info["cons_info"]
@@ -85,6 +87,16 @@ class policy_eval:
         ) / 2 + self.env.env_params["a_space"]["low"]
 
         return total_reward, s_rollout, actions, cons_info
+    
+    def oracle_reward_fn(self, x, u):
+        r_opt = []
+        for i in range(x.shape[1]): # Loop over all time steps
+            self.env.t = i
+            if self.env.custom_reward:
+                r_opt.append(self.env.custom_reward_f(self.env,x[:,i],u[:,i],0)) # TODO: add constraint violation for oracle here
+            else:
+                r_opt.append(self.env.reward_fn(x[:,i],u[:,i],0)) 
+        return r_opt
 
     def get_rollouts(self):
         """
@@ -104,34 +116,27 @@ class policy_eval:
 
         # Collect Oracle data
         if self.oracle:
-            r_opt = np.zeros((1, self.reps))
+            r_opt = np.zeros((1, self.env.N, self.reps))
             x_opt = np.zeros((self.env.Nx_oracle, self.env.N, self.reps))
             u_opt = np.zeros((self.env.Nu, self.env.N, self.reps))
             oracle_instance = oracle(self.make_env, self.env_params, self.MPC_params)
             for i in range(self.reps):
                 x_opt[:, :, i], u_opt[:, :, i] = oracle_instance.mpc()
-                for k in self.env.SP:
-                    state_i = self.env.model.info()["states"].index(k)
-                    r_scale = self.env_params.get("r_scale", {})
-                    r_opt[:, i] += (
-                        np.sum((x_opt[state_i, :, i] - self.env.SP[k]) ** 2)
-                        * -1
-                        * r_scale.get(k, 1)
-                    ) #TODO: Update to use environment defined reward function!
+                r_opt[:, :, i] = np.array(self.oracle_reward_fn(x_opt[:, :, i], u_opt[:, :, i])).reshape(1,self.env.N)
             data.update({"oracle": {"r": r_opt, "x": x_opt, "u": u_opt}})
 
         # Collect RL rollouts for all policies
         for pi_name, pi_i in self.policies.items():
             states = np.zeros((num_states, self.env.N, self.reps))
             actions = np.zeros((action_space_shape, self.env.N, self.reps))
-            rew = np.zeros((1, self.reps))
+            rew = np.zeros((1,self.env.N, self.reps))
             try:
                 cons_info = np.zeros((self.env.n_con, self.env.N, 1, self.reps))
             except Exception:
                 cons_info = np.zeros((1, self.env.N, 1, self.reps))
             for r_i in range(self.reps):
                 (
-                    rew[:, r_i],
+                    rew[:,:, r_i],
                     states[:, :, r_i],
                     actions[:, :, r_i],
                     cons_info[:, :, :, r_i],
@@ -267,6 +272,8 @@ class policy_eval:
                     plt.xlim(min(t), max(t))
                     i += 1
         plt.tight_layout()
+        if self.save_fig:
+            plt.savefig('rollout.pdf')
         plt.show()
 
         if self.cons_viol:

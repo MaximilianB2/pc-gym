@@ -123,12 +123,10 @@ class oracle:
                 o_space_high - o_space_low
             )
 
-            r_scale = self.env_params.get(
-                "r_scale", {}
-            )  # if no r_scale: set r_scale to 1
-            cost += sum1(sum2((x_normalized - setpoint_normalized) ** 2)) * r_scale.get(
-                k, 1
-            )
+            # r_scale = self.env_params.get(
+            #     "r_scale", {}
+            # )  # if no r_scale: set r_scale to 1
+            cost += sum1(sum2((x_normalized - setpoint_normalized) ** 2)) 
             Sp_i += 1
         u_normalized = (u - self.env_params["a_space"]["low"]) / (
             self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
@@ -238,6 +236,7 @@ class oracle:
             "ipopt.sb": "no",
             "print_time": 0,
             "ipopt.print_user_options": "no",
+            "ipopt.tol": 1e-8,  # Decrease tolerance
         }
 
         opti.solver("ipopt", opts)

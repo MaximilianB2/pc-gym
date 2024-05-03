@@ -161,6 +161,7 @@ class make_env(gym.Env):
             )
                 
         # Custom reward function
+        self.custom_reward = False # Set custom_reward to False by default
         if env_params.get("custom_reward") is not None:
             self.custom_reward = True
             self.custom_reward_f = env_params["custom_reward"]
@@ -448,6 +449,7 @@ class make_env(gym.Env):
         dist_reward=False,
         MPC_params=False,
         cons_viol=False,
+        save_fig=False,
     ):
         """
         Plot the rollout of the given policy.
@@ -461,7 +463,7 @@ class make_env(gym.Env):
         """
         # construct evaluator
         evaluator = policy_eval(
-            make_env, policies, reps, self.env_params, oracle, MPC_params, cons_viol
+            make_env, policies, reps, self.env_params, oracle, MPC_params, cons_viol,save_fig
         )
         # generate rollouts
         data = evaluator.get_rollouts()
