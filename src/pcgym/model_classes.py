@@ -782,3 +782,72 @@ class polymerisation_reactor:
             "disturbances": []
         }
         return info
+
+@dataclass(frozen=False, kw_only=True)
+class crystallization:
+    # Cristallization of K2SO4 Control (PBE Model).
+    # highly nonlinear process
+    # source: https://pubs.acs.org/doi/10.1021/acs.iecr.3c00739
+    # Parameters
+    ka: float = 0.923714966
+    kb: float = -6754.878558
+    kc: float = 0.92229965554
+    kd: float = 1.341205945
+    kg: float = 48.07514464
+    k1: float = -4921.261419
+    k2: float = 1.871281405
+    a: float = 0.50523693
+    b: float = 7.271241375
+    alfa: float = 7.510905767
+    ro: float = 2.658  # g/cm³
+    V: float = 0.0005  # m³
+    ro_t: float = 997  # kg/m³
+    Cp_t: float = 4.117  # kJ/kg*K
+    UA: float = 0.2154  # kJ/min*K
+    int_method: str = "jax"
+
+    def __call__(self, x, u):
+        mu0, mu1, mu2, mu3, conc, temp = x
+        Tc = u[0]
+
+        if self.int_method == "jax":
+            Ceq = -686.2686 + 3.579165 * jnp(temp) - 0.00292874 * jnp(temp) ** 2  # g/L
+            S = jnp(conc) * 1e3 - Ceq  # g/L
+            B0 = self.ka * jnp.exp(self.kb / temp) * (S ** 2) ** (self.kc / 2) * ((mu3 ** 2) ** (self.kd / 2))  # /(cm³*min)
+            Ginf = self.kg * jnp.exp(self.k1 / temp) * (S ** 2) ** (self.k2 / 2)  # [G] = [Ginf] = cm/min
+
+            dmi0dt = B0
+            dmi1dt = Ginf * (self.a * mu0 + self.b * mu1 * 1e-4) * 1e4
+            dmi2dt = 2 * Ginf * (self.a * mu1 * 1e-4 + self.b * mu2 * 1e-8) * 1e8
+            dmi3dt = 3 * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12) * 1e12
+            dcdt = -0.5 * self.ro * self.alfa * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12)
+            dTdt = self.UA * (Tc - temp) / (self.V * self.ro_t * self.Cp_t)
+
+            dxdt = jnp.array([dmi0dt, dmi1dt, dmi2dt, dmi3dt, dcdt, dTdt])
+        else:
+            Ceq = -686.2686 + 3.579165 * temp - 0.00292874 * temp ** 2  # g/L
+            S = conc * 1e3 - Ceq  # g/L
+            B0 = self.ka * np.exp(self.kb / temp) * (S ** 2) ** (self.kc / 2) * ((mu3 ** 2) ** (self.kd / 2))  # /(cm³*min)
+            Ginf = self.kg * np.exp(self.k1 / temp) * (S ** 2) ** (self.k2 / 2)  # [G] = [Ginf] = cm/min
+
+            dmi0dt = B0
+            dmi1dt = Ginf * (self.a * mu0 + self.b * mu1 * 1e-4) * 1e4
+            dmi2dt = 2 * Ginf * (self.a * mu1 * 1e-4 + self.b * mu2 * 1e-8) * 1e8
+            dmi3dt = 3 * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12) * 1e12
+            dcdt = -0.5 * self.ro * self.alfa * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12)
+            dTdt = self.UA * (Tc - temp) / (self.V * self.ro_t * self.Cp_t)
+
+            dxdt = [dmi0dt, dmi1dt, dmi2dt, dmi3dt, dcdt, dTdt]
+
+        return dxdt
+
+    def info(self):
+        # Return a dictionary with the model information
+        info = {
+            "parameters": self.__dict__.copy(),
+            "states": ["Mu0", "Mu1", "Mu2", "Mu3", "Conc", "Temp"],
+            "inputs": ["Tc"],
+            "disturbances": ["ka", "kg", "UA"],
+        }
+        info["parameters"].pop("int_method", None)  # Remove 'int_method' since it's not a parameter of the model
+        return info
