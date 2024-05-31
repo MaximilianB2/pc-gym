@@ -73,8 +73,8 @@ class policy_eval:
             s_rollout[:, i + 1] = (o + 1) * (
                 self.env.observation_space_base.high - self.env.observation_space_base.low
             ) / 2 + self.env.observation_space_base.low
-            
-            total_reward.append(r[0])
+
+            total_reward.append(r)
 
         if self.env.constraint_active:
             cons_info = info["cons_info"]
