@@ -93,11 +93,11 @@ env_params_template = {
 # Function to create random disturbances
 def create_random_disturbances(seed, nsteps, low=350, high=450):
     np.random.seed(seed)
-    values = np.random.uniform(low, high, 3)
-    times = np.random.choice(range(1, nsteps-1), 3, replace=False)
-    times.sort()
-    times = np.diff([0] + times.tolist() + [nsteps])
-    disturbances = {'Ti': np.repeat(values, times)}
+    values = np.random.uniform(low, high, 3) # Generate three random disturbance values within the specified range
+    times = np.random.choice(range(1, nsteps-1), 3, replace=False) # Select three unique time steps for disturbances
+    times.sort() # Sort the times to ensure they occur in increasing order
+    times = np.diff([0] + times.tolist() + [nsteps]) # Calculate the duration of each disturbance period
+    disturbances = {'Ti': np.repeat(values, times)} # Repeat the disturbance values according to the calculated durations
     return disturbances
 
 # Create multiple environments with different disturbances
@@ -111,17 +111,6 @@ def create_multiple_envs(n_envs, seed):
     return envs
 
 # Learning rate decay schedule
-def learning_rate(progress_remaining: float):
-    min_lr = 0.0003
-    max_lr = 0.0004
-    decay_factor = 5  # Adjust this to change the rate of decay
-
-    # Power decay
-    lr = (max_lr - min_lr) * (progress_remaining ** decay_factor) + min_lr
-
-    return lr
-
-# def cosine_annealing_schedule(progress_remaining: float, num_cycles=1, min_lr=0.01, max_lr=0.04):
 def cosine_annealing_schedule(progress_remaining: float, num_cycles=1, min_lr=0.005, max_lr=0.01):
     progress = 1.0 - progress_remaining
     lr = min_lr + (max_lr - min_lr)/2 * (1 + np.cos(np.pi * num_cycles * progress))
@@ -153,10 +142,10 @@ config = {
 config['noise_percentage'] = env_params_template['noise_percentage']
 
 # Custom NN Architecture
-# Custom actor architecture (policy network (pi)) with two layers of 64 units each
-# Custom critic architecture (Q-function networks (qf)) with two layers of 400 and 300 units
-policy_kwargs = dict(activation_fn=th.nn.Tanh,
-                     net_arch=dict(pi=[32, 32], vf=[32, 32]))
+policy_kwargs = dict(
+    activation_fn=th.nn.Tanh,
+    net_arch=dict(pi=[32, 32], vf=[32, 32])
+)
 
 # Instantiate the environment with multiple parallel environments
 def create_parallel_envs(n_envs, seed):
@@ -193,6 +182,17 @@ def run_rl_tuning_disturb_study(env_params_template, save_dir, n_trials, n_envs,
         ent_coef = trial.suggest_float('ent_coef', 0.001, 0.01)
         batch_size = trial.suggest_int('batch_size', 16, 128)
         n_steps = trial.suggest_int('n_steps', 32, 256)
+        min_lr = trial.suggest_float('min_lr', 0.002, 0.01)
+        max_lr = trial.suggest_float('max_lr', 0.01, 0.02)
+        
+        # Tune network architecture
+        pi_units = [2 ** trial.suggest_int(f'pi_units_{i}', 3, 5) for i in range(2)]
+        vf_units = [2 ** trial.suggest_int(f'vf_units_{i}', 3, 5) for i in range(2)]
+        
+        policy_kwargs = dict(
+            activation_fn=th.nn.Tanh,
+            net_arch=dict(pi=pi_units, vf=vf_units)
+        )
 
         # Update config with the trial's suggestions
         config.update({
@@ -200,7 +200,8 @@ def run_rl_tuning_disturb_study(env_params_template, save_dir, n_trials, n_envs,
             'derivative_penalty_weight': derivative_penalty_weight,
             'ent_coef': ent_coef,
             'batch_size': batch_size,
-            'n_steps': n_steps
+            'n_steps': n_steps,
+            'learning_rate': lambda progress_remaining: cosine_annealing_schedule(progress_remaining, min_lr=min_lr, max_lr=max_lr)
         })
 
         # Create and train the model with parallel environments
@@ -208,7 +209,7 @@ def run_rl_tuning_disturb_study(env_params_template, save_dir, n_trials, n_envs,
         model = PPO(
             config['policy'],
             env,
-            learning_rate=cosine_annealing_schedule,
+            learning_rate=config['learning_rate'],
             clip_range=config['clip_range'],
             clip_range_vf=config['clip_range_vf'],
             batch_size=config['batch_size'],
@@ -249,7 +250,7 @@ def run_rl_tuning_disturb_study(env_params_template, save_dir, n_trials, n_envs,
     study.optimize(objective, n_trials=n_trials)
 
     # Save final best parameters and best trial info
-    results_file_path = os.path.join(save_dir, "optimization_rl_disturb_results.txt")
+    results_file_path = os.path.join(save_dir, "optimization_pc_gym_paper_mult_disturb_results.txt")
     with open(results_file_path, "a") as file:
         best_trial = study.best_trial
         file.write(f"Best trial number: {best_trial.number}\n")
