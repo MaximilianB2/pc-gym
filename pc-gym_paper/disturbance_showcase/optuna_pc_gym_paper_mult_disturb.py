@@ -15,6 +15,11 @@ import optuna
 from torch.nn import Mish 
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.policies import ActorCriticPolicy
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 # Global seed for reproducibility
 seed = 1990
@@ -207,7 +212,7 @@ def run_pc_gym_paper_tuning_mult_disturb_study(env_params_template, save_dir, n_
             valid_batch_sizes = [min(range(16, 129), key=lambda x: abs(x - (n_steps * n_envs) // 2))]
 
         # Select a batch size based on valid batch sizes
-        batch_size = valid_batch_sizes[np.random.randint(len(valid_batch_sizes))]
+        batch_size = trial.suggest_categorical('batch_size', valid_batch_sizes)
 
         # Tune network architecture
         pi_units = [2 ** trial.suggest_int(f'pi_units_{i}', 3, 5) for i in range(2)]
