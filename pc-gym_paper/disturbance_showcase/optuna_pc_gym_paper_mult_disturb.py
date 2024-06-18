@@ -71,6 +71,12 @@ r_scale ={
     'T': 1e-6 #Reward scale for each state,
 }
 
+# Define disturbance bounds
+disturbance_bounds = {
+    'low': np.array([350]),
+    'high': np.array([450])
+}
+
 # Environment parameters
 env_params_template = {
     'Nx': 2,
@@ -87,17 +93,18 @@ env_params_template = {
     'normalise_o': True,
     'noise': True,
     'integration_method': 'casadi',
-    'noise_percentage': 0.001
+    'noise_percentage': 0.001,
+    'disturbance_bounds': disturbance_bounds 
 }
 
 # Function to create random disturbances
 def create_random_disturbances(seed, nsteps, low=350, high=450):
     np.random.seed(seed)
     values = np.random.uniform(low, high, 3) # Generate three random disturbance values within the specified range
-    times = np.random.choice(range(1, nsteps-1), 3, replace=False) # Select three unique time steps for disturbances
-    times.sort() # Sort the times to ensure they occur in increasing order
-    times = np.diff([0] + times.tolist() + [nsteps]) # Calculate the duration of each disturbance period
-    disturbances = {'Ti': np.repeat(values, times)} # Repeat the disturbance values according to the calculated durations
+    times = np.sort(np.random.choice(range(1, nsteps - 1), 2, replace=False))  # Select two unique time steps for disturbances
+    times = np.append(times, nsteps)  # Append the total number of steps to get three periods
+    times = np.diff([0] + times.tolist())  # Calculate the duration of each disturbance period
+    disturbances = {'Ti': np.repeat(values, times)}  # Repeat the disturbance values according to the calculated durations
     return disturbances
 
 # Create multiple environments with different disturbances
@@ -134,8 +141,8 @@ config = {
     "check_freq": 100, # base: 12000 (~100 episodes)
     "n_eval_episodes": 10, # evaluate the agent over 100 episodes in the evaluation environment
     "n_trials": 100,  # Number of trials for Optuna optimization
-    "positive_definiteness_penalty_weight": 0,  # Placeholder, will be tuned
-    "derivative_penalty_weight": 0,  # Placeholder, will be tuned
+    "positive_definiteness_penalty_weight": 0,  # Set to 0
+    "derivative_penalty_weight": 0,  # Set to 0
 }
 
 # Add noise_percentage from env_params to config
@@ -157,7 +164,16 @@ def create_eval_env(seed):
     env_params = env_params_template.copy()
     disturbances = create_random_disturbances(seed, nsteps)
     env_params.update({'disturbances': disturbances})
+    env_params.update({'disturbance_bounds': disturbance_bounds})  # Ensure bounds are included
     return make_env(env_params)
+
+# Calculate valid batch sizes for different n_steps values
+def get_valid_batch_sizes(n_steps, n_envs):
+    return [i for i in range(16, 129) if n_steps * n_envs % i == 0]
+
+# Store valid batch sizes for different n_steps values
+n_steps_values = list(range(32, 257))
+valid_batch_sizes_dict = {n: get_valid_batch_sizes(n, 10) for n in n_steps_values}
 
 # Instantiate the evaluation environment
 eval_env = create_eval_env(seed)  # Evaluation environment
@@ -166,7 +182,7 @@ eval_env = create_eval_env(seed)  # Evaluation environment
 # Optuna - RL Agent Hyperparameter Tuning
 ##################################################################################
 
-def run_rl_tuning_disturb_study(env_params_template, save_dir, n_trials, n_envs, rollout_number, seed):
+def run_pc_gym_paper_tuning_mult_disturb_study(env_params_template, save_dir, n_trials, n_envs, rollout_number, seed):
     # Adjust the make_env function to accept env_params as an argument
     def create_env(env_params):
         env = make_env(env_params)
@@ -180,11 +196,19 @@ def run_rl_tuning_disturb_study(env_params_template, save_dir, n_trials, n_envs,
         # positive_definiteness_penalty_weight = trial.suggest_float('positive_definiteness_penalty_weight', 5, 20)
         # derivative_penalty_weight = trial.suggest_float('derivative_penalty_weight', 1, 15)
         ent_coef = trial.suggest_float('ent_coef', 0.001, 0.01)
-        batch_size = trial.suggest_int('batch_size', 16, 128)
-        n_steps = trial.suggest_int('n_steps', 32, 256)
         min_lr = trial.suggest_float('min_lr', 0.002, 0.01)
         max_lr = trial.suggest_float('max_lr', 0.01, 0.02)
-        
+        n_steps = trial.suggest_int('n_steps', 32, 256)
+
+        # Get valid batch sizes for the current n_steps value
+        valid_batch_sizes = valid_batch_sizes_dict.get(n_steps, [])
+        if not valid_batch_sizes:
+            # Ensure there is at least one valid batch size
+            valid_batch_sizes = [min(range(16, 129), key=lambda x: abs(x - (n_steps * n_envs) // 2))]
+
+        # Select a batch size based on valid batch sizes
+        batch_size = valid_batch_sizes[np.random.randint(len(valid_batch_sizes))]
+
         # Tune network architecture
         pi_units = [2 ** trial.suggest_int(f'pi_units_{i}', 3, 5) for i in range(2)]
         vf_units = [2 ** trial.suggest_int(f'vf_units_{i}', 3, 5) for i in range(2)]
@@ -196,8 +220,8 @@ def run_rl_tuning_disturb_study(env_params_template, save_dir, n_trials, n_envs,
 
         # Update config with the trial's suggestions
         config.update({
-            'positive_definiteness_penalty_weight': positive_definiteness_penalty_weight,
-            'derivative_penalty_weight': derivative_penalty_weight,
+            # 'positive_definiteness_penalty_weight': positive_definiteness_penalty_weight,
+            # 'derivative_penalty_weight': derivative_penalty_weight,
             'ent_coef': ent_coef,
             'batch_size': batch_size,
             'n_steps': n_steps,
@@ -221,8 +245,8 @@ def run_rl_tuning_disturb_study(env_params_template, save_dir, n_trials, n_envs,
             n_epochs=config['n_epochs'],
             policy_kwargs=policy_kwargs,
             tensorboard_log=f"{save_dir}/runs/ppo",
-            positive_definiteness_penalty_weight=positive_definiteness_penalty_weight,
-            derivative_penalty_weight=derivative_penalty_weight,
+            positive_definiteness_penalty_weight=config['positive_definiteness_penalty_weight'],  # Set to 0
+            derivative_penalty_weight=config['derivative_penalty_weight'],  # Set to 0
         )
         eval_env = create_eval_env(seed)
         eval_callback = EvalCallback(
@@ -282,7 +306,7 @@ def main():
     sys.stderr = open(os.devnull, 'w')
 
     # Run RL agent tuning
-    rl_study = run_rl_tuning_disturb_study(env_params_template, save_dir, n_trials, n_envs, rollout_number, seed)
+    rl_study = run_pc_gym_paper_tuning_mult_disturb_study(env_params_template, save_dir, n_trials, n_envs, rollout_number, seed)
 
     # Re-enable output
     sys.stdout = original_stdout
