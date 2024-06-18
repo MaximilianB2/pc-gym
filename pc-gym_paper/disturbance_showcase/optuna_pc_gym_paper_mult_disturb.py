@@ -17,6 +17,16 @@ from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.policies import ActorCriticPolicy
 import warnings
 
+# Clear the content of log files
+save_dir = '/rds/general/user/jrn23/home/saferl-pcgym/optuna-safe-rl/'
+open(os.path.join(save_dir, "job_error.txt"), 'w').close()
+open(os.path.join(save_dir, "job_output.txt"), 'w').close()
+
+# Suppress specific TensorFlow warnings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress TF warnings
+import tensorflow as tf
+tf.get_logger().setLevel('ERROR')  # Suppress TF warnings
+
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -208,11 +218,13 @@ def run_pc_gym_paper_tuning_mult_disturb_study(env_params_template, save_dir, n_
         # Get valid batch sizes for the current n_steps value
         valid_batch_sizes = valid_batch_sizes_dict.get(n_steps, [])
         if not valid_batch_sizes:
-            # Ensure there is at least one valid batch size
-            valid_batch_sizes = [min(range(16, 129), key=lambda x: abs(x - (n_steps * n_envs) // 2))]
+            valid_batch_sizes = [32]  # Fallback batch size
 
-        # Select a batch size based on valid batch sizes
-        batch_size = trial.suggest_categorical('batch_size', valid_batch_sizes)
+        # Ensure batch_size is compatible with n_steps
+        batch_size = valid_batch_sizes[np.random.randint(len(valid_batch_sizes))]
+
+        # Ensure the selected batch_size is valid
+        assert (n_steps * n_envs) % batch_size == 0, f"Invalid batch size {batch_size} for n_steps {n_steps}"
 
         # Tune network architecture
         pi_units = [2 ** trial.suggest_int(f'pi_units_{i}', 3, 5) for i in range(2)]
