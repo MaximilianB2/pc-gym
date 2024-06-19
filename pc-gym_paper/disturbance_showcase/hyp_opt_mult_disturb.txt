@@ -1,1 +1,3 @@
 Trial 6 finished with value: -0.01778627676631004 and parameters: {'ent_coef': 0.00555239617334544, 'min_lr': 0.004440832373469064, 'max_lr': 0.013251144096616041, 'n_steps': 94, 'pi_units_0': 5, 'pi_units_1': 3, 'vf_units_0': 3, 'vf_units_1': 4}. Best is trial 6 with value: -0.01778627676631004.
+
+Trial 10 finished with value: -0.01700895399626461 and parameters: {'ent_coef': 0.004058068258371162, 'min_lr': 0.0037306426854343115, 'max_lr': 0.016249830430575003, 'n_steps': 32, 'pi_units_0': 3, 'pi_units_1': 4, 'vf_units_0': 4, 'vf_units_1': 4}. Best is trial 10 with value: -0.01700895399626461.
