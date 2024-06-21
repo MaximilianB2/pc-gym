@@ -19,6 +19,7 @@ import warnings
 
 # Clear the content of log files
 save_dir = '/rds/general/user/jrn23/home/saferl-pcgym/optuna-safe-rl/'
+# save_dir = '/rds/general/user/jrn23/home/optuna_mpc-2/'
 open(os.path.join(save_dir, "job_error.txt"), 'w').close()
 open(os.path.join(save_dir, "job_output.txt"), 'w').close()
 
@@ -143,7 +144,7 @@ config = {
     "policy": 'MlpPolicy', # default: MlpPolicy
     "learning_rate": "cosine", # default: 0.01
     "gamma": 0.99, #default: 0.99, the discount factor
-    "total_timesteps": 1.0e5, # base: 1.0e5
+    "total_timesteps": 5.0e5, # base: 1.0e5
     "gae_lambda": 0.99, # default: 0.95, Factor for trade-off of bias vs variance for Generalized Advantage Estimator
     "ent_coef": 0.005, # default: 0.0, Entropy coefficient for the loss calculation
     "batch_size": 64, # default: 64 # base: 64
@@ -155,7 +156,7 @@ config = {
     "seed": 1990,
     "check_freq": 100, # base: 12000 (~100 episodes)
     "n_eval_episodes": 10, # evaluate the agent over 100 episodes in the evaluation environment
-    "n_trials": 100,  # Number of trials for Optuna optimization
+    "n_trials": 500,  # Number of trials for Optuna optimization (base: 100)
     "positive_definiteness_penalty_weight": 0,  # Set to 0
     "derivative_penalty_weight": 0,  # Set to 0
 }
@@ -218,7 +219,15 @@ def run_pc_gym_paper_tuning_mult_disturb_study(env_params_template, save_dir, n_
         # Get valid batch sizes for the current n_steps value
         valid_batch_sizes = valid_batch_sizes_dict.get(n_steps, [])
         if not valid_batch_sizes:
-            valid_batch_sizes = [32]  # Fallback batch size
+            valid_batch_sizes = [i for i in range(16, 129) if (n_steps * n_envs) % i == 0]
+            if not valid_batch_sizes:
+                valid_batch_sizes = [16, 32, 64, 128]  # Common fallback batch sizes
+                batch_size = next((bs for bs in valid_batch_sizes if (n_steps * n_envs) % bs == 0), None)
+                if batch_size is None:
+                    # Adjust n_steps to ensure we have a valid batch size
+                    n_steps = next(ns for ns in n_steps_values if any((ns * n_envs) % bs == 0 for bs in valid_batch_sizes))
+                    valid_batch_sizes = valid_batch_sizes_dict.get(n_steps, [])
+                    batch_size = valid_batch_sizes[np.random.randint(len(valid_batch_sizes))]
 
         # Ensure batch_size is compatible with n_steps
         batch_size = valid_batch_sizes[np.random.randint(len(valid_batch_sizes))]
