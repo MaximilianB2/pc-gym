@@ -80,7 +80,7 @@ PPO_cstr = PPO.load('./policies/PPO_CSTR')
 DDPG_cstr = DDPG.load('./policies/DDPG_CSTR')
 
 # Visualise policies with the oracle
-# evaluator, data = env.plot_rollout({'SAC':SAC_cstr,'PPO':PPO_cstr,'DDPG':DDPG_cstr}, reps=3, oracle=True, MPC_params={'N':20,'R':0.001},save_fig=True)
+evaluator, data = env.plot_rollout({'SAC':SAC_cstr,'PPO':PPO_cstr,'DDPG':DDPG_cstr}, reps=3, oracle=True, MPC_params={'N':20,'R':0.001},save_fig=True)
 
 
 # Visualise the learning curves
@@ -103,18 +103,17 @@ episode_min = min(SAC_lc['Episode'].min(), DDPG_lc['Episode'].min(), PPO_lc['Epi
 episode_max = max(SAC_lc['Episode'].max(), DDPG_lc['Episode'].max(), PPO_lc['Episode'].max())
 # Plot the data with standard deviation
 plt.figure()
-plt.plot(SAC_lc['Episode'], SAC_lc['Reward'], color = 'tab:red', label = 'SAC')
-# plt.fill_between(SAC_lc['Episode'], SAC_lc['Reward_mean'] - SAC_lc['Reward_std'], SAC_lc['Reward_mean'] + SAC_lc['Reward_std'], color='tab:red',edgecolor ='None', alpha=0.2)
+plt.plot(SAC_lc['Episode'], SAC_lc['Reward_mean'], color = 'tab:red', label = 'SAC')
+plt.fill_between(SAC_lc['Episode'], SAC_lc['Reward_mean'] - SAC_lc['Reward_std'], SAC_lc['Reward_mean'] + SAC_lc['Reward_std'], color='tab:red',edgecolor ='None', alpha=0.2)
 
-plt.plot(DDPG_lc['Episode'], DDPG_lc['Reward'], color = 'tab:olive', label = 'DDPG')
-# plt.fill_between(DDPG_lc['Episode'], DDPG_lc['Reward_mean'] - DDPG_lc['Reward_std'], DDPG_lc['Reward_mean'] + DDPG_lc['Reward_std'], color='tab:olive', edgecolor ='None', alpha=0.2)
+plt.plot(DDPG_lc['Episode'], DDPG_lc['Reward_mean'], color = 'tab:olive', label = 'DDPG')
+plt.fill_between(DDPG_lc['Episode'], DDPG_lc['Reward_mean'] - DDPG_lc['Reward_std'], DDPG_lc['Reward_mean'] + DDPG_lc['Reward_std'], color='tab:olive', edgecolor ='None', alpha=0.2)
 
-plt.plot(PPO_lc['Episode'], PPO_lc['Reward'],color = 'tab:purple', label = 'PPO')
-# plt.fill_between(PPO_lc['Episode'], PPO_lc['Reward_mean'] - PPO_lc['Reward_std'], PPO_lc['Reward_mean'] + PPO_lc['Reward_std'], color='tab:purple', edgecolor ='None', alpha=0.2)
+plt.plot(PPO_lc['Episode'], PPO_lc['Reward_mean'],color = 'tab:purple', label = 'PPO')
+plt.fill_between(PPO_lc['Episode'], PPO_lc['Reward_mean'] - PPO_lc['Reward_std'], PPO_lc['Reward_mean'] + PPO_lc['Reward_std'], color='tab:purple', edgecolor ='None', alpha=0.2)
 
 plt.xlabel('Timestep')
 plt.ylabel('Reward')
-# plt.xscale('log')
 plt.legend(loc = 'lower right')
 plt.grid(True)
 plt.xlim(window_size, episode_max)
@@ -123,23 +122,23 @@ plt.show()
 
 # Visualise the optimality gap 
 
-# SAC_opt_gap = (data['oracle']['r'][0,:,:] - data['SAC']['r'][0,:,:])
-# PPO_opt_gap = (data['oracle']['r'][0,:,:] - data['PPO']['r'][0,:,:])
-# DDPG_opt_gap =(data['oracle']['r'][0,:,:] - data['DDPG']['r'][0,:,:])
-# x = np.arange(len(SAC_opt_gap))
-# plt.figure()
-# plt.plot(np.median(SAC_opt_gap, axis=1), label='SAC', color='tab:red')
-# plt.fill_between(x, np.min(SAC_opt_gap, axis=1), np.max(SAC_opt_gap, axis=1), color='tab:red', alpha=0.2)
+SAC_opt_gap = (data['oracle']['r'][0,:,:] - data['SAC']['r'][0,:,:])
+PPO_opt_gap = (data['oracle']['r'][0,:,:] - data['PPO']['r'][0,:,:])
+DDPG_opt_gap =(data['oracle']['r'][0,:,:] - data['DDPG']['r'][0,:,:])
+x = np.arange(len(SAC_opt_gap))
+plt.figure()
+plt.plot(np.median(SAC_opt_gap, axis=1), label='SAC', color='tab:red')
+plt.fill_between(x, np.min(SAC_opt_gap, axis=1), np.max(SAC_opt_gap, axis=1), color='tab:red', alpha=0.2)
 
-# plt.plot(np.median(PPO_opt_gap, axis=1), label='PPO', color='tab:purple')
-# plt.fill_between(x, np.min(PPO_opt_gap, axis=1), np.max(PPO_opt_gap, axis=1), color='tab:purple', alpha=0.2)
+plt.plot(np.median(PPO_opt_gap, axis=1), label='PPO', color='tab:purple')
+plt.fill_between(x, np.min(PPO_opt_gap, axis=1), np.max(PPO_opt_gap, axis=1), color='tab:purple', alpha=0.2)
 
-# plt.plot(np.median(DDPG_opt_gap, axis=1), label='DDPG', color='tab:olive')
-# plt.fill_between(x, np.min(DDPG_opt_gap, axis=1), np.max(DDPG_opt_gap, axis=1), color='tab:olive', alpha=0.2)
-# plt.grid('True')
-# plt.legend()
-# plt.xlim(0,26)
-# plt.ylabel('Optimality gap')
-# plt.xlabel('Time (min)')
-# plt.tight_layout
-# plt.show()
+plt.plot(np.median(DDPG_opt_gap, axis=1), label='DDPG', color='tab:olive')
+plt.fill_between(x, np.min(DDPG_opt_gap, axis=1), np.max(DDPG_opt_gap, axis=1), color='tab:olive', alpha=0.2)
+plt.grid('True')
+plt.legend()
+plt.xlim(0,26)
+plt.ylabel('Optimality gap')
+plt.xlabel('Time (min)')
+plt.tight_layout
+plt.show()
