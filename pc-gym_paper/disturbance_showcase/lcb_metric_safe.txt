@@ -1,0 +1,21 @@
+1st: Disturbance test: 
+scalarised_performance: {'oracle': {'r': array([-0.46950668])}, 'PPO': {'r': array([-0.17226015])}}
+
+2nd: Disturbance test: 
+scalarised_performance: {'oracle': {'r': array([-0.40940429])}, 'PPO': {'r': array([-0.06533888])}}
+
+3th: Disturbance alternative test: 
+scalarised_performance: {'PPO': {'r': array([-0.05772947])}}
+
+3th: Disturbance alternative test: 
+scalarised_performance: {'oracle': {'r': array([-1.07267702])}, 'PPO': {'r': array([-2.07331657])}}
+
+1st: Disturbance test: 
+scalarised_performance: {'oracle': {'r': array([-0.46950668])}, 'PPO': {'r': array([-0.08439244])}}
+
+2nd: Disturbance test: 
+scalarised_performance: {'oracle': {'r': array([-0.15344058])}, 'PPO': {'r': array([-0.00996392])}}
+
+3th: Disturbance alternative test: 
+scalarised_performance: {'oracle': {'r': array([-1.07267702])}, 'PPO': {'r': array([-3.31193203])}}
+
