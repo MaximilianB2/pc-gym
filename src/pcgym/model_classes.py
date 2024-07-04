@@ -783,7 +783,7 @@ class polymerisation_reactor:
         }
         return info
 @dataclass(frozen=False, kw_only=True)
-class crystallization:
+class crystallizator:
     # Cristallization of K2SO4 Control (PBE Model).
     # highly nonlinear process
     # source: https://pubs.acs.org/doi/10.1021/acs.iecr.3c00739
