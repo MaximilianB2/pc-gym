@@ -852,7 +852,10 @@ class crystallization:
         return info
 
 @dataclass(frozen=False, kw_only=True)
-class FastOffshoreWellsModel:
+class FOWM:
+    # Fast Offshore Wells Model (FOWM)
+    # reservoir + production column + gas lift annular + ﬂowline + riser.
+    # source: https://doi.org/10.1016/j.compchemeng.2017.01.036
     # Parameters
     Prt_max: float = 50.0
     Prb_max: float = 270.0
