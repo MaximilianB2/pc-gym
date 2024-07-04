@@ -850,3 +850,167 @@ class crystallization:
         }
         info["parameters"].pop("int_method", None)  # Remove 'int_method' since it's not a parameter of the model
         return info
+
+@dataclass(frozen=False, kw_only=True)
+class FastOffshoreWellsModel:
+    # Parameters
+    Prt_max: float = 50.0
+    Prb_max: float = 270.0
+    Ppdg_max: float = 230.0
+    Ptt_max: float = 200.0
+    Ptb_max: float = 210.0
+    Pbh_max: float = 240.0
+    Wlout_max: float = 100.0
+    Wgout_max: float = 20.0
+
+    Prt_min: float = 10.0
+    Prb_min: float = 80.0
+    Ppdg_min: float = 180.0
+    Ptt_min: float = 120.0
+    Ptb_min: float = 160.0
+    Pbh_min: float = 190.0
+    Wlout_min: float = 0.0
+    Wgout_min: float = 0.0
+
+    z_min: float = 0.0
+    Wgc_min: float = 0.0
+    z_max: float = 1.0
+    Wgc_max: float = 2.49
+
+    # Constants
+    Rol: float = 900.0
+    R: float = 8314.0
+    T: float = 298.0
+    M: float = 18.0
+    g: float = 9.81
+    teta: float = math.pi / 4
+    Ps: float = 1013250.0
+    Pr: float = 2.25e7
+    ALFAgw: float = 0.0188
+    Romres: float = 891.9523
+    L: float = 4497.0
+    Lt: float = 1639.0
+    La: float = 1118.0
+    D: float = 0.152
+    Dt: float = 0.150
+    Da: float = 0.140
+    Hvgl: float = 916.0
+    Hpdg: float = 1117.0
+    Ht: float = 1279.0
+    epsi: float = 1e-10
+    A: float = D * D * math.pi / 4
+    Vt: float = Lt * Dt * Dt * math.pi / 4
+    Va: float = La * Da * Da * math.pi / 4
+
+    # Initial Conditions
+    x0 = [9347.5467727, 5347.53586993, 35014.1218045, 2395.94295262, 1788.01439135, 11725.3198923]
+
+    def __init__(self, reference="Rodrigues"):
+        self.reference = reference
+        if self.reference == 'Rodrigues':
+            self.z = 0.84
+            self.Wgc = 1.406
+            self.mlstill = 2.020e4
+            self.Cg = 1e-3
+            self.Cout = 1.626e-3
+            self.Veb = 1.5e2
+            self.E = 4.5e-1
+            self.Kw = 4.958e-4
+            self.Ka = 1e-3
+            self.Vr = 226.74
+            self.Kr = 1.2e2
+            self.x0 = [9347.5467727, 5347.53586993, 35014.1218045, 2395.94295262, 1788.01439135, 11725.3198923]
+        elif self.reference == 'Apio':
+            self.z = 0.84
+            self.Wgc = 1.406
+            self.mlstill = 7.183e1
+            self.Cg = 1.329e-3
+            self.Cout = 3.975e-3
+            self.Veb = 7.047e1
+            self.E = 2.095e-1
+            self.Kw = 5.936e-4
+            self.Ka = 4.236e-5
+            self.Vr = 620.364197531
+            self.Kr = 2.470e2
+            self.x0 = [9347.5467727, 5347.53586993, 35014.1218045, 2395.94295262, 1788.01439135, 11725.3198923]
+        elif self.reference == 'Huffner':
+            self.z = 0.18
+            self.Wgc = 0.6574074074
+            self.mlstill = 1957.031302138902
+            self.Cg = 0.000205390205
+            self.Cout = 0.019677777778
+            self.Veb = 83.5090666667
+            self.E = 0.571431327160
+            self.Kw = 0.000867943572
+            self.Ka = 0.000159061894
+            self.Vr = 620.364197531
+            self.Kr = 131.313519772
+            self.x0 = [8955, 5286, 33373, 2197, 1776, 11211]
+        elif self.reference == 'Diehl':
+            self.z = 0.18
+            self.Wgc = 0.6574074074
+            self.mlstill = 6.222e1
+            self.Cg = 1.137e-3
+            self.Cout = 2.039e-3
+            self.Veb = 6.098e1
+            self.E = 1.545e-1
+            self.Kw = 6.876e-4
+            self.Ka = 2.293e-5
+            self.Vr = 226.74
+            self.Kr = 1.269e2
+            self.x0 = [9347.5467727, 5347.53586993, 35014.1218045, 2395.94295262, 1788.01439135, 11725.3198923]
+
+    def __call__(self, x, u):
+        # States
+        m_Ga, m_Gt, m_Lt, m_Gb, m_Gr, m_Lr = x
+
+        # Inputs
+        z, Wgc = u
+
+        Peb = m_Ga * self.R * self.T / (self.M * self.Veb)
+        Prt = m_Gt * self.R * self.T / (self.M * (self.Vr - (m_Lt + self.mlstill) / self.Rol))
+        Prb = Prt + (m_Lt + self.mlstill) * self.g * math.sin(self.teta) / self.A
+        ALFAg = m_Gt / (m_Gt + m_Lt)
+        ALFAl = 1 - ALFAg
+        Wout = self.Cout * z * math.sqrt(self.Rol * ((Prt - self.Ps) + math.sqrt((Prt - self.Ps) ** 2 + self.epsi))) * (1 / 2)
+        Wlout = ALFAl * Wout
+        Wgout = ALFAg * Wout
+        Wg = self.Cg * ((Peb - Prb) + math.sqrt((Peb - Prb) ** 2 + self.epsi)) * (1 / 2)
+
+        Vgt = self.Vt - m_Lr / self.Rol
+        ROgt = m_Gr / Vgt
+        ROmt = (m_Gr + m_Lr) / self.Vt
+        Ptt = ROgt * self.R * self.T / self.M
+        Ptb = Ptt + ROmt * self.g * self.Hvgl
+        Ppdg = Ptb + self.Romres * self.g * (self.Hpdg - self.Hvgl)
+        Pbh = Ppdg + self.Romres * self.g * (self.Ht - self.Hpdg)
+        ALFAgt = m_Gr / (m_Lr + m_Gr)
+        Wwh = self.Kw * math.sqrt(self.Rol * ((Ptt - Prb) + math.sqrt((Ptt - Prb) ** 2 + self.epsi))) * (1 / 2)
+        Wwhg = Wwh * ALFAgt
+        Wwhl = Wwh * (1 - ALFAgt)
+        Wr = self.Kr * (1 - 0.2 * Pbh / self.Pr - 0.8 * (Pbh / self.Pr) ** 2)
+
+        Pai = ((self.R * self.T / (self.Va * self.M)) + (self.g * self.La / self.Va)) * m_Gb
+        ROai = self.M * Pai / (self.R * self.T)
+        Wiv = self.Ka * math.sqrt(ROai * ((Pai - Ptb) + math.sqrt((Pai - Ptb) ** 2 + self.epsi))) * (1 / 2)
+
+        dx1 = (1 - self.E) * (Wwhg) - Wg
+        dx2 = self.E * (Wwhg) + Wg - Wgout
+        dx3 = Wwhl - Wlout
+        dx4 = Wgc - Wiv
+        dx5 = Wr * self.ALFAgw + Wiv - Wwhg
+        dx6 = Wr * (1 - self.ALFAgw) - Wwhl
+
+        dxdt = np.array([dx1, dx2, dx3, dx4, dx5, dx6])
+
+        return dxdt
+
+    def info(self):
+        # Return a dictionary with the model information
+        info = {
+            "parameters": self.__dict__.copy(),
+            "states": ["m_Ga", "m_Gt", "m_Lt", "m_Gb", "m_Gr", "m_Lr"],
+            "inputs": ["z", "Wgc"],
+            "disturbances": []
+        }
+        return info
