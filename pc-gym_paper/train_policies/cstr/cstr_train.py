@@ -77,31 +77,33 @@ env_params = {
 env = make_env(env_params)
 
 # Global timesteps
-nsteps_train = 1e4
+nsteps_train = 5e4
+training_reps = 10
+for r_i in range(training_reps):
+    print(f'Training repition:{r_i+1}')
+    # Train SAC 
+    log_file = f"learning_curves\SAC_CSTR_LC_rep_{r_i}.csv"
+    SAC_CSTR =  SAC("MlpPolicy", env, verbose=1, learning_rate=0.01)
+    callback = LearningCurveCallback(log_file=log_file)
+    SAC_CSTR.learn(nsteps_train,callback=callback)
 
-# Train SAC 
-log_file = "learning_curves\SAC_CSTR_LC.csv"
-SAC_CSTR =  SAC("MlpPolicy", env, verbose=1, learning_rate=0.01)
-callback = LearningCurveCallback(log_file=log_file)
-SAC_CSTR.learn(nsteps_train,callback=callback)
+    # Save SAC Policy 
+    SAC_CSTR.save(f'policies\SAC_CSTR_rep_{r_i}.zip')
 
-# Save SAC Policy 
-SAC_CSTR.save('policies\SAC_CSTR.zip')
+    # Train PPO 
+    log_file = f"learning_curves\PPO_CSTR_LC_rep_{r_i}.csv"
+    PPO_CSTR =  PPO("MlpPolicy", env, verbose=1, learning_rate=0.001)
+    callback = LearningCurveCallback(log_file=log_file)
+    PPO_CSTR.learn(nsteps_train,callback=callback)
 
-# Train PPO 
-log_file = "learning_curves\PPO_CSTR_LC.csv"
-PPO_CSTR =  PPO("MlpPolicy", env, verbose=1, learning_rate=0.001)
-callback = LearningCurveCallback(log_file=log_file)
-PPO_CSTR.learn(nsteps_train*3,callback=callback)
+    # Save SAC Policy 
+    PPO_CSTR.save(f'policies\PPO_CSTR_rep_{r_i}.zip')
 
-# Save SAC Policy 
-PPO_CSTR.save('policies\PPO_CSTR.zip')
+    # Train SAC 
+    log_file = f'learning_curves\DDPG_CSTR_LC_rep_{r_i}.csv'
+    DDPG_CSTR =  DDPG("MlpPolicy", env, verbose=1, learning_rate=0.001)
+    callback = LearningCurveCallback(log_file=log_file)
+    DDPG_CSTR.learn(nsteps_train,callback=callback)
 
-# Train SAC 
-log_file = "learning_curves\DDPG_CSTR_LC.csv"
-DDPG_CSTR =  DDPG("MlpPolicy", env, verbose=1, learning_rate=0.001)
-callback = LearningCurveCallback(log_file=log_file)
-DDPG_CSTR.learn(nsteps_train*3,callback=callback)
-
-# Save DDPG Policy 
-DDPG_CSTR.save('policies\DDPG_CSTR.zip')
+    # Save DDPG Policy 
+    DDPG_CSTR.save(f'policies\DDPG_CSTR_rep_{r_i}.zip')

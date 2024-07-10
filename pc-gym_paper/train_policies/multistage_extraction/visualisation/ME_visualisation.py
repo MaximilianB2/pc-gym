@@ -91,7 +91,7 @@ data = {alg: [] for alg in algorithms}
 # Load data
 for r_i in range(1,reps):
     for alg in algorithms:
-        lc = pd.read_csv(f'./learning_curves/{alg}_CSTR_LC_rep_{r_i}.csv')
+        lc = pd.read_csv(f'./learning_curves/{alg}_ME_LC_rep_{r_i}.csv')
         data[alg].append(lc['Reward'])  # Assuming 'reward' is the column name
 
 # Combine and calculate median reward
@@ -130,7 +130,8 @@ for alg, rolling_mean in rolling_means.items():
 plt.xlabel('Timestep')
 plt.ylabel('Reward')
 plt.legend(loc = 'lower right')
-plt.xlim(1000,30000)
+plt.xlim(1000,100000)
+
 plt.grid(True)
 plt.tight_layout()
 plt.show()
