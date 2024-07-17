@@ -1,9 +1,7 @@
 import sys
-sys.path.append("..\..\..\src\pcgym") # Add local pc-gym files to path.
+sys.path.append("..\..\src\pcgym") # Add local pc-gym files to path.
 import numpy as np
 from stable_baselines3 import SAC
-import gymnasium as gym
-import pickle
 from pcgym import make_env
 
 
@@ -12,11 +10,11 @@ T = 26
 nsteps = 120
 
 SP = {
-    'Ca': [0.85 for i in range(int(nsteps))],
+    'Ca': [0.85 for i in range(int(nsteps/2))]+[0.90 for i in range(int(nsteps/2))],
 }
 
 action_space = {
-    'low': np.array([295]),
+    'low': np.array([290]),
     'high':np.array([310]) 
 }
 
@@ -32,7 +30,7 @@ r_scale = {'Ca':1e3}
 def oracle_reward(self,x,u,con):
     Sp_i = 0
     cost = 0 
-    R = 4
+    R = 0
     for k in self.env_params["SP"]:
         i = self.model.info()["states"].index(k)
         SP = self.SP[k]
@@ -54,30 +52,64 @@ def oracle_reward(self,x,u,con):
 
     # Add the control cost
     cost += R * u_normalized**2
-    r = -cost
+    r = -cost 
+    if con:
+        r -= 1e3
     try:
         return r[0]
     except Exception:
       return r
-disturbance_space = {
-    'low': np.array([0.9]),
-    'high': np.array([1.5])
-}
 
-env_params_temp = {
+
+
+cons = {'T':[327,321]}
+
+cons_type = {'T':['<=','>=']}
+
+env_params_con = {
     'N': nsteps, 
     'tsim':T, 
     'SP':SP, 
     'o_space' : observation_space, 
     'a_space' : action_space,
-    'x0': np.array([0.8,330,0.8]),
+    'x0': np.array([0.8,325,0.8]),
     'r_scale': r_scale,
     'model': 'cstr', 
     'normalise_a': True, 
     'normalise_o':True, 
     'noise':True, 
     'integration_method': 'casadi', 
-    'noise_percentage':0.0025, 
+    'noise_percentage':0.001, 
     'custom_reward': oracle_reward,
-    'disturbance_bounds':disturbance_space
+    'done_on_cons_vio': False,
+    'constraints': cons, 
+    'r_penalty': False,
+    'cons_type': cons_type,
 }
+env_con = make_env(env_params_con)
+
+
+env_params = env_params_con
+env_params.pop('done_on_cons_vio')
+env_params.pop('constraints')
+env_params.pop('r_penalty')
+env_params.pop('cons_type')
+
+env = make_env(env_params)
+
+# SAC_constraint = SAC("MlpPolicy", env_con, verbose=1, learning_rate=0.01).learn(1e4)
+# SAC_norm = SAC("MlpPolicy", env, verbose=1, learning_rate=0.01).learn(1e4)
+
+
+# SAC_constraint.save('SAC_constraint.zip')
+# SAC_norm.save('SAC_norm.zip')
+
+SAC_constraint = SAC.load('SAC_constraint.zip')
+SAC_norm = SAC.load('SAC_norm.zip')
+_, con_data = env_con.plot_rollout({'SAC':SAC_constraint,}, reps=3, oracle=True, MPC_params={'N':20,'R':0.01},save_fig=True)
+
+np.save('constraint_rollout_data.npy', con_data, allow_pickle=True)
+
+_, norm_data = env_con.plot_rollout({'SAC':SAC_norm,}, reps=3, save_fig=True)
+
+np.save('norm_rollout_data.npy', norm_data, allow_pickle=True)
