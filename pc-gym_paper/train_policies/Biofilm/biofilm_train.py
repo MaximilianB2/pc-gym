@@ -8,8 +8,8 @@ import numpy as np
 from stable_baselines3 import PPO, DDPG, SAC
 
 # Define environment
-T = 26
-nsteps = 120
+T = 2e4
+nsteps = 10000
 
 
 # Define reward to be equal to the OCP (i.e the same as the oracle)
@@ -42,74 +42,70 @@ def oracle_reward(self,x,u,con):
     return r
 
 SP = {
-      'X5': [0.3 for i in range(int(nsteps/4))] + [0.4 for i in range(int(nsteps/2))]+ [0.3 for i in range(int(nsteps/4))],
+      'H_R':[20 for i in range(int(nsteps/2))] + [22 for i in range(int(nsteps/2))],
+      'H_M':[20 for i in range(int(nsteps/2))] + [20 for i in range(int(nsteps/2))],
+      'H_B':[20 for i in range(int(nsteps/2))] + [20 for i in range(int(nsteps/2))],
   }
 
 action_space = {
-    'low': np.array([5,10]),
-    'high':np.array([500,1000])
+    'low': np.array([0.667,8,8,0.67,8]),
+    'high':np.array([1,40,40,3,40])
 }
 
 observation_space = {
-    'low' : np.array([0]*10+[0.3]),
-    'high' : np.array([1]*10+[0.4])  
+    'low' : np.array([10, 0, 0, 0, 10, 0, 0, 0, 10, 0, 0.75, 0, 15, 15, 15]),
+    'high' : np.array([30, 1, 0.15, 0.02, 30, 1, 0.15, 0.02, 30, 0.15, 1, 0.15, 25, 25, 25])  
 }
 
 
-r_scale = {
-    'X5': 1
-}
 
-env_params_ms = {
+env_params_RSR = {
     'N': nsteps,
     'tsim':T,
     'SP':SP,
     'o_space' : observation_space,
     'a_space' : action_space,
-    'dt': 1,
-    'x0': np.array([0.55, 0.3, 0.45, 0.25, 0.4, 0.20, 0.35, 0.15, 0.25, 0.1,0.3]),
-    'model': 'multistage_extraction', 
-    'r_scale': r_scale,
+    'x0': np.array([20, 0.8861, 0.1082, 0.0058, 20, 0.8861, 0.1082, 0.0058, 20, 0.1139, 0.7779, 0.1082, 20,20,20]),
+    'model': 'RSR', 
     'normalise_a': True, #Normalise the actions
     'normalise_o':True, #Normalise the states,
-    'noise':True, #Add noise to the states
-    'noise_percentage':0.001,
+    'noise':False, #Add noise to the states
     'integration_method': 'casadi'
 }
-env = make_env(env_params_ms)
+env = make_env(env_params_RSR)
 
 
 # Global timesteps
-nsteps_train = 1e5
-training_reps = 3
+nsteps_train = 1e4
+training_reps = 1
 for r_i in range(training_reps):
     print(f'Training repition: {r_i+1}')
     # Train SAC 
-    # print('Training using SAC...')
-    # log_file = f"learning_curves\SAC_ME_LC_rep_{r_i}.csv"
-    # SAC_ME =  SAC("MlpPolicy", env, verbose=1, learning_rate=0.01)
-    # callback = LearningCurveCallback(log_file=log_file)
-    # SAC_ME.learn(nsteps_train,callback=callback)
+    print('Training using SAC...')
+    log_file = f"learning_curves\SAC_RSR_LC_rep_{r_i}.csv"
+    SAC_RSR =  SAC("MlpPolicy", env, verbose=1, learning_rate=0.01)
+    callback = LearningCurveCallback(log_file=log_file)
+    SAC_RSR.learn(nsteps_train,callback=callback)
 
-    # # Save SAC Policy 
-    # SAC_ME.save(f'policies\SAC_ME_rep_{r_i}.zip')
+    # Save SAC Policy 
+    SAC_RSR.save(f'policies\SAC_RSR_rep_{r_i}.zip')
 
     # Train PPO 
-    print('Training using PPO...')
-    log_file = f"learning_curves\PPO_ME_LC_rep_{r_i}.csv"
-    PPO_ME =  PPO("MlpPolicy", env, verbose=1, learning_rate=0.001)
-    callback = LearningCurveCallback(log_file=log_file)
-    PPO_ME.learn(nsteps_train,callback=callback)
+    # print('Training using PPO...')
+    # log_file = f"learning_curves\PPO_RSR_LC_rep_{r_i}.csv"
+    # PPO_RSR =  PPO("MlpPolicy", env, verbose=1, learning_rate=0.001)
+    # callback = LearningCurveCallback(log_file=log_file)
+    # PPO_RSR.learn(nsteps_train,callback=callback)
 
-    # Save PPO Policy 
-    PPO_ME.save(f'policies\PPO_ME_rep_{r_i}.zip')
+    # # Save PPO Policy 
+    # PPO_RSR.save(f'policies\PPO_RSR_rep_{r_i}.zip')
 
     # Train DDPG
     # print('Training using DDPG...')
-    # log_file = f'learning_curves\DDPG_ME_LC_rep_{r_i}.csv'
-    # DDPG_ME =  DDPG("MlpPolicy", env, verbose=1, learning_rate=0.001)
+    # log_file = f'learning_curves\DDPG_RSR_LC_rep_{r_i}.csv'
+    # DDPG_RSR =  DDPG("MlpPolicy", env, verbose=1, learning_rate=0.001)
     # callback = LearningCurveCallback(log_file=log_file)
-    # DDPG_ME.learn(nsteps_train,callback=callback)
+    # DDPG_RSR.learn(nsteps_train,callback=callback)
 
-    # Save DDPG Policy 
-    # DDPG_ME.save(f'policies\DDPG_ME_rep_{r_i}.zip')
+    # # Save DDPG Policy 
+    # DDPG_RSR.save(f'policies\DDPG_RSR_rep_{r_i}.zip')

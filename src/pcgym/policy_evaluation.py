@@ -73,8 +73,10 @@ class policy_eval:
             s_rollout[:, i + 1] = (o + 1) * (
                 self.env.observation_space_base.high - self.env.observation_space_base.low
             ) / 2 + self.env.observation_space_base.low
-
-            total_reward.append(r)
+            try:
+                total_reward.append(r[0])
+            except Exception:
+                total_reward.append(r)
 
         if self.env.constraint_active:
             cons_info = info["cons_info"]
@@ -85,7 +87,7 @@ class policy_eval:
             self.env.env_params["a_space"]["high"]
             - self.env.env_params["a_space"]["low"]
         ) / 2 + self.env.env_params["a_space"]["low"]
-
+        
         return total_reward, s_rollout, actions, cons_info
     
     def oracle_reward_fn(self, x, u):
@@ -136,7 +138,7 @@ class policy_eval:
                 cons_info = np.zeros((1, self.env.N, 1, self.reps))
             for r_i in range(self.reps):
                 (
-                    rew[:,:, r_i],
+                    rew[:,:,r_i],
                     states[:, :, r_i],
                     actions[:, :, r_i],
                     cons_info[:, :, :, r_i],

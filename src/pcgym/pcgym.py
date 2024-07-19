@@ -174,7 +174,7 @@ class make_env(gym.Env):
         """
         self.t = 0
         self.int_eng = integration_engine(make_env, self.env_params)
-
+        self.int_error = False
         state = copy.deepcopy(self.env_params["x0"])
 
         # If disturbances are active, expand the initial state with disturbances
@@ -266,11 +266,11 @@ class make_env(gym.Env):
          
         # Simulate one timestep
         if self.integration_method == "casadi":
-            
-            Fk = self.int_eng.casadi_step(self.state, uk)
-            self.state[: self.Nx_oracle] = np.array(Fk["xf"].full()).reshape(
-                self.Nx_oracle
-            )
+       
+                Fk = self.int_eng.casadi_step(self.state, uk)
+                self.state[: self.Nx_oracle] = np.array(Fk["xf"].full()).reshape(
+                    self.Nx_oracle
+                )
         elif self.integration_method == "jax":
             self.state[: self.Nx_oracle] = self.int_eng.jax_step(self.state, uk)
 
@@ -280,9 +280,9 @@ class make_env(gym.Env):
             constraint_violated = self.constraint_check(self.state, uk)
 
         # Compute reward
-        if self.custom_reward:
+        if self.custom_reward and not self.int_error:
            rew = self.custom_reward_f(self, self.state, uk, constraint_violated) 
-        else:
+        elif not self.custom_reward and not self.int_error:
             rew = self.reward_fn(self.state, constraint_violated)
 
         # For each set point, if it exists, append its value at the current time step to the list
@@ -290,6 +290,7 @@ class make_env(gym.Env):
         for k in self.SP.keys():
             if k in self.SP:
                 SP_t.append(self.SP[k][self.t])
+       
         self.state[self.Nx_oracle:self.Nx_oracle+len(self.SP)] = np.array(SP_t)
         # Update timestep
         self.t += 1

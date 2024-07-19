@@ -304,28 +304,27 @@ class nonsmooth_control:
             "inputs": ["U"],
             "disturbances": ["None"],
         }
-        info["parameters"].pop(
-            "int_method", None
-        )  # Remove 'int_method' from the dictionary since it is not a parameter of the model
+        
         return info
 @dataclass(frozen=False, kw_only=True)
 class RSR:
     # Parameters
+    int_method: str = "jax"
     rho: float = 1.0  # Liquid density
     alpha_1: float = 90.0  # Volatility
     k_1: float = 0.0167  # Rate constant
     k_2: float = 0.0167  # Rate constant
-    A_R: float = 5.0  # Vessel area
+    A_R: float = 10.0  # Vessel area
     A_M: float = 10.0  # Vessel area
-    A_B: float = 5.0  # Vessel area
+    A_B: float = 10.0  # Vessel area
     x1_O: float = 1.00  # Initial molar liquid fraction of component 1
 
     def __call__(self, x, u):
         # States
-        H_R, x1_R, x2_R, x3_R, H_M, x1_M, x2_M, x3_M, H_B, x1_B, x2_B, x3_B = x
+        H_R, x1_R, x2_R, x3_R, H_M, x1_M, x2_M, x3_M, H_B, x1_B, x2_B, x3_B = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]
 
         # Inputs
-        F_O, F_R, F_M, B, D = u
+        F_O, F_R, F_M, B, D = u[0], u[1], u[2], u[3], u[4]
 
         # Calculate distillate composition
         x1_D = (x1_B * self.alpha_1) / (1 - x1_B + x1_B * self.alpha_1)
@@ -356,6 +355,9 @@ class RSR:
             "inputs": ["F_O", "F_R", "F_M", "B", "D"],
             "disturbances": []
         }
+        info["parameters"].pop(
+            "int_method", None
+        )  # Remove 'int_method' from the dictionary since it is not a parameter of the model
         return info
     
 @dataclass(frozen=False, kw_only=True)
@@ -546,13 +548,13 @@ class four_tank:
     A2: float = 1  # Cross sectional area of tank 2 [m2]
     A3: float = 1  # Cross sectional area of tank 3 [m2]
     A4: float = 1  # Cross sectional area of tank 4 [m2]
-
+    int_method: str = "jax"
     def __call__(self, x, u):
         # States
-        h1, h2, h3, h4 = x
+        h1, h2, h3, h4 = x[0], x[1], x[2], x[3]
 
         # Inputs
-        v1, v2 = u
+        v1, v2 = u[0], u[1]
 
         dxdt = [
             (-self.a1 / self.A1) * np.sqrt(2 * self.g * h1) + (self.a3 / self.A1) * np.sqrt(2 * self.g * h3) + ((self.gamma_1 * self.k1) / (self.A1)) * v1,
@@ -567,8 +569,11 @@ class four_tank:
             "parameters": self.__dict__.copy(),
             "states": ["h1", "h2", "h3", "h4"],
             "inputs": ["v1", "v2"],
-            
+            "disturbances":["None"]
         }
+        info["parameters"].pop(
+            "int_method", None
+        )  # Remove 'int_method' from the dictionary since it is not a parameter of the model
         return info
 
 
