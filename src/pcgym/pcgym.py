@@ -14,6 +14,7 @@ from model_classes import (
     heat_exchanger,
     biofilm_reactor,
     polymerisation_reactor,
+    crystallization
 )
 from policy_evaluation import policy_eval
 from integrator import integration_engine
@@ -31,6 +32,11 @@ class make_env(gym.Env):
         """
 
         self.env_params = copy.deepcopy(env_params)
+        self.a_delta = False
+        if env_params.get("a_delta") is not None:
+            self.a_delta = env_params["a_delta"]
+            self.a_0 = env_params["a_0"]
+            
         try:
             self.normalise_a = env_params["normalise_a"]
             self.normalise_o = env_params["normalise_o"]
@@ -108,6 +114,7 @@ class make_env(gym.Env):
             "heat_exchanger": heat_exchanger,
             "biofilm_reactor": biofilm_reactor,
             "polymerisation_reactor": polymerisation_reactor,
+            "crystallization": crystallization 
         }
 
         # Load custom model if it is provided else load the selected standard model.
@@ -173,6 +180,7 @@ class make_env(gym.Env):
         Returns the state of the system
         """
         self.t = 0
+        
         self.int_eng = integration_engine(make_env, self.env_params)
         self.int_error = False
         state = copy.deepcopy(self.env_params["x0"])
@@ -186,14 +194,17 @@ class make_env(gym.Env):
 
             # Append initial disturbances to the state
             state = np.concatenate((state, initial_disturbances))
-
+        if self.a_delta:
+            self.a_save = self.a_0
         self.state = state
-
-        r_init = self.reward_fn(state, False)
-
+        if self.custom_reward:
+            r_init = 0
+        elif not self.custom_reward:
+            r_init = 0
         self.done = False
        
         if self.normalise_o is True:
+        
             self.normstate = (
                 2
                 * (self.state - self.observation_space_base.low)
@@ -231,8 +242,16 @@ class make_env(gym.Env):
             action = (action + 1) * (
                 self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
             ) / 2 + self.env_params["a_space"]["low"]
+        if self.normalise_a and self.a_delta:
+            action = (action + 1) * (
+                self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
+            ) / 2 + self.env_params["a_space"]["low"]
+            action = self.a_save + action
+            self.a_save = action
+            
+            self.a_save = np.clip(self.a_save,self.env_params['a_space_act']['low'],self.env_params['a_space_act']['high'])
 
-
+        
         # Add disturbance to control vector
         if self.disturbance_active:
             
@@ -263,7 +282,6 @@ class make_env(gym.Env):
             self.state[self.Nx_oracle + len(self.SP) :] = disturbance_values_state
         else:
             uk = action  # Add action to control vector
-         
         # Simulate one timestep
         if self.integration_method == "casadi":
        
@@ -273,16 +291,15 @@ class make_env(gym.Env):
                 )
         elif self.integration_method == "jax":
             self.state[: self.Nx_oracle] = self.int_eng.jax_step(self.state, uk)
-
         # Check if constraints are violated
         constraint_violated = False
         if self.constraint_active or self.custom_constraint_active:
             constraint_violated = self.constraint_check(self.state, uk)
 
         # Compute reward
-        if self.custom_reward and not self.int_error:
+        if self.custom_reward:
            rew = self.custom_reward_f(self, self.state, uk, constraint_violated) 
-        elif not self.custom_reward and not self.int_error:
+        elif not self.custom_reward:
             rew = self.reward_fn(self.state, constraint_violated)
 
         # For each set point, if it exists, append its value at the current time step to the list
@@ -306,7 +323,8 @@ class make_env(gym.Env):
                 * self.state[: self.Nx_oracle]
                 * noise_percentage
             )
-
+        # print(self.state)
+        
         if self.normalise_o is True:
             self.normstate = (
                 2

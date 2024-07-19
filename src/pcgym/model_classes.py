@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import jax.numpy as jnp
 import numpy as np
-
+from casadi import fmin, fmax
 
 # Store the model and its parameters as dataclasses
 # frozen: makes the objets immutable after creation
@@ -663,25 +663,26 @@ class heat_exchanger:
 @dataclass(frozen=False, kw_only=True)
 class biofilm_reactor:
     # Parameters
-    V: float = 1.0  # Volume of one reactor stage [L]
-    Va: float = 1.0  # Volume of absorber tank [L]
-    Kla: float = 1.0  # Transfer coefficient [hr]
+    V: float = 10.0  # Volume of one reactor stage [L]
+    Va: float = 15.0  # Volume of absorber tank [L]
+    Kla: float = 1.5  # Transfer coefficient [hr]
     m: float = 0.5  # Equilibrium constant [-]
     eq_exponent: float = 1.0
-    O_air: float = 1.0  # Concentration of oxygen in air [mg/L]
-    vm_1: float = 1.0  # Maximum velocity through fluidized bed for reaction 1 [mg/L hr]
+    O_air: float = 300  # Concentration of oxygen in air [mg/L]
+    vm_1: float = 0.8  # Maximum velocity through fluidized bed for reaction 1 [mg/L hr]
     vm_2: float = 1.0  # Maximum velocity through fluidized bed for reaction 2 [mg/L hr]
-    K1: float = 1.0  # Equilibrium constant for reaction 1 (Saturation constant for ammonia in reaction 1) [mg/L]
-    K2: float = 1.0  # Equilibrium constant for reaction 2 (Saturation constant for ammonia in reaction 2) [mg/L]
-    KO_1: float = 1.0  # Equilibrium constant for oxygen in reaction 1 (saturation constant for oxygen) [mg/L]
-    KO_2: float = 1.0  # Equilibrium constant for oxygen in reaction 2 (saturation constant for oxygen) [mg/L]
+    K1: float = 0.5  # Equilibrium constant for reaction 1 (Saturation constant for ammonia in reaction 1) [mg/L]
+    K2: float = 0.1  # Equilibrium constant for reaction 2 (Saturation constant for ammonia in reaction 2) [mg/L]
+    KO_1: float = 1.5  # Equilibrium constant for oxygen in reaction 1 (saturation constant for oxygen) [mg/L]
+    KO_2: float = 0.5  # Equilibrium constant for oxygen in reaction 2 (saturation constant for oxygen) [mg/L]
+    int_method: str ="jax"
 
     def __call__(self, x, u):
         # States
-        S1_1, S2_1, S3_1, O_1, S1_2, S2_2, S3_2, O_2, S1_3, S2_3, S3_3, O_3, S1_A, S2_A, S3_A, O_A = x
+        S1_1, S2_1, S3_1, O_1, S1_2, S2_2, S3_2, O_2, S1_3, S2_3, S3_3, O_3, S1_A, S2_A, S3_A, O_A = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11], x[12], x[13], x[14], x[15]
 
         # Inputs
-        F, Fr, S1_F, S2_F, S3_F = u
+        F, Fr, S1_F, S2_F, S3_F = u[0], u[1], u[2], u[3], u[4]
 
         # Reaction rates and stoichiometry
         r1_1 = ((self.vm_1 * S1_1) / (self.K1 + S1_1)) * ((O_1) / (self.KO_1 + O_1))
@@ -739,6 +740,9 @@ class biofilm_reactor:
             "inputs": ["F", "Fr", "S1_F", "S2_F", "S3_F"],
             "disturbances": []
         }
+        info["parameters"].pop(
+            "int_method", None
+        )
         return info
 
 @dataclass(frozen=False, kw_only=True)
@@ -794,55 +798,54 @@ class crystallization:
     # highly nonlinear process
     # source: https://pubs.acs.org/doi/10.1021/acs.iecr.3c00739
     # Parameters
-    ka: float = 0.923714966
-    kb: float = -6754.878558
-    kc: float = 0.92229965554
-    kd: float = 1.341205945
-    kg: float = 48.07514464
-    k1: float = -4921.261419
-    k2: float = 1.871281405
-    a: float = 0.50523693
-    b: float = 7.271241375
-    alfa: float = 7.510905767
-    ro: float = 2.658  # g/cm³
-    V: float = 0.0005  # m³
-    ro_t: float = 997  # kg/m³
-    Cp_t: float = 4.117  # kJ/kg*K
-    UA: float = 0.2154  # kJ/min*K
+    ka:float = 0.923714966
+    kb:float = -6754.878558
+    kc:float = 0.92229965554
+    kd:float = 1.341205945
+    kg:float = 48.07514464
+    k1:float = -4921.261419
+    k2:float = 1.871281405
+    a:float = 0.50523693
+    b:float = 7.271241375
+    alfa:float = 7.510905767
+    ro:float = 2.658  # [roc] = g/cm^3
     int_method: str = "jax"
-
     def __call__(self, x, u):
-        mu0, mu1, mu2, mu3, conc, temp = x
-        Tc = u[0]
-
+        
+        mu0, mu1, mu2, mu3, conc, = x[0], x[1], x[2], x[3], x[4], 
+        T = u[0]
+        # T = fmin(fmax(T, 0), 40)
         if self.int_method == "jax":
-            Ceq = -686.2686 + 3.579165 * jnp(temp) - 0.00292874 * jnp(temp) ** 2  # g/L
+            Ceq = -686.2686 + 3.579165 * jnp((T+273.15)) - 0.00292874 * jnp((T+273.15)) ** 2  # g/L
             S = jnp(conc) * 1e3 - Ceq  # g/L
-            B0 = self.ka * jnp.exp(self.kb / temp) * (S ** 2) ** (self.kc / 2) * ((mu3 ** 2) ** (self.kd / 2))  # /(cm³*min)
-            Ginf = self.kg * jnp.exp(self.k1 / temp) * (S ** 2) ** (self.k2 / 2)  # [G] = [Ginf] = cm/min
+            B0 = self.ka * jnp.exp(self.kb / (T+273.15)) * (S ** 2) ** (self.kc / 2) * ((mu3 ** 2) ** (self.kd / 2))  # /(cm³*min)
+            Ginf = self.kg * jnp.exp(self.k1 / (T+273.15)) * (S ** 2) ** (self.k2 / 2)  # [G] = [Ginf] = cm/min
 
-            dmi0dt = B0
-            dmi1dt = Ginf * (self.a * mu0 + self.b * mu1 * 1e-4) * 1e4
-            dmi2dt = 2 * Ginf * (self.a * mu1 * 1e-4 + self.b * mu2 * 1e-8) * 1e8
-            dmi3dt = 3 * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12) * 1e12
-            dcdt = -0.5 * self.ro * self.alfa * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12)
-            dTdt = self.UA * (Tc - temp) / (self.V * self.ro_t * self.Cp_t)
+            dmi0dt = B0 # mu_0
+            dmi1dt = Ginf * (self.a * mu0 + self.b * mu1 * 1e-4) * 1e4 # mu_1 
+            dmi2dt = 2 * Ginf * (self.a * mu1 * 1e-4 + self.b * mu2 * 1e-8) * 1e8 # mu_2
+            dmi3dt = 3 * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12) * 1e12 # mu_3
+            dcdt = -0.5 * self.ro * self.alfa * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12) 
+            # dTdt = self.UA * (Tc - (T+273.15)) / (self.V * self.ro_t * self.Cp_t)
 
-            dxdt = jnp.array([dmi0dt, dmi1dt, dmi2dt, dmi3dt, dcdt, dTdt])
+            dxdt = jnp.array([dmi0dt, dmi1dt, dmi2dt, dmi3dt, dcdt, ])
         else:
-            Ceq = -686.2686 + 3.579165 * temp - 0.00292874 * temp ** 2  # g/L
+            Ceq = -686.2686 + 3.579165 * (T+273.15) - 0.00292874 * (T+273.15) ** 2  # g/L
             S = conc * 1e3 - Ceq  # g/L
-            B0 = self.ka * np.exp(self.kb / temp) * (S ** 2) ** (self.kc / 2) * ((mu3 ** 2) ** (self.kd / 2))  # /(cm³*min)
-            Ginf = self.kg * np.exp(self.k1 / temp) * (S ** 2) ** (self.k2 / 2)  # [G] = [Ginf] = cm/min
+            B0 = self.ka * np.exp(self.kb / (T+273.15)) * (S ** 2) ** (self.kc / 2) * ((mu3 ** 2) ** (self.kd / 2))  # /(cm³*min)
+            Ginf = self.kg * np.exp(self.k1 / (T+273.15)) * (S ** 2) ** (self.k2 / 2)  # [G] = [Ginf] = cm/min
 
             dmi0dt = B0
             dmi1dt = Ginf * (self.a * mu0 + self.b * mu1 * 1e-4) * 1e4
             dmi2dt = 2 * Ginf * (self.a * mu1 * 1e-4 + self.b * mu2 * 1e-8) * 1e8
             dmi3dt = 3 * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12) * 1e12
             dcdt = -0.5 * self.ro * self.alfa * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12)
-            dTdt = self.UA * (Tc - temp) / (self.V * self.ro_t * self.Cp_t)
+            # dTdt = self.UA * (Tc - temp) / (self.V * self.ro_t * self.Cp_t)
+            # dCVdt = (mu2*mu0/(mu1**2) - 1)**0.5 # Coefficient of variation 
+            # dLndt = mu1/(mu0+1e-6) # average crystal size
+            
 
-            dxdt = [dmi0dt, dmi1dt, dmi2dt, dmi3dt, dcdt, dTdt]
+            dxdt = [dmi0dt, dmi1dt, dmi2dt, dmi3dt, dcdt]
 
         return dxdt
 
@@ -850,7 +853,7 @@ class crystallization:
         # Return a dictionary with the model information
         info = {
             "parameters": self.__dict__.copy(),
-            "states": ["Mu0", "Mu1", "Mu2", "Mu3", "Conc", "Temp"],
+            "states": ["Mu0", "Mu1", "Mu2", "Mu3", "Conc",],
             "inputs": ["Tc"],
             "disturbances": ["ka", "kg", "UA"],
         }

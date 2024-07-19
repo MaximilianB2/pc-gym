@@ -54,7 +54,7 @@ class integration_engine:
             self.t0 = 0.0
             self.tf = self.env.dt
             self.dt0 = None  # adaptive step size
-            self.step_controller = PIDController(rtol=1e-5, atol=1e-5)
+            self.step_controller = PIDController(rtol=1e-8, atol=1e-8)
 
     def jax_step(self, state, uk):
         """
@@ -165,6 +165,6 @@ class integration_engine:
         dae = {"x": x, "p": u, "ode": xdot}
         t0 = 0
         tf = delta_t
-        discrete_model = integrator("discrete_model", "cvodes", dae, t0, tf)
+        discrete_model = integrator("discrete_model", "cvodes", dae, t0, tf,)
 
         return discrete_model
