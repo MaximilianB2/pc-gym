@@ -1,6 +1,6 @@
 # Policy Evaluation
 
-::: src.pcgym.policy_eval.policy_eval
+::: src.pcgym.policy_evaluation.policy_eval
     options:
       members:
         - __init__

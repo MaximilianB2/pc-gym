@@ -1,4 +1,4 @@
-Copy# Policy Evaluation Class for pc-gym
+# Policy Evaluation Class for pc-gym
 import numpy as np
 import matplotlib.pyplot as plt
 from oracle import oracle
