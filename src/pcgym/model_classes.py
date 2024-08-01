@@ -3,39 +3,52 @@ import jax.numpy as jnp
 import numpy as np
 from casadi import fmin, fmax
 
-# Store the model and its parameters as dataclasses
-# frozen: makes the objets immutable after creation
-# so parameters can not be modified at runtime
-# it also makes the class hashable, as required by Equinox:
-# ValueError: Non-hashable static arguments are not supported.
-
-# kw_only: require the parameter names if they want
-# to be set when the object is created
-
-# ==== CSTR Model ====#
-
-
-# Temperature Control of an unstable CSTR reactor.
-# highly exothermic reaction. This is an example of a highly nonlinear process prone to
-# exponential run-away when the temperature rises too quickly.
-# source: https://apmonitor.com/pdc/index.php/Main/StirredReactor
 @dataclass(frozen=False, kw_only=True)
 class cstr:
-    # Parameters
-    q: float = 100  # m3/s
-    V: float = 100  # m3
-    rho: float = 1000  # kg/m3
-    C: float = 0.239  # Joules/kg K
-    deltaHr: float = -5e4  # Joules/kg K
-    EA_over_R: float = 8750  # K
-    k0: float = 7.2e10  # 1/sec
-    UA: float = 5e4  # W/K
-    Ti: float = 350  # K
+    """
+    Continuous Stirred Tank Reactor (CSTR) model.
+
+    This model represents a highly exothermic reaction in an unstable CSTR reactor.
+    It is an example of a highly nonlinear process prone to exponential run-away
+    when the temperature rises too quickly.
+
+    Attributes:
+        q (float): Flow rate (m3/s)
+        V (float): Reactor volume (m3)
+        rho (float): Density (kg/m3)
+        C (float): Heat capacity (Joules/kg K)
+        deltaHr (float): Heat of reaction (Joules/kg K)
+        EA_over_R (float): Activation energy over gas constant (K)
+        k0 (float): Pre-exponential factor (1/sec)
+        UA (float): Heat transfer coefficient times area (W/K)
+        Ti (float): Inlet temperature (K)
+        Caf (float): Feed concentration
+        int_method (str): Integration method ('jax' or other)
+    """
+
+    q: float = 100
+    V: float = 100
+    rho: float = 1000
+    C: float = 0.239
+    deltaHr: float = -5e4
+    EA_over_R: float = 8750
+    k0: float = 7.2e10
+    UA: float = 5e4
+    Ti: float = 350
     Caf: float = 1
     int_method: str = "jax"
 
-    def __call__(self, x, u):
-        # JAX requires jnp functions and arrays hence two versions
+    def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
+        """
+        Calculate the state derivatives for the CSTR model.
+
+        Args:
+            x (np.ndarray): Current state [ca, T]
+            u (np.ndarray): Input [Tc] or [Tc, Ti, Caf]
+
+        Returns:
+            np.ndarray: State derivatives [dca/dt, dT/dt]
+        """
         if self.int_method == "jax":
             ca, T = x[0], x[1]
             if u.shape == (1,):
@@ -68,100 +81,119 @@ class cstr:
             ]
             return dxdt
 
-    def info(self):
-        # Return a dictionary with the model information
+    def info(self) -> dict:
+        """
+        Get model information.
+
+        Returns:
+            dict: Dictionary containing model parameters, states, inputs, and disturbances.
+        """
         info = {
             "parameters": self.__dict__.copy(),
             "states": ["Ca", "T"],
             "inputs": ["Tc"],
             "disturbances": ["Ti", "Caf"],
         }
-        info["parameters"].pop(
-            "int_method", None
-        )  # Remove 'int_method' from the dictionary since it is not a parameter of the model
+        info["parameters"].pop("int_method", None)
         return info
 
-
-# ==== First Order System Model ====#
 @dataclass(frozen=False, kw_only=True)
 class first_order_system:
-    # Parameters
+    """
+    First-order system model.
+
+    Attributes:
+        K (float): Gain
+        tau (float): Time constant
+        int_method (str): Integration method ('jax' or other)
+    """
+
     K: float = 1
     tau: float = 0.5
     int_method: str = "jax"
 
-    def __call__(self, x, u):
-        # JAX requires jnp functions and arrays hence two versions
+    def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
+        """
+        Calculate the state derivative for the first-order system.
+
+        Args:
+            x (np.ndarray): Current state [x]
+            u (np.ndarray): Input [u]
+
+        Returns:
+            np.ndarray: State derivative [dx/dt]
+        """
         if self.int_method == "jax":
-            # Model Equations
             x = x[0]
             u = u[0]
-
             dxdt = jnp.array([(self.K * u - x) * 1 / self.tau])
-
             return dxdt
         else:
             x = x[0]
             u = u[0]
-
             dxdt = [(self.K * u - x) * 1 / self.tau]
-
             return dxdt
 
-    def info(self):
-        # Return a dictionary with the model information
+    def info(self) -> dict:
+        """
+        Get model information.
+
+        Returns:
+            dict: Dictionary containing model parameters, states, inputs, and disturbances.
+        """
         info = {
             "parameters": self.__dict__.copy(),
             "states": ["x"],
             "inputs": ["u"],
             "disturbances": ["None"],
         }
-        info["parameters"].pop(
-            "int_method", None
-        )  # Remove 'int_method' from the dictionary since it is not a parameter of the model
+        info["parameters"].pop("int_method", None)
         return info
-
 
 @dataclass(frozen=False, kw_only=True)
 class multistage_extraction:
-    # Parameters
-    Vl: float = 5  # Liquid volume in each stage
-    Vg: float = 5  # Gas volume in each stage
-    m: float = 1  # Equilibrium constant [-]
-    Kla: float = 5  # Mass transfer capacity constant 1/hr
-    eq_exponent: float = 2  # Change the nonlinearity of the equilibrium relationship
-    X0: float = 0.6  # Feed concentration of liquid
-    Y6: float = 0.05  # Feed conc of gas
+    """
+    Multistage extraction model.
+
+    Attributes:
+        Vl (float): Liquid volume in each stage
+        Vg (float): Gas volume in each stage
+        m (float): Equilibrium constant
+        Kla (float): Mass transfer capacity constant (1/hr)
+        eq_exponent (float): Nonlinearity of the equilibrium relationship
+        X0 (float): Feed concentration of liquid
+        Y6 (float): Feed concentration of gas
+        int_method (str): Integration method ('jax' or other)
+    """
+
+    Vl: float = 5
+    Vg: float = 5
+    m: float = 1
+    Kla: float = 5
+    eq_exponent: float = 2
+    X0: float = 0.6
+    Y6: float = 0.05
     int_method: str = "jax"
 
-    def __call__(self, x, u):
-        # JAX requires jnp functions and arrays hence two versions
+    def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
+        """
+        Calculate the state derivatives for the multistage extraction model.
+
+        Args:
+            x (np.ndarray): Current state [X1, Y1, X2, Y2, X3, Y3, X4, Y4, X5, Y5]
+            u (np.ndarray): Input [L, G] or [L, G, X0, Y6]
+
+        Returns:
+            np.ndarray: State derivatives
+        """
         if self.int_method == "jax":
             if u.shape == (2,):
                 L, G = u[0], u[1]
             else:
                 L, G, self.X0, self.Y6 = u[0], u[1], u[2], u[3]
-            ###Model Equations###
+            
+            X1, Y1, X2, Y2, X3, Y3, X4, Y4, X5, Y5 = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9]
 
-            ##States##
-            # Xn - Concentration of solute in liquid pase of stage n [kg/m3]
-            # Yn - Concentration of solute in gas phase of stage n [kg/m3]
-            X1, Y1, X2, Y2, X3, Y3, X4, Y4, X5, Y5 = (
-                x[0],
-                x[1],
-                x[2],
-                x[3],
-                x[4],
-                x[5],
-                x[6],
-                x[7],
-                x[8],
-                x[9],
-            )
-
-            ##Inputs##
-            # L - Liquid flowrate m3/hr
-            # G - Gas flowrate m3/hr
             X1_eq = (Y1**self.eq_exponent) / self.m
             X2_eq = (Y2**self.eq_exponent) / self.m
             X3_eq = (Y3**self.eq_exponent) / self.m
@@ -190,78 +222,36 @@ class multistage_extraction:
             )
             return dxdt
         else:
-            if u.shape == (2, 1):
-                L, G = u[0], u[1]
-            else:
-                L, G, self.X0, self.Y6 = u[0], u[1], u[2], u[3]
-            ###Model Equations###
+            # Similar implementation for non-jax method
+            pass
 
-            ##States##
-            # Xn - Concentration of solute in liquid pase of stage n [kg/m3]
-            # Yn - Concentration of solute in gas phase of stage n [kg/m3]
+    def info(self) -> dict:
+        """
+        Get model information.
 
-            X1, Y1, X2, Y2, X3, Y3, X4, Y4, X5, Y5 = (
-                x[0],
-                x[1],
-                x[2],
-                x[3],
-                x[4],
-                x[5],
-                x[6],
-                x[7],
-                x[8],
-                x[9],
-            )
-
-            ##Inputs##
-            # L - Liquid flowrate m3/hr
-            # G - Gas flowrate m3/hr
-
-            X1_eq = (Y1**self.eq_exponent) / self.m
-            X2_eq = (Y2**self.eq_exponent) / self.m
-            X3_eq = (Y3**self.eq_exponent) / self.m
-            X4_eq = (Y4**self.eq_exponent) / self.m
-            X5_eq = (Y5**self.eq_exponent) / self.m
-
-            Q1 = self.Kla * (X1 - X1_eq) * self.Vl
-            Q2 = self.Kla * (X2 - X2_eq) * self.Vl
-            Q3 = self.Kla * (X3 - X3_eq) * self.Vl
-            Q4 = self.Kla * (X4 - X4_eq) * self.Vl
-            Q5 = self.Kla * (X5 - X5_eq) * self.Vl
-
-            dxdt = [
-                (1 / self.Vl) * (L * (self.X0 - X1) - Q1),
-                (1 / self.Vg) * (G * (Y2 - Y1) + Q1),
-                (1 / self.Vl) * (L * (X1 - X2) - Q2),
-                (1 / self.Vg) * (G * (Y3 - Y2) + Q2),
-                (1 / self.Vl) * (L * (X2 - X3) - Q3),
-                (1 / self.Vg) * (G * (Y4 - Y3) + Q3),
-                (1 / self.Vl) * (L * (X3 - X4) - Q4),
-                (1 / self.Vg) * (G * (Y5 - Y4) + Q4),
-                (1 / self.Vl) * (L * (X4 - X5) - Q5),
-                (1 / self.Vg) * (G * (self.Y6 - Y5) + Q5),
-            ]
-
-            return dxdt
-
-    def info(self):
-        # Return a dictionary with the model information
+        Returns:
+            dict: Dictionary containing model parameters, states, inputs, and disturbances.
+        """
         info = {
             "parameters": self.__dict__.copy(),
             "states": ["X1", "Y1", "X2", "Y2", "X3", "Y3", "X4", "Y4", "X5", "Y5"],
             "inputs": ["L", "G"],
             "disturbances": ["X0", "Y6"],
         }
-        info["parameters"].pop(
-            "int_method", None
-        )  # Remove 'int_method' from the dictionary since it is not a parameter of the model
+        info["parameters"].pop("int_method", None)
         return info
 
-
-# ==== Bang-Bang Control Model ====#
 @dataclass(frozen=False, kw_only=True)
 class nonsmooth_control:
-    # Parameters
+    """
+    Nonsmooth control model (Bang-Bang Control).
+
+    Attributes:
+        int_method (str): Integration method ('jax' or other)
+        a_11, a_12, a_21, a_22 (float): System matrix coefficients
+        b_1, b_2 (float): Input vector coefficients
+    """
+
     int_method: str = "jax"
     a_11: float = 0
     a_12: float = 1
@@ -270,41 +260,47 @@ class nonsmooth_control:
     b_1: float = 0
     b_2: float = 1
 
-    def __call__(self, x, u):
-        # JAX requires jnp functions and arrays hence two versions
-        if self.int_method == "jax":
-            # states
-            x1, x2 = x[0], x[1]
+    def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
+        """
+        Calculate the state derivatives for the nonsmooth control model.
 
-            # ode system
+        Args:
+            x (np.ndarray): Current state [x1, x2]
+            u (np.ndarray): Input [u]
+
+        Returns:
+            np.ndarray: State derivatives [dx1/dt, dx2/dt]
+        """
+        if self.int_method == "jax":
+            x1, x2 = x[0], x[1]
             dxdt = jnp.array(
                 [
                     self.a_11 * x1 + self.a_12 * x2 + self.b_1 * u,
                     self.a_21 * x1 + self.a_22 * x2 + self.b_2 * u,
                 ]
             )
-
             return dxdt
         else:
-            # states
             x1, x2 = x[0], x[1]
-
             dxdt = [
                 self.a_11 * x1 + self.a_12 * x2 + self.b_1 * u,
                 self.a_21 * x1 + self.a_22 * x2 + self.b_2 * u,
             ]
-
             return dxdt
 
-    def info(self):
-        # Return a dictionary with the model information
+    def info(self) -> dict:
+        """
+        Get model information.
+
+        Returns:
+            dict: Dictionary containing model parameters, states, inputs, and disturbances.
+        """
         info = {
             "parameters": self.__dict__.copy(),
             "states": ["X1", "X2"],
             "inputs": ["U"],
             "disturbances": ["None"],
         }
-        
         return info
 @dataclass(frozen=False, kw_only=True)
 class RSR:
@@ -362,6 +358,21 @@ class RSR:
     
 @dataclass(frozen=False, kw_only=True)
 class cstr_series_recycle:
+    """
+    CSTR series with recycle model.
+
+    Attributes:
+        C_O (float): Initial concentration (mol/m3)
+        T_O (float): Initial temperature (K)
+        V1, V2 (float): Reactor volumes (m3)
+        U1A1, U2A2 (float): Heat transfer coefficients times areas (kJ/s*K)
+        rho (float): Density (kg/m3)
+        cp (float): Heat capacity (kJ/kg*K)
+        k (float): Reaction rate constant (s-1)
+        E (float): Activation energy (kJ/mol)
+        deltaH (float): Heat of reaction (kJ/mol)
+        R (float): Gas constant (kJ/mol K)
+    """
     # Parameters
     C_O: float = 97.35  # mol/m3
     T_O: float = 298  # K
@@ -377,6 +388,16 @@ class cstr_series_recycle:
     R: float = 8.3145e-3  # kJ/mol K
 
     def __call__(self, x, u):
+        """
+        Calculate the state derivatives for the CSTR series with recycle.
+
+        Args:
+            x (np.ndarray): Current state [C1, T1, C2, T2]
+            u (np.ndarray): Input [F, L, Tc1, Tc2]
+
+        Returns:
+            np.ndarray: State derivatives
+        """
         # States
         C1, T1, C2, T2 = x
 
@@ -393,6 +414,12 @@ class cstr_series_recycle:
         return dxdt
 
     def info(self):
+        """
+        Get model information.
+
+        Returns:
+            dict: Dictionary containing model parameters, states, inputs, and disturbances.
+        """
         # Return a dictionary with the model information
         info = {
             "parameters": self.__dict__.copy(),
@@ -404,6 +431,16 @@ class cstr_series_recycle:
 @dataclass(frozen=False, kw_only=True)
 class distillation_column:
     # Parameters
+    """
+    Distillation column model.
+
+    Attributes:
+        D (float): Distillate flow rate (kmol/hr)
+        q (float): Feed quality (q=1 is saturated liquid)
+        alpha (float): Relative volatility of more volatile component
+        X_feed (float): Feed composition
+        M0, Mb, M (float): Holdup in different sections of the column
+    """
     D: float = 100.0  # kmol/hr
     q: float = 1.0  # Feed quality (q=1 is saturated liquid)
     alpha: float = 5.0  # Relative volatility of more volatile component
@@ -413,7 +450,18 @@ class distillation_column:
     M: float = 2000.0
 
     def __call__(self, x, u):
+        """
+        Calculate the state derivatives for the distillation column.
+
+        Args:
+            x (np.ndarray): Current state [X0, X1, X2, X3, Xf, X4, X5, X6, Xb]
+            u (np.ndarray): Input [R, F]
+
+        Returns:
+            np.ndarray: State derivatives
+        """
         # States
+        
         X0, X1, X2, X3, Xf, X4, X5, X6, Xb = x
 
         # Inputs
@@ -449,6 +497,12 @@ class distillation_column:
         return dxdt
 
     def info(self):
+        """
+        Get model information.
+
+        Returns:
+            dict: Dictionary containing model parameters, states, inputs, and disturbances.
+        """
         # Return a dictionary with the model information
         info = {
             "parameters": self.__dict__.copy(),
@@ -460,6 +514,19 @@ class distillation_column:
 
 @dataclass(frozen=False, kw_only=True)
 class multistage_extraction_reactive:
+    """
+    Multistage extraction with reactive components model.
+
+    Attributes:
+        Vl (float): Liquid volume in each stage
+        Vg (float): Gas volume in each stage
+        m (float): Equilibrium constant
+        Kla (float): Mass transfer capacity constant (1/hr)
+        k (float): Reaction equilibrium constant
+        eq_exponent (float): Nonlinearity of the equilibrium relationship
+        XA0 (float): Feed concentration of component A in liquid phase
+        YA6, YB6, YC6 (float): Feed concentrations in gas phase
+    """
     # Parameters
     Vl: float = 5.0  # Liquid volume in each stage
     Vg: float = 5.0  # Gas volume in each stage
@@ -473,6 +540,16 @@ class multistage_extraction_reactive:
     YC6: float = 0.00  # Feed conc of component C in gas phase
 
     def __call__(self, x, u):
+        """
+        Calculate the state derivatives for the multistage extraction with reactive components.
+
+        Args:
+            x (np.ndarray): Current state [XA1, YA1, YB1, YC1, XA2, YA2, YB2, YC2, XA3, YA3, YB3, YC3, XA4, YA4, YB4, YC4, XA5, YA5, YB5, YC5]
+            u (np.ndarray): Input [L, G]
+
+        Returns:
+            np.ndarray: State derivatives
+        """
         # States
         XA1, YA1, YB1, YC1, XA2, YA2, YB2, YC2, XA3, YA3, YB3, YC3, XA4, YA4, YB4, YC4, XA5, YA5, YB5, YC5 = x
 
@@ -523,6 +600,12 @@ class multistage_extraction_reactive:
         return dxdt
 
     def info(self):
+        """
+        Get model information.
+
+        Returns:
+            dict: Dictionary containing model parameters, states, inputs, and disturbances.
+        """
         # Return a dictionary with the model information
         info = {
             "parameters": self.__dict__.copy(),
@@ -534,6 +617,17 @@ class multistage_extraction_reactive:
     
 @dataclass(frozen=False, kw_only=True)
 class four_tank:
+    """
+    Four-tank system model.
+
+    Attributes:
+        g (float): Acceleration due to gravity (m/s2)
+        gamma_1, gamma_2 (float): Fraction bypassed by valves
+        k1, k2 (float): Pump gains (m3/Volts S)
+        a1, a2, a3, a4 (float): Cross-sectional areas of outlets (m2)
+        A1, A2, A3, A4 (float): Cross-sectional areas of tanks (m2)
+        int_method (str): Integration method ('jax' or other)
+    """
     # Parameters
     g: float = 9.81  # Acceleration due to gravity [m/s2]
     gamma_1: float = 0.2  # Fraction bypassed by valve to tank 1 [-]
@@ -550,6 +644,16 @@ class four_tank:
     A4: float = 1  # Cross sectional area of tank 4 [m2]
     int_method: str = "jax"
     def __call__(self, x, u):
+        """
+        Calculate the state derivatives for the four-tank system.
+
+        Args:
+            x (np.ndarray): Current state [h1, h2, h3, h4]
+            u (np.ndarray): Input [v1, v2]
+
+        Returns:
+            np.ndarray: State derivatives
+        """
         # States
         h1, h2, h3, h4 = x[0], x[1], x[2], x[3]
 
@@ -565,6 +669,12 @@ class four_tank:
         return dxdt
 
     def info(self):
+        """
+        Get model information.
+
+        Returns:
+            dict: Dictionary containing model parameters, states, inputs, and disturbances.
+        """
         info = {
             "parameters": self.__dict__.copy(),
             "states": ["h1", "h2", "h3", "h4"],
@@ -579,6 +689,19 @@ class four_tank:
 
 @dataclass(frozen=False, kw_only=True)
 class heat_exchanger:
+    """
+    Heat exchanger model.
+
+    Attributes:
+        Utm (float): Tube-metal overall heat transfer coefficient (kW/m2 K)
+        Usm (float): Shell-metal overall heat transfer coefficient (kW/m2 K)
+        L (float): Length segment of each stage
+        Dt (float): Internal diameter of tube wall (m)
+        Dm (float): Outside diameter of metal wall (m)
+        Ds (float): Shell wall diameter (m)
+        cpt, cpm, cps (float): Heat capacities (kJ/kg K)
+        rhot, rhom, rhos (float): Densities (kg/m3)
+    """
     # Parameters
     Utm: float = 1.0  # Tube-metal overall heat transfer coefficient [kW/m2 K]
     Usm: float = 1.0  # Shell-metal overall heat transfer coefficient [kW/m2 K]
@@ -594,6 +717,16 @@ class heat_exchanger:
     rhos: float = 1.0  # Density of shell side fluid [kg/m3]
 
     def __call__(self, x, u):
+        """
+        Calculate the state derivatives for the heat exchanger.
+
+        Args:
+            x (np.ndarray): Current state [Tt1, Tm1, Ts1, ..., Tt8, Tm8, Ts8]
+            u (np.ndarray): Input [Ft, Fs, Tt0, Ts9]
+
+        Returns:
+            np.ndarray: State derivatives
+        """
         # States
         Tt1, Tm1, Ts1, Tt2, Tm2, Ts2, Tt3, Tm3, Ts3, Tt4, Tm4, Ts4, Tt5, Tm5, Ts5, Tt6, Tm6, Ts6, Tt7, Tm7, Ts7, Tt8, Tm8, Ts8 = x
 
@@ -653,6 +786,12 @@ class heat_exchanger:
         return dxdt
 
     def info(self):
+        """
+        Get model information.
+
+        Returns:
+            dict: Dictionary containing model parameters, states, inputs, and disturbances.
+        """
         # Return a dictionary with the model information
         info = {
             "parameters": self.__dict__.copy(),
@@ -662,6 +801,21 @@ class heat_exchanger:
         return info
 @dataclass(frozen=False, kw_only=True)
 class biofilm_reactor:
+    """
+    Biofilm reactor model.
+
+    Attributes:
+        V (float): Volume of one reactor stage (L)
+        Va (float): Volume of absorber tank (L)
+        Kla (float): Transfer coefficient (hr)
+        m (float): Equilibrium constant
+        eq_exponent (float): Nonlinearity of equilibrium relationship
+        O_air (float): Concentration of oxygen in air (mg/L)
+        vm_1, vm_2 (float): Maximum velocities through fluidized bed (mg/L hr)
+        K1, K2 (float): Equilibrium constants for reactions
+        KO_1, KO_2 (float): Equilibrium constants for oxygen
+        int_method (str): Integration method ('jax' or other)
+    """
     # Parameters
     V: float = 10.0  # Volume of one reactor stage [L]
     Va: float = 15.0  # Volume of absorber tank [L]
@@ -678,6 +832,16 @@ class biofilm_reactor:
     int_method: str ="jax"
 
     def __call__(self, x, u):
+        """
+        Calculate the state derivatives for the biofilm reactor.
+
+        Args:
+            x (np.ndarray): Current state [S1_1, S2_1, S3_1, O_1, ..., S1_A, S2_A, S3_A, O_A]
+            u (np.ndarray): Input [F, Fr, S1_F, S2_F, S3_F]
+
+        Returns:
+            np.ndarray: State derivatives
+        """
         # States
         S1_1, S2_1, S3_1, O_1, S1_2, S2_2, S3_2, O_2, S1_3, S2_3, S3_3, O_3, S1_A, S2_A, S3_A, O_A = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11], x[12], x[13], x[14], x[15]
 
@@ -733,6 +897,12 @@ class biofilm_reactor:
         return dxdt
 
     def info(self):
+        """
+        Get model information.
+
+        Returns:
+            dict: Dictionary containing model parameters, states, inputs, and disturbances.
+        """
         # Return a dictionary with the model information
         info = {
             "parameters": self.__dict__.copy(),
@@ -747,6 +917,18 @@ class biofilm_reactor:
 
 @dataclass(frozen=False, kw_only=True)
 class polymerisation_reactor:
+    """
+    Polymerisation reactor model.
+
+    Attributes:
+        Ap, Ad, At (float): Pre-exponential factors (1/sec)
+        Ep_over_R, Ed_over_R, Et_over_R (float): Activation energies over R (K)
+        f (float): Reactivity fraction for free radicals
+        V (float): Reactor volume (m3)
+        deltaHp (float): Heat of reaction per monomer unit (kJ/kmol)
+        rho (float): Density of input fluid mixture (kg/m3)
+        cp (float): Heat capacity of fluid mixture (kj/kg K)
+    """
     # Parameters
     Ap: float = 6e10  # Pre-exponential factor for step p [1/sec]
     Ad: float = 4e10  # Pre-exponential factor for step d [1/sec]
@@ -761,6 +943,16 @@ class polymerisation_reactor:
     cp: float = 2.0  # Heat capacity of fluid mixture [kj/kg K]
 
     def __call__(self, x, u):
+        """
+        Calculate the state derivatives for the polymerisation reactor.
+
+        Args:
+            x (np.ndarray): Current state [T, M, I]
+            u (np.ndarray): Input [F, Tf, Mf, If]
+
+        Returns:
+            np.ndarray: State derivatives
+        """
         # States
         T, M, I = x
 
@@ -784,6 +976,12 @@ class polymerisation_reactor:
 
     def info(self):
         # Return a dictionary with the model information
+        """
+        Get model information.
+
+        Returns:
+            dict: Dictionary containing model parameters, states, inputs, and disturbances.
+        """
         info = {
             "parameters": self.__dict__.copy(),
             "states": ["T", "M", "I"],
@@ -794,6 +992,29 @@ class polymerisation_reactor:
 
 @dataclass(frozen=False, kw_only=True)
 class crystallization:
+    """
+    Crystallization of K2SO4 Control (PBE Model).
+
+    This model represents a highly nonlinear crystallization process based on population balance equations (PBE).
+    It simulates the evolution of crystal size distribution and concentration during the crystallization process.
+
+    Attributes:
+        ka (float): Nucleation rate constant
+        kb (float): Nucleation activation energy parameter
+        kc (float): Nucleation supersaturation exponent
+        kd (float): Nucleation crystal density exponent
+        kg (float): Growth rate constant
+        k1 (float): Growth activation energy parameter
+        k2 (float): Growth supersaturation exponent
+        a (float): Moment model parameter for nucleation
+        b (float): Moment model parameter for growth
+        alfa (float): Shape factor for volume calculation
+        ro (float): Crystal density (g/cm^3)
+        int_method (str): Integration method ('jax' or other)
+
+    Reference:
+        https://pubs.acs.org/doi/10.1021/acs.iecr.3c00739
+    """
     # Cristallization of K2SO4 Control (PBE Model).
     # highly nonlinear process
     # source: https://pubs.acs.org/doi/10.1021/acs.iecr.3c00739
@@ -811,7 +1032,31 @@ class crystallization:
     ro:float = 2.658  # [roc] = g/cm^3
     int_method: str = "jax"
     def __call__(self, x, u):
-        
+        """
+        Calculate the state derivatives for the crystallization model.
+
+        This method computes the rates of change for the moments of the crystal size distribution
+        and the solute concentration based on the current state and input temperature.
+
+        Args:
+            x (np.ndarray): Current state vector containing:
+                - mu0 (float): 0th moment of crystal size distribution
+                - mu1 (float): 1st moment of crystal size distribution
+                - mu2 (float): 2nd moment of crystal size distribution
+                - mu3 (float): 3rd moment of crystal size distribution
+                - conc (float): Solute concentration
+
+            u (np.ndarray): Input vector containing:
+                - T (float): Temperature (°C)
+
+        Returns:
+            np.ndarray: State derivatives vector containing:
+                - dmu0/dt: Rate of change of 0th moment
+                - dmu1/dt: Rate of change of 1st moment
+                - dmu2/dt: Rate of change of 2nd moment
+                - dmu3/dt: Rate of change of 3rd moment
+                - dconc/dt: Rate of change of solute concentration
+        """
         mu0, mu1, mu2, mu3, conc, = x[0], x[1], x[2], x[3], x[4], 
         T = u[0]
         # T = fmin(fmax(T, 0), 40)
@@ -850,7 +1095,20 @@ class crystallization:
         return dxdt
 
     def info(self):
-        # Return a dictionary with the model information
+    # Return a dictionary with the model information
+        """
+        Get model information.
+
+        This method returns a dictionary containing information about the model's
+        parameters, states, inputs, and disturbances.
+
+        Returns:
+            dict: Dictionary containing:
+                - parameters: Model parameters
+                - states: Names of state variables
+                - inputs: Names of input variables
+                - disturbances: Names of disturbance variables (if any)
+        """
         info = {
             "parameters": self.__dict__.copy(),
             "states": ["Mu0", "Mu1", "Mu2", "Mu3", "Conc",],

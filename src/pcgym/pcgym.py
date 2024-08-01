@@ -6,7 +6,6 @@ from model_classes import (
     first_order_system,
     multistage_extraction,
     nonsmooth_control,
-    RSR,
     cstr_series_recycle,
     distillation_column,
     multistage_extraction_reactive,
@@ -23,12 +22,31 @@ import copy
 
 class make_env(gym.Env):
     """
-    Class for RL-Gym Environment
+    Class for RL-Gym Environment.
+
+    This class creates a customizable environment for reinforcement learning tasks,
+    compatible with the OpenAI Gym interface. It supports various chemical engineering
+    models, custom constraints, disturbances, and reward functions.
+
+    Attributes:
+        env_params (dict): Parameters for environment configuration.
+        action_space (gym.spaces.Box): The action space of the environment.
+        observation_space (gym.spaces.Box): The observation space of the environment.
+        model: The selected chemical engineering model.
+        integration_method (str): Method used for numerical integration.
+        constraint_active (bool): Whether constraints are active.
+        disturbance_active (bool): Whether disturbances are active.
+        custom_reward (bool): Whether a custom reward function is used.
     """
 
     def __init__(self, env_params):
         """
-        Constructor for the class
+        Initialize the environment with given parameters.
+
+        Args:
+            env_params (dict): Dictionary containing environment parameters including
+                model selection, action and observation space definitions, simulation
+                parameters, constraints, disturbances, and custom functions.
         """
 
         self.env_params = copy.deepcopy(env_params)
@@ -106,7 +124,6 @@ class make_env(gym.Env):
             "first_order_system": first_order_system,
             "nonsmooth_control": nonsmooth_control,
             "multistage_extraction": multistage_extraction,
-            "RSR": RSR,
             "cstr_series_recycle": cstr_series_recycle,
             "distillation_column": distillation_column,
             "multistage_extraction_reactive": multistage_extraction_reactive,
@@ -175,9 +192,19 @@ class make_env(gym.Env):
 
     def reset(self, seed=None, **kwargs):  # Accept arbitrary keyword arguments
         """
-        Resets the state of the system
+        Reset the environment to its initial state.
 
-        Returns the state of the system
+        This method resets the environment's state, time, and other relevant variables.
+        It's called at the beginning of each episode.
+
+        Args:
+            seed (int, optional): Seed for random number generator.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            tuple: A tuple containing:
+                - numpy.array: The initial state observation.
+                - dict: Additional information (e.g., initial reward).
         """
         self.t = 0
         
@@ -202,7 +229,7 @@ class make_env(gym.Env):
         elif not self.custom_reward:
             r_init = 0
         self.done = False
-       
+
         if self.normalise_o is True:
         
             self.normstate = (
@@ -217,23 +244,21 @@ class make_env(gym.Env):
 
     def step(self, action):
         """
-        Simulate one timestep of the environment
+        Perform one time step in the environment.
 
-        Parameters
-        ----------
-        action : action taken by agent
+        This method takes an action, applies it to the environment, and returns
+        the next state, reward, and other information.
 
+        Args:
+            action (numpy.array): The action to be taken in the environment.
 
-        Returns
-        -------
-        state: array
-            state of the system after timestep.
-        rew : float
-            reward obtained
-        done : {0,1}
-            0 if target not reached. 1 if reached
-        info :
-
+        Returns:
+            tuple: A tuple containing:
+                - numpy.array: The next state observation.
+                - float: The reward for the current step.
+                - bool: Whether the episode has ended.
+                - bool: Whether the episode was truncated.
+                - dict: Additional information about the step.
         """
 
         # Create control vector
@@ -274,7 +299,7 @@ class make_env(gym.Env):
                     uk[self.Nu - self.Nd_model + i] = self.model.info()["parameters"][
                         str(k)
                     ]  # if there is no disturbance at this timestep, use the default value
-                  
+
                     disturbance_values.append(default_value)
                     
 
@@ -284,7 +309,7 @@ class make_env(gym.Env):
             uk = action  # Add action to control vector
         # Simulate one timestep
         if self.integration_method == "casadi":
-       
+            
                 Fk = self.int_eng.casadi_step(self.state, uk)
                 self.state[: self.Nx_oracle] = np.array(Fk["xf"].full()).reshape(
                     self.Nx_oracle
@@ -298,7 +323,7 @@ class make_env(gym.Env):
 
         # Compute reward
         if self.custom_reward:
-           rew = self.custom_reward_f(self, self.state, uk, constraint_violated) 
+            rew = self.custom_reward_f(self, self.state, uk, constraint_violated) 
         elif not self.custom_reward:
             rew = self.reward_fn(self.state, constraint_violated)
 
@@ -307,7 +332,7 @@ class make_env(gym.Env):
         for k in self.SP.keys():
             if k in self.SP:
                 SP_t.append(self.SP[k][self.t])
-       
+        
         self.state[self.Nx_oracle:self.Nx_oracle+len(self.SP)] = np.array(SP_t)
         # Update timestep
         self.t += 1
@@ -339,14 +364,17 @@ class make_env(gym.Env):
 
     def reward_fn(self, state, c_violated):
         """
-        Compute reward for one timestep and penalise constraint violation if requested by the user.
+        Compute the reward for the current state and action.
 
-        Inputs:
-            state - current state of the system
-            c_violated - boolean indicating if constraint is violated
-        Outputs:
-            r - reward for current timestep
+        This method calculates the reward based on the current state and whether
+        any constraints were violated.
 
+        Args:
+            state (numpy.array): The current state of the system.
+            c_violated (bool): Whether any constraints were violated.
+
+        Returns:
+            float: The computed reward.
         """
         
         r = 0.0
@@ -361,14 +389,14 @@ class make_env(gym.Env):
 
     def con_checker(self, model_states, curr_state):
         """
-        Check constraints for given model_states and their values.
+        Check if any constraints are violated for the given states.
 
-        Parameters:
-        model_states (list): A list of model_states (states or inputs).
-        curr_state (list): A list of corresponding item values.
+        Args:
+            model_states (list): List of state or input names to check.
+            curr_state (list): List of corresponding state or input values.
 
         Returns:
-        bool: True if any constraint is violated, False otherwise.
+            bool: True if any constraint is violated, False otherwise.
         """
         for i, state in enumerate(model_states):
             if state in self.constraints:
@@ -393,12 +421,19 @@ class make_env(gym.Env):
 
     def constraint_check(self, state, input):
         """
-        Check if constraints are violated and update info array accordingly.
+        Check if any constraints are violated in the current step.
 
-        Inputs: state - current state of the system
+        This method checks both state and input constraints, as well as any
+        custom constraints defined by the user.
 
-        Outputs: constraint_violated - boolean indicating if constraint is violated
+        Args:
+            state (numpy.array): The current state of the system.
+            input (numpy.array): The current input (action) applied to the system.
+
+        Returns:
+            bool: True if any constraint is violated, False otherwise.
         """
+
         self.con_i = 0
         constraint_violated = False
         states = self.model.info()["states"]
@@ -442,14 +477,22 @@ class make_env(gym.Env):
         cons_viol=False,
     ):
         """
-        Plot the rollout of the given policy.
+        Generate rollouts for the given policies.
 
-        Parameters:
-        - policies: dictionary of policies to evaluate
-        - reps: The number of rollouts to perform.
-        - oracle: Whether to use an oracle model for evaluation. Default is False.
-        - dist_reward: Whether to use reward distribution for plotting. Default is False.
-        - MPC_params: Whether to use MPC parameters. Default is False.
+        This method simulates the environment for multiple episodes using the provided policies.
+
+        Args:
+            policies (dict): Dictionary of policies to evaluate.
+            reps (int): Number of rollouts to perform.
+            oracle (bool, optional): Whether to use an oracle model for evaluation. Defaults to False.
+            dist_reward (bool, optional): Whether to use reward distribution. Defaults to False.
+            MPC_params (bool, optional): Whether to use MPC parameters. Defaults to False.
+            cons_viol (bool, optional): Whether to track constraint violations. Defaults to False.
+
+        Returns:
+            tuple: A tuple containing:
+                - policy_eval: The policy evaluator object.
+                - dict: Data from the rollouts.
         """
         # construct evaluator
         evaluator = policy_eval(
@@ -471,14 +514,24 @@ class make_env(gym.Env):
         save_fig=False,
     ):
         """
-        Plot the rollout of the given policy.
+        Generate and plot rollouts for the given policies.
 
-        Parameters:
-        - policies: dictionary of policies to evaluate
-        - reps: The number of rollouts to perform.
-        - oracle: Whether to use an oracle model for evaluation. Default is False.
-        - dist_reward: Whether to use reward distribution for plotting. Default is False.
-        - MPC_params: Whether to use MPC parameters. Default is False.
+        This method simulates the environment for multiple episodes using the provided policies
+        and plots the results.
+
+        Args:
+            policies (dict): Dictionary of policies to evaluate.
+            reps (int): Number of rollouts to perform.
+            oracle (bool, optional): Whether to use an oracle model for evaluation. Defaults to False.
+            dist_reward (bool, optional): Whether to use reward distribution for plotting. Defaults to False.
+            MPC_params (bool, optional): Whether to use MPC parameters. Defaults to False.
+            cons_viol (bool, optional): Whether to track constraint violations. Defaults to False.
+            save_fig (bool, optional): Whether to save the generated figures. Defaults to False.
+
+        Returns:
+            tuple: A tuple containing:
+                - policy_eval: The policy evaluator object.
+                - dict: Data from the rollouts.
         """
         # construct evaluator
         evaluator = policy_eval(

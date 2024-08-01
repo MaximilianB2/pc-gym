@@ -9,12 +9,30 @@ class oracle:
     Oracle is a nonlinear model predictive controller (nMPC),
     using the multiple shooting method.
 
-    Inputs: Env
-
-    Outputs: Optimal control and state trajectories
+    Attributes:
+        env_params (dict): Environment parameters.
+        env: Environment object.
+        x0 (list): Initial state.
+        T (float): Simulation time.
+        N (int): Horizon length.
+        R (float): Control penalty scaling factor.
+        model_info (dict): Information about the model.
+        u (MX): Control input symbolic variable.
+        x (MX): State symbolic variable.
     """
 
     def __init__(self, env, env_params, MPC_params=False):
+        """
+        Initialize the Oracle class.
+
+        Args:
+            env: Environment class.
+            env_params (dict): Environment parameters.
+            MPC_params (dict, optional): MPC parameters. Defaults to False.
+
+        Returns:
+            None
+        """
         self.env_params = env_params
         self.env_params["integration_method"] = "casadi"
         self.env = env(env_params)
@@ -34,9 +52,8 @@ class oracle:
         Generates a model for the given environment.
 
         Returns:
-        f: A casadi function that can be used to solve the differential equations defined by the model.
+            Function: A casadi function that can be used to solve the differential equations defined by the model.
         """
-
         self.u = MX.sym("u", self.env.Nu)
         self.x = MX.sym("x", self.env.Nx_oracle)
         dxdt = self.env.model(self.x, self.u)
@@ -49,9 +66,8 @@ class oracle:
         Generates an integrator object for the given model.
 
         Returns:
-        F: A casadi function that can be used to integrate the model over a given time horizon.
+            Function: A casadi function that can be used to integrate the model over a given time horizon.
         """
-
         f = self.model_gen()
         tf = self.env.dt
         t0 = 0
@@ -67,12 +83,9 @@ class oracle:
         """
         Generates the indices of when the disturbance or setpoint value changes.
 
-        Inputs: self
-
-        Returns: index of when either the disturbance or setpoint value changes.
-
+        Returns:
+            list: Index of when either the disturbance or setpoint value changes.
         """
-
         index = []
         if self.env_params.get("disturbances") is not None:
             for key in self.env_params["disturbances"]:
@@ -93,11 +106,12 @@ class oracle:
         """
         Solves an optimal control problem (OCP) using the IPOPT solver.
 
+        Args:
+            t_step (int): Current time step.
+
         Returns:
-        - M: A function that takes current state x_0 (p) and returns the optimal control input u.
-
+            Function: A function that takes current state x_0 (p) and returns the optimal control input u.
         """
-
         opti = Opti()
         F = self.integrator_gen()
         x = opti.variable(self.env.Nx_oracle, self.N + 1)
@@ -123,9 +137,6 @@ class oracle:
                 o_space_high - o_space_low
             )
 
-            # r_scale = self.env_params.get(
-            #     "r_scale", {}
-            # )  # if no r_scale: set r_scale to 1
             cost += sum1(sum2((x_normalized - setpoint_normalized) ** 2)) 
             Sp_i += 1
         u_normalized = (u - self.env_params["a_space"]["low"]) / (
@@ -142,13 +153,11 @@ class oracle:
             opti.subject_to(x[:, k + 1] == F(x[:, k], u[:, k]))
 
         # Control constraints
-
         for i in range(self.env.Nu - self.env.Nd_model):
             opti.subject_to(u[i, :] >= self.env_params["a_space"]["low"][i])
             opti.subject_to(u[i, :] <= self.env_params["a_space"]["high"][i])
 
         # Define disturbance as a control input equality constraint
-        # TODO: Add an option to foresee any disturbance.
         if self.env_params.get("disturbances") is not None:
             for i, k in enumerate(self.env.model.info()["disturbances"], start=0):
                 if k in self.env.disturbances.keys():
@@ -250,10 +259,10 @@ class oracle:
         Solves a model predictive control problem (MPC) using the optimal control problem (OCP) solver.
 
         Returns:
-        - x_opt: Optimal state trajectory
-        - u_opt: Optimal control trajectory
+            tuple: A tuple containing:
+                - x_log (numpy.ndarray): Optimal state trajectory.
+                - u_log (numpy.ndarray): Optimal control trajectory.
         """
-
         regen_index = self.disturbance_index()
 
         M = self.ocp(t_step=0)
@@ -278,7 +287,6 @@ class oracle:
                         * x
                         * noise_percentage
                     )
-
                 except Exception:
                     x += (
                         np.random.normal(0, 1, (self.env.Nx_oracle, 1))

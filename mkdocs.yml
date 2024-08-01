@@ -7,8 +7,8 @@ repo_url: https://github.com/MaximilianB2/pc-gym
 
 # navigation
 nav: 
- - Home: index.md
- - Environments:
+  - Home: index.md
+  - Environments:
     - First Order System: env/first_order_system.md
     - Continuously Stirred Tank Reactor: env/cstr.md
     # - Second Order System: env/second-order-system.md
@@ -22,14 +22,19 @@ nav:
     # - Reactor-Separator-Recycle: env/RSR.md
     # - Biofilm Reactor: env/Biofilm-Reactor.md
 
- - User Guides:
+  - User Guides:
     - Training: guides/training.md
     - Disturbances: guides/disturbances.md
     - Constraints: guides/constraints.md
     #- Models: guides/models.md
     - Policy Evaluation: guides/Policy Evaluation.md
-# - API Reference:
- #   - Environment: API/env.md
+  - API Reference:
+    - Make Environment: API/make_env.md
+    - Evaluation Metrics: API/evaluation_metrics.md
+    - Integrator: API/integrator.md
+    - Models: API/model_classes.md
+    - Oracle: API/oracle.md
+    - Policy Evaluation: API/policy_evaluation.md
 
 # theme
 
@@ -86,6 +91,7 @@ extra_css:
   - stylesheets/extra.css
 plugins:
   - search
+  - mkdocstrings
   # - include-markdown
   # - mknotebooks: # enable Jupyter notebooks
   #     enable_default_jupyter_cell_styling: false

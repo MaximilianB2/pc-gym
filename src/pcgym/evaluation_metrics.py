@@ -1,5 +1,8 @@
-"""policy evaluation metrics
-- general flavour follows the paper by Manon Flageat et al (2024) - https://arxiv.org/pdf/2312.07178.pdf
+"""
+Policy evaluation metrics.
+
+This module implements various metrics for evaluating policies, following the general approach
+described in the paper by Manon Flageat et al (2024) - https://arxiv.org/pdf/2312.07178.pdf
 """
 
 import numpy as np
@@ -7,18 +10,28 @@ from abc import ABC
 
 
 class metric_base(ABC):
+    """
+    Abstract base class for policy evaluation metrics.
+    """
+
     def __init__(self, scalarised_weight):
+        """
+        Initialize the metric base.
+
+        Args:
+            scalarised_weight: The weight for scalarised performance.
+        """
         pass
 
     def evaluate(self, policy_evaluator):
         """
         Evaluate the given policy using the specified environment.
 
-        Parameters:
-        - policy_evaluator: The policy evaluator to generate data for a number of policy rollouts.
+        Args:
+            policy_evaluator: The policy evaluator to generate data for a number of policy rollouts.
 
         Returns:
-        - The evaluation metric value.
+            The evaluation metric value.
         """
         raise NotImplementedError("Subclasses must implement the evaluate method.")
 
@@ -26,9 +39,11 @@ class metric_base(ABC):
         """
         Evaluate the dispersion of the policy.
 
+        Args:
+            data: Nested dictionary containing policy data.
+
         Returns:
-        - The policy dispersion metric value.
-        - data: nested dictionary
+            The policy dispersion metric value.
         """
         raise NotImplementedError(
             "Subclasses must implement the policy_dispersion_metric method."
@@ -38,8 +53,11 @@ class metric_base(ABC):
         """
         Evaluate the performance of the policy.
 
+        Args:
+            data: Nested dictionary containing policy data.
+
         Returns:
-        - The policy performance metric value.
+            The policy performance metric value.
         """
         raise NotImplementedError(
             "Subclasses must implement the policy_performance_metric method."
@@ -49,8 +67,11 @@ class metric_base(ABC):
         """
         Evaluate the scalarised performance of the policy.
 
+        Args:
+            data: Nested dictionary containing policy data.
+
         Returns:
-        - The scalarised policy performance metric value.
+            The scalarised policy performance metric value.
         """
         raise NotImplementedError(
             "Subclasses must implement the scalarised_performance method."
@@ -58,35 +79,52 @@ class metric_base(ABC):
 
 
 class standard_deviation:
+    """
+    Class for calculating standard deviation.
+    """
+
     def __init__(self, data):
+        """
+        Initialize the standard deviation calculator.
+
+        Args:
+            data: Input data for standard deviation calculation.
+        """
         self.data = data
 
     def get_value(self):
         """
-        Evaluate the dispersion of the policy.
+        Calculate the standard deviation of the data.
 
         Returns:
-        - The policy dispersion metric value.
-        - data: numpy array
+            The standard deviation value.
         """
         return np.std(self.data, axis=-1)
 
 
 class median_absolute_deviation:
+    """
+    Class for calculating median absolute deviation.
+    """
+
     def __init__(self, data):
+        """
+        Initialize the median absolute deviation calculator.
+
+        Args:
+            data: Input data for median absolute deviation calculation.
+        """
         if data.ndim < 2:
             data = data.reshape((data.shape[0], 1))
         self.data = data
 
     def get_value(self):
         """
-        Evaluate the dispersion of the policy.
+        Calculate the median absolute deviation of the data.
 
         Returns:
-        - The policy dispersion metric value.
-        - data: numpy array
+            The median absolute deviation value.
         """
-
         return np.median(
             np.abs(self.data - np.median(self.data, axis=-1)),
             axis=-1,  # Currently only works for the reward component
@@ -94,35 +132,67 @@ class median_absolute_deviation:
 
 
 class mean_performance:
+    """
+    Class for calculating mean performance.
+    """
+
     def __init__(self, data):
+        """
+        Initialize the mean performance calculator.
+
+        Args:
+            data: Input data for mean performance calculation.
+        """
         self.data = data
 
     def get_value(self):
         """
-        Evaluate the performance of the policy.
+        Calculate the mean performance of the data.
 
         Returns:
-        - The policy performance metric value.
+            The mean performance value.
         """
         return np.mean(self.data, axis=-1)
 
 
 class median_performance:
+    """
+    Class for calculating median performance.
+    """
+
     def __init__(self, data):
+        """
+        Initialize the median performance calculator.
+
+        Args:
+            data: Input data for median performance calculation.
+        """
         self.data = data
 
     def get_value(self):
         """
-        Evaluate the performance of the policy.
+        Calculate the median performance of the data.
 
         Returns:
-        - The policy performance metric value.
+            The median performance value.
         """
         return np.median(self.data, axis=-1)
 
 
 class reproducibility_metric(metric_base):
+    """
+    Class for calculating reproducibility metrics.
+    """
+
     def __init__(self, dispersion: str, performance: str, scalarised_weight: float):
+        """
+        Initialize the reproducibility metric.
+
+        Args:
+            dispersion: The dispersion metric to use ('std' or 'mad').
+            performance: The performance metric to use ('mean' or 'median').
+            scalarised_weight: The weight for scalarised performance.
+        """
         # scalarised weight is defined in terms of the upper confidence bound
         # it should be negative for the lower confidence bound
         self.scalarised_weight = scalarised_weight
@@ -144,12 +214,13 @@ class reproducibility_metric(metric_base):
         """
         Evaluate the given policy using the specified environment.
 
-        Parameters
-        ----------
-        policy_evaluator : The policy evaluator to generate data for a number of policy rollouts.
-                            must be constructed prior to passing to evaluate
-        """
+        Args:
+            policy_evaluator: The policy evaluator to generate data for a number of policy rollouts.
+            component: The specific component to evaluate (optional).
 
+        Returns:
+            The evaluation metric value.
+        """
         try:
             self.data = policy_evaluator.data  # Try to get data from policy evaluator if this fails then call the get_rollouts method to generate the data
         except Exception:
@@ -161,9 +232,12 @@ class reproducibility_metric(metric_base):
         """
         Evaluate the dispersion of the policy.
 
-        Returns
-        -------
-        The policy dispersion metric value.
+        Args:
+            data: Nested dictionary containing policy data.
+            component: The specific component to evaluate.
+
+        Returns:
+            The policy dispersion metric value.
         """
         values = {k: {} for k in data.keys()}
 
@@ -186,9 +260,12 @@ class reproducibility_metric(metric_base):
         """
         Evaluate the performance of the policy.
 
-        Returns
-        -------
-        The policy performance metric value.
+        Args:
+            data: Nested dictionary containing policy data.
+            component: The specific component to evaluate.
+
+        Returns:
+            The policy performance metric value.
         """
         values = {k: {} for k in data.keys()}
 
@@ -211,12 +288,13 @@ class reproducibility_metric(metric_base):
         """
         Evaluate the scalarised performance of the policy.
 
-        Returns
-        -------
-        The scalarised policy performance metric value.
-        set component to None to scalarise over all components
-        """
+        Args:
+            data: Nested dictionary containing policy data.
+            component: The specific component to evaluate (set to None to scalarise over all components).
 
+        Returns:
+            The scalarised policy performance metric value.
+        """
         performance = self.policy_performance_metric(data, component)
         dispersion = self.policy_dispersion_metric(data, component)
         return {
@@ -229,6 +307,15 @@ class reproducibility_metric(metric_base):
         }
 
     def determine_op(self, component):
+        """
+        Determine the operation to be applied based on the component.
+
+        Args:
+            component: The component to determine the operation for.
+
+        Returns:
+            A lambda function representing the operation to be applied.
+        """
         if component == "x":
             return lambda x: x
         elif component == "u":
