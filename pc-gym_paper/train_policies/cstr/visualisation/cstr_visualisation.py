@@ -103,7 +103,7 @@ def paper_plot(data):
     plt.subplots_adjust(wspace=0.3, top=0.85, bottom=0.15, left=0.08, right=0.98)
 
     policies = ['oracle', 'SAC', 'PPO', 'DDPG']
-    cols = ['black', 'tab:red', 'tab:blue', 'tab:green', ]
+    cols = ['tab:orange', 'tab:red', 'tab:blue', 'tab:green', ]
     labels = ['Oracle','SAC', 'PPO', 'DDPG']
 
     # Create lines for the legend
@@ -111,7 +111,7 @@ def paper_plot(data):
     for i, policy in enumerate(policies):
         line, = axs[0].plot([], [], color=cols[i], label=labels[i])
         lines.append(line)
-    ref_line, = axs[0].plot([], [], color='black', linestyle='--', label='Reference')
+    ref_line, = axs[0].plot([], [], color='black', linestyle='--',  label='Reference')
     lines.append(ref_line)
 
     # Create legend above the plots
@@ -126,7 +126,7 @@ def paper_plot(data):
         
         if idx == 0:
             for i, policy in enumerate(policies):
-                ax.plot(t, np.median(data[policy]['x'][idx,:,:], axis=1), color=cols[i])
+                ax.plot(t, np.median(data[policy]['x'][idx,:,:], axis=1), color=cols[i], linewidth=1.25)
                 ax.fill_between(t, np.max(data[policy]['x'][idx,:,:], axis=1), 
                                 np.min(data[policy]['x'][idx,:,:], axis=1), 
                                 alpha=0.2, linewidth=0, color=cols[i])
@@ -138,7 +138,7 @@ def paper_plot(data):
                 ax.step(t, data['SAC']['x'][2,:,0], color='black', linestyle='--')
         if idx == 1:
             for i, policy in enumerate(policies):
-                ax.step(t, np.median(data[policy]['u'][0,:,:], axis=1), color=cols[i], where='post')
+                ax.step(t, np.median(data[policy]['u'][0,:,:], axis=1), color=cols[i], where='post',linewidth=1.25)
                 ax.fill_between(t, np.max(data[policy]['u'][0,:,:], axis=1), 
                                 np.min(data[policy]['u'][0,:,:], axis=1),
                                 step="post", alpha=0.2, linewidth=0, color=cols[i])
