@@ -7,14 +7,14 @@ described in the paper by Manon Flageat et al (2024) - https://arxiv.org/pdf/231
 
 import numpy as np
 from abc import ABC
-
+from typing import Dict, Any, Callable, Union, Optional, Type
 
 class metric_base(ABC):
     """
     Abstract base class for policy evaluation metrics.
     """
 
-    def __init__(self, scalarised_weight):
+    def __init__(self, scalarised_weight: float) -> None:
         """
         Initialize the metric base.
 
@@ -23,7 +23,7 @@ class metric_base(ABC):
         """
         pass
 
-    def evaluate(self, policy_evaluator):
+    def evaluate(self, policy_evaluator: Any) -> Any:
         """
         Evaluate the given policy using the specified environment.
 
@@ -35,7 +35,7 @@ class metric_base(ABC):
         """
         raise NotImplementedError("Subclasses must implement the evaluate method.")
 
-    def policy_dispersion_metric(self, data):
+    def policy_dispersion_metric(self, data: Dict[str, Any]) -> Any:
         """
         Evaluate the dispersion of the policy.
 
@@ -49,7 +49,7 @@ class metric_base(ABC):
             "Subclasses must implement the policy_dispersion_metric method."
         )
 
-    def policy_performance_metric(self, data):
+    def policy_performance_metric(self, data: Dict[str, Any]) -> Any:
         """
         Evaluate the performance of the policy.
 
@@ -63,7 +63,7 @@ class metric_base(ABC):
             "Subclasses must implement the policy_performance_metric method."
         )
 
-    def scalarised_performance(self, data):
+    def scalarised_performance(self, data: Dict[str, Any]) -> Any:
         """
         Evaluate the scalarised performance of the policy.
 
@@ -83,7 +83,7 @@ class standard_deviation:
     Class for calculating standard deviation.
     """
 
-    def __init__(self, data):
+    def __init__(self, data: np.ndarray) -> None:
         """
         Initialize the standard deviation calculator.
 
@@ -92,7 +92,7 @@ class standard_deviation:
         """
         self.data = data
 
-    def get_value(self):
+    def get_value(self) -> np.ndarray:
         """
         Calculate the standard deviation of the data.
 
@@ -107,7 +107,7 @@ class median_absolute_deviation:
     Class for calculating median absolute deviation.
     """
 
-    def __init__(self, data):
+    def __init__(self, data: np.ndarray) -> None:
         """
         Initialize the median absolute deviation calculator.
 
@@ -118,7 +118,7 @@ class median_absolute_deviation:
             data = data.reshape((data.shape[0], 1))
         self.data = data
 
-    def get_value(self):
+    def get_value(self) -> np.ndarray:
         """
         Calculate the median absolute deviation of the data.
 
@@ -136,7 +136,7 @@ class mean_performance:
     Class for calculating mean performance.
     """
 
-    def __init__(self, data):
+    def __init__(self, data: np.ndarray) -> None:
         """
         Initialize the mean performance calculator.
 
@@ -145,7 +145,7 @@ class mean_performance:
         """
         self.data = data
 
-    def get_value(self):
+    def get_value(self) -> np.ndarray:
         """
         Calculate the mean performance of the data.
 
@@ -160,7 +160,7 @@ class median_performance:
     Class for calculating median performance.
     """
 
-    def __init__(self, data):
+    def __init__(self, data: np.ndarray) -> None:
         """
         Initialize the median performance calculator.
 
@@ -169,7 +169,7 @@ class median_performance:
         """
         self.data = data
 
-    def get_value(self):
+    def get_value(self) -> np.ndarray:
         """
         Calculate the median performance of the data.
 
@@ -184,7 +184,7 @@ class reproducibility_metric(metric_base):
     Class for calculating reproducibility metrics.
     """
 
-    def __init__(self, dispersion: str, performance: str, scalarised_weight: float):
+    def __init__(self, dispersion: str, performance: str, scalarised_weight: float) -> None:
         """
         Initialize the reproducibility metric.
 
@@ -197,20 +197,20 @@ class reproducibility_metric(metric_base):
         # it should be negative for the lower confidence bound
         self.scalarised_weight = scalarised_weight
         if dispersion == "std":
-            self.dispersion = standard_deviation
+            self.dispersion: Union[Type[standard_deviation], Type[median_absolute_deviation]] = standard_deviation
         elif dispersion == "mad":
             self.dispersion = median_absolute_deviation
         else:
             raise ValueError("Invalid dispersion metric")
 
         if performance == "mean":
-            self.performance = mean_performance
+            self.performance: Union[Type[mean_performance], Type[median_performance]] = mean_performance
         elif performance == "median":
             self.performance = median_performance
         else:
             raise ValueError("Invalid performance metric")
 
-    def evaluate(self, policy_evaluator, component: str = None):
+    def evaluate(self, policy_evaluator: Any, component: Optional[str] = None) -> Dict[str, Dict[str, np.ndarray]]:
         """
         Evaluate the given policy using the specified environment.
 
@@ -228,7 +228,7 @@ class reproducibility_metric(metric_base):
 
         return self.scalarised_performance(self.data, component)
 
-    def policy_dispersion_metric(self, data: dict, component: str):
+    def policy_dispersion_metric(self, data: Dict[str, Dict[str, np.ndarray]], component: Optional[str]) -> Dict[str, Dict[str, np.ndarray]]:
         """
         Evaluate the dispersion of the policy.
 
@@ -239,7 +239,7 @@ class reproducibility_metric(metric_base):
         Returns:
             The policy dispersion metric value.
         """
-        values = {k: {} for k in data.keys()}
+        values: Dict[str, Dict[str, np.ndarray]] = {k: {} for k in data.keys()}
 
         for policy in data.keys():  # has structure n_x x T x reps  - operation always applied along the reps row
             if component is None:
@@ -256,7 +256,7 @@ class reproducibility_metric(metric_base):
 
         return values
 
-    def policy_performance_metric(self, data: dict, component: str):
+    def policy_performance_metric(self, data: Dict[str, Dict[str, np.ndarray]], component: Optional[str]) -> Dict[str, Dict[str, np.ndarray]]:
         """
         Evaluate the performance of the policy.
 
@@ -267,7 +267,7 @@ class reproducibility_metric(metric_base):
         Returns:
             The policy performance metric value.
         """
-        values = {k: {} for k in data.keys()}
+        values: Dict[str, Dict[str, np.ndarray]] = {k: {} for k in data.keys()}
 
         for policy in data.keys():
             if component is None:
@@ -284,7 +284,7 @@ class reproducibility_metric(metric_base):
 
         return values
 
-    def scalarised_performance(self, data: dict, component: str):
+    def scalarised_performance(self, data: Dict[str, Dict[str, np.ndarray]], component: Optional[str]) -> Dict[str, Dict[str, np.ndarray]]:
         """
         Evaluate the scalarised performance of the policy.
 
@@ -306,7 +306,7 @@ class reproducibility_metric(metric_base):
             for k in performance.keys()
         }
 
-    def determine_op(self, component):
+    def determine_op(self, component: str) -> Callable[[np.ndarray], np.ndarray]:
         """
         Determine the operation to be applied based on the component.
 

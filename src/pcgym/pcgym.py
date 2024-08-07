@@ -18,7 +18,7 @@ from model_classes import (
 from policy_evaluation import policy_eval
 from integrator import integration_engine
 import copy
-
+import typing
 
 class make_env(gym.Env):
     """
@@ -39,7 +39,7 @@ class make_env(gym.Env):
         custom_reward (bool): Whether a custom reward function is used.
     """
 
-    def __init__(self, env_params):
+    def __init__(self, env_params: dict) -> None:
         """
         Initialize the environment with given parameters.
 
@@ -117,7 +117,7 @@ class make_env(gym.Env):
             self.done_on_constraint = env_params["done_on_cons_vio"]
             self.r_penalty = env_params["r_penalty"]
             self.custom_constraint_active = True
-
+        
         # Select model
         model_mapping = {
             "cstr": cstr,
@@ -189,8 +189,9 @@ class make_env(gym.Env):
         if env_params.get("custom_reward") is not None:
             self.custom_reward = True
             self.custom_reward_f = env_params["custom_reward"]
+        pass
 
-    def reset(self, seed=None, **kwargs):  # Accept arbitrary keyword arguments
+    def reset(self, seed:int=0, **kwargs) -> tuple[np.array, dict]:  
         """
         Reset the environment to its initial state.
 
@@ -242,7 +243,7 @@ class make_env(gym.Env):
         else:
             return self.state, {"r_init": r_init}
 
-    def step(self, action):
+    def step(self, action: np.array) -> tuple[np.array, float, bool, bool, dict]:
         """
         Perform one time step in the environment.
 
@@ -362,7 +363,7 @@ class make_env(gym.Env):
         else:
             return self.state, rew, self.done, False, self.info
 
-    def reward_fn(self, state, c_violated):
+    def reward_fn(self, state:np.array, c_violated:bool) -> float:
         """
         Compute the reward for the current state and action.
 
@@ -387,7 +388,7 @@ class make_env(gym.Env):
                 r -= 1000
         return r
 
-    def con_checker(self, model_states, curr_state):
+    def con_checker(self, model_states:list, curr_state:np.array) -> bool:
         """
         Check if any constraints are violated for the given states.
 
@@ -419,7 +420,7 @@ class make_env(gym.Env):
                     self.con_i += 1
         return False
 
-    def constraint_check(self, state, input):
+    def constraint_check(self, state: np.array, input:np.array) -> bool:
         """
         Check if any constraints are violated in the current step.
 
@@ -469,13 +470,13 @@ class make_env(gym.Env):
 
     def get_rollouts(
         self,
-        policies,
-        reps,
-        oracle=False,
-        dist_reward=False,
-        MPC_params=False,
-        cons_viol=False,
-    ):
+        policies: dict,
+        reps: int,
+        oracle: bool=False,
+        dist_reward: bool=False,
+        MPC_params: bool=False,
+        cons_viol: bool=False,
+    ) -> tuple[policy_eval, dict]:
         """
         Generate rollouts for the given policies.
 
@@ -505,14 +506,14 @@ class make_env(gym.Env):
 
     def plot_rollout(
         self,
-        policies,
-        reps,
-        oracle=False,
-        dist_reward=False,
-        MPC_params=False,
-        cons_viol=False,
-        save_fig=False,
-    ):
+        policies: dict,
+        reps: int,
+        oracle: bool=False,
+        dist_reward: bool=False,
+        MPC_params: bool=False,
+        cons_viol: bool=False,
+        save_fig: bool=False,
+    ) -> tuple[policy_eval, dict]:
         """
         Generate and plot rollouts for the given policies.
 

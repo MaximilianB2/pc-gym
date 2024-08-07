@@ -1,9 +1,10 @@
 import numpy as np
 import do_mpc
-from casadi import *
-
+from casadi import vertcat, sum1
+import typing
+from gymnasium import Env
 class oracle:
-    def __init__(self, env, env_params, MPC_params=False):
+    def __init__(self, env:Env, env_params:dict, MPC_params:bool=False) -> None:
         self.env_params = env_params
         self.env_params["integration_method"] = "casadi"
         self.env = env(env_params)
@@ -19,8 +20,9 @@ class oracle:
         self.model_info = self.env.model.info()
         
         self.integral_error = np.zeros(len(self.env_params["SP"]))
+        pass
 
-    def setup_mpc(self):
+    def setup_mpc(self) -> tuple[do_mpc.controller.MPC, do_mpc.simulator.Simulator]:
         model_type = 'continuous'
         model = do_mpc.model.Model(model_type)
 
@@ -111,7 +113,7 @@ class oracle:
         return mpc, simulator
 
 
-    def mpc(self):
+    def mpc(self) -> tuple[np.array, np.array]:
         mpc, simulator = self.setup_mpc()
 
         x0 = np.array(self.x0[:self.env.Nx_oracle])

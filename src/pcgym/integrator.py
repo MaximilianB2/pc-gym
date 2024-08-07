@@ -1,9 +1,9 @@
-from typing import Callable, Dict, List, Tuple, Any
+from typing import Callable, Dict, List, Any
 from casadi import SX, vertcat, Function, integrator
 from diffrax import diffeqsolve, ODETerm, Tsit5, PIDController
 import jax.numpy as jnp
 import numpy as np
-
+from pcgym import make_env
 class integration_engine:
     """
     Integration class that contains both the casadi and JAX integration wrappers.
@@ -16,7 +16,7 @@ class integration_engine:
         integration_method: The chosen integration method ('jax' or 'casadi').
     """
 
-    def __init__(self, make_env: Callable, env_params: Dict[str, Any]):
+    def __init__(self, make_env: make_env, env_params: Dict[str, Any]) -> None:
         """
         Initialize the integration engine.
 
@@ -58,6 +58,8 @@ class integration_engine:
             self.tf = self.env.dt
             self.dt0 = None
             self.step_controller = PIDController(rtol=1e-8, atol=1e-8)
+            
+        pass 
 
     def jax_step(self, state: np.ndarray, uk: np.ndarray) -> np.ndarray:
         """
