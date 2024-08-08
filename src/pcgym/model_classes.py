@@ -222,8 +222,55 @@ class multistage_extraction:
             )
             return dxdt
         else:
-            # Similar implementation for non-jax method
-            pass
+            if u.shape == (2, 1):
+                L, G = u[0], u[1]
+            else:
+                L, G, self.X0, self.Y6 = u[0], u[1], u[2], u[3]
+            X1, Y1, X2, Y2, X3, Y3, X4, Y4, X5, Y5 = (
+                x[0],
+                x[1],
+                x[2],
+                x[3],
+                x[4],
+                x[5],
+                x[6],
+                x[7],
+                x[8],
+                x[9],
+            )
+
+            ##Inputs##
+            # L - Liquid flowrate m3/hr
+            # G - Gas flowrate m3/hr
+
+            X1_eq = (Y1**self.eq_exponent) / self.m
+            X2_eq = (Y2**self.eq_exponent) / self.m
+            X3_eq = (Y3**self.eq_exponent) / self.m
+            X4_eq = (Y4**self.eq_exponent) / self.m
+            X5_eq = (Y5**self.eq_exponent) / self.m
+
+            Q1 = self.Kla * (X1 - X1_eq) * self.Vl
+            Q2 = self.Kla * (X2 - X2_eq) * self.Vl
+            Q3 = self.Kla * (X3 - X3_eq) * self.Vl
+            Q4 = self.Kla * (X4 - X4_eq) * self.Vl
+            Q5 = self.Kla * (X5 - X5_eq) * self.Vl
+
+            dxdt = [
+                (1 / self.Vl) * (L * (self.X0 - X1) - Q1),
+                (1 / self.Vg) * (G * (Y2 - Y1) + Q1),
+                (1 / self.Vl) * (L * (X1 - X2) - Q2),
+                (1 / self.Vg) * (G * (Y3 - Y2) + Q2),
+                (1 / self.Vl) * (L * (X2 - X3) - Q3),
+                (1 / self.Vg) * (G * (Y4 - Y3) + Q3),
+                (1 / self.Vl) * (L * (X3 - X4) - Q4),
+                (1 / self.Vg) * (G * (Y5 - Y4) + Q4),
+                (1 / self.Vl) * (L * (X4 - X5) - Q5),
+                (1 / self.Vg) * (G * (self.Y6 - Y5) + Q5),
+            ]
+
+            return dxdt
+
+            
 
     def info(self) -> dict:
         """

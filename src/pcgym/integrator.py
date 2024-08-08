@@ -3,7 +3,7 @@ from casadi import SX, vertcat, Function, integrator
 from diffrax import diffeqsolve, ODETerm, Tsit5, PIDController
 import jax.numpy as jnp
 import numpy as np
-from pcgym import make_env
+
 class integration_engine:
     """
     Integration class that contains both the casadi and JAX integration wrappers.
@@ -16,7 +16,8 @@ class integration_engine:
         integration_method: The chosen integration method ('jax' or 'casadi').
     """
 
-    def __init__(self, make_env: make_env, env_params: Dict[str, Any]) -> None:
+    def __init__(self, make_env: Callable, env_params: Dict[str, Any]) -> None:
+        
         """
         Initialize the integration engine.
 

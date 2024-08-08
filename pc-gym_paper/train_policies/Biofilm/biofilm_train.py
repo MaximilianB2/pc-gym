@@ -64,7 +64,7 @@ env_params_RSR = {
     'SP':SP,
     'o_space' : observation_space,
     'a_space' : action_space,
-    'x0': np.array([0.1,0.1,10,0.1]*4+[1]),
+    'x0': np.array([2,0.1,10,0.1]*4+[1]),
     'model': 'biofilm_reactor', 
     'normalise_a': True, #Normalise the actions
     'normalise_o':True, #Normalise the states,
