@@ -12,7 +12,7 @@ class BaseModel:
             for param, percentage in self.uncertainties.items():
                 initial_value = getattr(self, param)
                 noise = np.random.uniform(-percentage, percentage)
-                new_value = initial_value + initial_value * noise
+                new_value = initial_value * (1 + noise)
                 setattr(self, param, new_value)
 
     def info(self) -> dict:
@@ -21,7 +21,7 @@ class BaseModel:
             "states": self.states,
             "inputs": self.inputs,
             "disturbances": self.disturbances,
-            "uncertainties": self.uncertainties.keys(),
+            "uncertainties": list(self.uncertainties.keys()) if self.uncertainties else [],
         }
         info["parameters"].pop("int_method", None)
         return info
