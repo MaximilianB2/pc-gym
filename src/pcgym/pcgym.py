@@ -191,6 +191,7 @@ class make_env(gym.Env):
         self.Nu_model = 0
         if env_params.get("uncertainties") is not None:
             self.uncertainty_active = True
+            self.uncertainty_percentages = env_params["uncertainty_percentages"]
             self.uncertainties = env_params["uncertainties"]
             self.Nu = len(self.uncertainties)
             self.Nu_model = len(self.model.info().get("uncertainties", []))
@@ -222,6 +223,10 @@ class make_env(gym.Env):
             self.custom_reward_f = env_params["custom_reward"]
         pass
 
+    def apply_uncertainties(self, value, percentage):
+        noise = np.random.uniform(-percentage, percentage)
+        return value + value * noise
+
     def reset(self, seed:int=0, **kwargs) -> tuple[np.array, dict]:  
         """
         Reset the environment to its initial state.
@@ -245,10 +250,10 @@ class make_env(gym.Env):
         
         # Initialize state with potential random uncertainties in x0
         state = copy.deepcopy(self.env_params["x0"])
-        if self.uncertainty_active:
-            for param, bounds in self.uncertainty_bounds.items():
-                if param in self.uncertainties and self.uncertainties[param].get("random", False):
-                    state = np.append(state, np.random.uniform(bounds[0], bounds[1]))
+        if self.uncertainty_active and "x0" in self.uncertainty_percentages:
+            x0_uncertainty = self.uncertainty_percentages["x0"]
+            for idx, percentage in x0_uncertainty.items():
+                state[idx] = self.apply_uncertainties(state[idx], percentage)
 
         # If disturbances are active, expand the initial state with disturbances
         if self.disturbance_active:
@@ -259,9 +264,22 @@ class make_env(gym.Env):
 
             # Append initial disturbances to the state
             state = np.concatenate((state, initial_disturbances))
+
+        # Handle initial uncertainties
+        if self.uncertainty_active:
+            initial_uncertainties = []
+            for param, percentage in self.uncertainty_percentages.items():
+                if param != "x0":  # x0 handled separately
+                    initial_value = getattr(self.model, param)
+                    new_value = self.apply_uncertainties(initial_value, percentage)
+                    setattr(self.model, param, new_value)
+                    initial_uncertainties.append(new_value)
+            state = np.concatenate((state, initial_uncertainties))
+        
         if self.a_delta:
             self.a_save = self.a_0
         self.state = state
+        
         if self.custom_reward:
             r_init = 0
         elif not self.custom_reward:
