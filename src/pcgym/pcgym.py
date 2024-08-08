@@ -187,18 +187,12 @@ class make_env(gym.Env):
 
         # Uncertainties
         self.uncertainty_active = False
-        self.Nu = 0
-        self.Nu_model = 0
-        if env_params.get("uncertainties") is not None:
+        if env_params.get("uncertainty") is True:
             self.uncertainty_active = True
             self.uncertainty_percentages = env_params["uncertainty_percentages"]
             self.uncertainties = env_params["uncertainties"]
-            self.Nu = len(self.uncertainties)
-            self.Nu_model = len(self.model.info().get("uncertainties", []))
 
-            # Extend the state size by the number of uncertainties
-            self.Nx += self.Nu
-            # user has defined uncertainty_bounds within env_params
+            # user has defined uncertainty bounds within env_params
             uncertainty_low = env_params["uncertainty_bounds"]["low"]
             uncertainty_high = env_params["uncertainty_bounds"]["high"]
             # Extend the observation space bounds to include uncertainties
@@ -208,6 +202,7 @@ class make_env(gym.Env):
             self.observation_space_base = spaces.Box(
                 low=extended_obs_low, high=extended_obs_high, dtype=np.float32
             )
+            
             if self.normalise_o:
                 self.observation_space = spaces.Box(low=np.array([-1]*extended_obs_low.shape[0]), high=np.array([1]*extended_obs_high.shape[0]))
             else:
@@ -215,7 +210,6 @@ class make_env(gym.Env):
                 low=extended_obs_low, high=extended_obs_high, dtype=np.float32
             )
 
-        
         # Custom reward function
         self.custom_reward = False # Set custom_reward to False by default
         if env_params.get("custom_reward") is not None:
@@ -225,7 +219,7 @@ class make_env(gym.Env):
 
     def apply_uncertainties(self, value, percentage):
         noise = np.random.uniform(-percentage, percentage)
-        return value + value * noise
+        return value * (1 + noise)
 
     def reset(self, seed:int=0, **kwargs) -> tuple[np.array, dict]:  
         """
