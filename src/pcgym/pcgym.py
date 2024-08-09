@@ -1,7 +1,7 @@
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-from .model_classes import (
+from model_classes import (
     cstr,
     first_order_system,
     multistage_extraction,
@@ -186,32 +186,7 @@ class make_env(gym.Env):
                 self.observation_space = spaces.Box(
                 low=extended_obs_low, high=extended_obs_high, dtype=np.float32
             )
-
-        # Uncertainties
-        self.uncertainty_active = False
-        if env_params.get("uncertainty") is True:
-            self.uncertainty_active = True
-            self.uncertainty_percentages = env_params["uncertainty_percentages"]
-            # self.uncertainties = env_params["uncertainties"]
-
-            # user has defined uncertainty bounds within env_params
-            uncertainty_low = env_params["uncertainty_bounds"]["low"]
-            uncertainty_high = env_params["uncertainty_bounds"]["high"]
-            # Extend the observation space bounds to include uncertainties
-            extended_obs_low = np.concatenate((base_obs_low, uncertainty_low))
-            extended_obs_high = np.concatenate((base_obs_high, uncertainty_high))
-            # Define the extended observation space
-            self.observation_space_base = spaces.Box(
-                low=extended_obs_low, high=extended_obs_high, dtype=np.float32
-            )
-            
-            if self.normalise_o:
-                self.observation_space = spaces.Box(low=np.array([-1]*extended_obs_low.shape[0]), high=np.array([1]*extended_obs_high.shape[0]))
-            else:
-                self.observation_space = spaces.Box(
-                low=extended_obs_low, high=extended_obs_high, dtype=np.float32
-            )
-
+                
         # Custom reward function
         self.custom_reward = False # Set custom_reward to False by default
         if env_params.get("custom_reward") is not None:
