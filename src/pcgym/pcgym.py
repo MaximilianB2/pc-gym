@@ -1,7 +1,7 @@
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-from model_classes import (
+from .model_classes import (
     cstr,
     first_order_system,
     multistage_extraction,
@@ -15,8 +15,8 @@ from model_classes import (
     polymerisation_reactor,
     crystallization
 )
-from policy_evaluation import policy_eval
-from integrator import integration_engine
+from .policy_evaluation import policy_eval
+from .integrator import integration_engine
 import copy
 import typing
 
@@ -138,11 +138,13 @@ class make_env(gym.Env):
         # Load custom model if it is provided else load the selected standard model.
         if self.env_params.get("custom_model") is not None:
             m = self.env_params.get("custom_model")
+            m.int_method  = self.integration_method
+            self.model = m
         else:
             m = model_mapping.get(env_params["model"], None)
-        self.model = m(
-            int_method=self.integration_method
-        )  # Initialise the model with the selected integration method
+            self.model = m(
+                int_method=self.integration_method
+            )  # Initialise the model with the selected integration method
 
         # Handle the case where the model is not found (do this for all)
         if self.model is None:
@@ -190,7 +192,7 @@ class make_env(gym.Env):
         if env_params.get("uncertainty") is True:
             self.uncertainty_active = True
             self.uncertainty_percentages = env_params["uncertainty_percentages"]
-            self.uncertainties = env_params["uncertainties"]
+            # self.uncertainties = env_params["uncertainties"]
 
             # user has defined uncertainty bounds within env_params
             uncertainty_low = env_params["uncertainty_bounds"]["low"]

@@ -38,7 +38,7 @@ class cstr(BaseModel):
     UA: float = 5e4
     Ti: float = 350
     Caf: float = 1
-
+    int_method: str = 'jax'
     states: list = None
     inputs: list = None
     disturbances: list = None
@@ -52,14 +52,12 @@ class cstr(BaseModel):
 
     def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         self.apply_uncertainties()
-        
         ca, T = x[0], x[1]
-        if u.shape == (1,):
-            Tc = u[0]
-        else:
-            Tc, self.Ti, self.Caf = u[0], u[1], u[2]
-
         if self.int_method == "jax":
+            if u.shape == (1,):
+                Tc = u[0]
+            else:
+                Tc, self.Ti, self.Caf = u[0], u[1], u[2]
             rA = self.k0 * jnp.exp(-self.EA_over_R / T) * ca
             dxdt = jnp.array([
                 self.q / self.V * (self.Caf - ca) - rA,
@@ -69,6 +67,10 @@ class cstr(BaseModel):
             ])
             return dxdt
         else:
+            if u.shape == (1,1):
+                Tc = u[0]
+            else:
+                Tc, self.Ti, self.Caf = u[0], u[1], u[2] 
             rA = self.k0 * np.exp(-self.EA_over_R / T) * ca
             dxdt = [
                 self.q / self.V * (self.Caf - ca) - rA,

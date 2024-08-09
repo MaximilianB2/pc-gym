@@ -66,7 +66,6 @@ env_params_4tank = {
     'SP':SP,
     'o_space' : observation_space,
     'a_space' : action_space,
-    'dt': 15,
     'x0': np.array([0.141, 0.112, 0.072, 0.42,SP['h3'][0],SP['h4'][0]]),
     'model': 'four_tank', 
     'normalise_a': True, #Normalise the actions

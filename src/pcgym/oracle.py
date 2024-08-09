@@ -100,8 +100,8 @@ class oracle:
             # Upper bound constraint
             mpc.set_nl_cons('u_upper', self.env_params["a_space_act"]["high"] - u, soft_constraint=True, penalty_term_cons=1e3)
         else:
-            mpc.bounds['lower', '_u', 'u'] = self.env_params["a_space_act"]["low"]
-            mpc.bounds['upper', '_u', 'u'] = self.env_params["a_space_act"]["high"]
+            mpc.bounds['lower', '_u', 'u'] = self.env_params["a_space"]["low"]
+            mpc.bounds['upper', '_u', 'u'] = self.env_params["a_space"]["high"]
 
         # User-defined constraints
         if self.env_params.get("constraints") is not None:
