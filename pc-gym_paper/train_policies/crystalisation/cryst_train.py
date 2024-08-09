@@ -6,10 +6,12 @@ from pcgym import make_env
 from callback import LearningCurveCallback
 import numpy as np
 from stable_baselines3 import PPO, DDPG, SAC
+import matplotlib.pyplot as plt
+from matplotlib import rcParams
 
 # Define environment
 T = 55
-nsteps = 30
+nsteps = 55
 
 
 # Define reward to be equal to the OCP (i.e the same as the oracle)
@@ -20,15 +22,13 @@ def oracle_reward(self,x,u,con):
     
     CV = (x[2]*x[0]/(x[1]**2) - 1)**0.5
     ln = x[1]/x[0]
-    print(CV)
-    print(ln)
     r = -1*(abs(SP['CV'][self.t] - CV) + abs((SP['Ln'][self.t]-ln)/10))
     return r
 
 SP = {
-      'CV': [1.2 for i in range(int(nsteps))],
-      'Ln': [11 for i in range(int(nsteps))]
-  }
+        'CV': [1 for i in range(int(nsteps))],
+        'Ln': [15 for i in range(int(nsteps))]
+    }
 
 action_space = {
     'low': np.array([-1]),
@@ -51,17 +51,18 @@ ubC = 0.5
 lbT = 0
 ubT = 40
 observation_space = {
-    'low' : np.array([lbMu0, lbMu1, lbMu2, lbMu3, lbC,  0.9, 14]),
-    'high' : np.array([ubMu0, ubMu1, ubMu2, ubMu3, ubC, 1.1, 16])  
+    'low' : np.array([lbMu0, lbMu1, lbMu2, lbMu3, lbC, 0, 0,  0.9, 14]),
+    'high' : np.array([ubMu0, ubMu1, ubMu2, ubMu3, ubC, 2, 20, 1.1, 16])  
 }
-
+CV_0 = np.sqrt(1800863.24079725 * 1478.00986666666/ (22995.8230590611**2) - 1)
+Ln_0 =  22995.8230590611 / ( 1478.00986666666 + 1e-6)
 env_params_cryst = {
     'N': nsteps,
     'tsim':T,
     'SP':SP,
     'o_space' : observation_space,
     'a_space' : action_space,
-    'x0': np.array([1478.00986666666, 22995.8230590611, 1800863.24079725, 248516167.940593, 0.15861523304, 1, 15]),
+    'x0': np.array([1478.00986666666, 22995.8230590611, 1800863.24079725, 248516167.940593, 0.15861523304,CV_0, Ln_0 , 1, 15]),
     'model': 'crystallization', 
     'normalise_a': True, #Normalise the actions
     'normalise_o':True, #Normalise the states,
@@ -70,14 +71,12 @@ env_params_cryst = {
     'integration_method': 'casadi',
     'a_0':39,
     'a_delta':True,
-    'custom_reward': oracle_reward,
     'a_space_act':action_space_act,
 }
 env = make_env(env_params_cryst)
 
-
 # Global timesteps
-nsteps_train = 1e4
+nsteps_train = 0.5e4
 training_reps = 1
 for r_i in range(training_reps):
     print(f'Training repition: {r_i+1}')

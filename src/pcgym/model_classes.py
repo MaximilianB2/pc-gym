@@ -1120,7 +1120,15 @@ class crystallization:
             dcdt = -0.5 * self.ro * self.alfa * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12) 
             # dTdt = self.UA * (Tc - (T+273.15)) / (self.V * self.ro_t * self.Cp_t)
 
-            dxdt = jnp.array([dmi0dt, dmi1dt, dmi2dt, dmi3dt, dcdt, ])
+
+            dxdt = jnp.array([dmi0dt, dmi1dt, dmi2dt, dmi3dt, dcdt])
+            
+            # Calculate algebraic variables
+            CV = jnp.sqrt(mu2 * mu0 / (mu1**2) - 1)
+            ln = mu1 / (mu0 + 1e-6)
+            
+            # Append algebraic variables to dxdt, but with zero derivatives
+            dxdt = jnp.concatenate([dxdt, jnp.array([0.0, 0.0])])
         else:
             Ceq = -686.2686 + 3.579165 * (T+273.15) - 0.00292874 * (T+273.15) ** 2  # g/L
             S = conc * 1e3 - Ceq  # g/L
@@ -1134,12 +1142,26 @@ class crystallization:
             dcdt = -0.5 * self.ro * self.alfa * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12)
             # dTdt = self.UA * (Tc - temp) / (self.V * self.ro_t * self.Cp_t)
             # dCVdt = (mu2*mu0/(mu1**2) - 1)**0.5 # Coefficient of variation 
-            # dLndt = mu1/(mu0+1e-6) # average crystal size
-            
+            # dLndt = mu1/(mu0+1e-6) # average crystal siz
 
-            dxdt = [dmi0dt, dmi1dt, dmi2dt, dmi3dt, dcdt]
+            # Calculate dCVdt
+                    
+        
+            CV = np.sqrt(mu2 * mu0 / (mu1**2) - 1)
+            ln = mu1 / (mu0 + 1e-6)
+            dCVdt = 1 / (2 * CV + 1e-10) * ((dmi2dt * mu0 + mu2 * dmi0dt) * mu1**2 - mu2 * mu0 * 2 * mu1 * dmi1dt) / (mu1**4 + 1e-10)
+
+            # Calculate dLndt
+            dLndt = (dmi1dt * mu0 - mu1 * dmi0dt) / (mu0**2 + 1e-10)
+
+
+            
+            # Append algebraic variables to dxdt, but with zero derivatives
+            dxdt = [dmi0dt, dmi1dt, dmi2dt, dmi3dt, dcdt, dCVdt, dLndt]
 
         return dxdt
+            
+
 
     def info(self):
     # Return a dictionary with the model information
@@ -1158,7 +1180,7 @@ class crystallization:
         """
         info = {
             "parameters": self.__dict__.copy(),
-            "states": ["Mu0", "Mu1", "Mu2", "Mu3", "Conc",],
+            "states": ["Mu0", "Mu1", "Mu2", "Mu3", "Conc","CV", "Ln"],
             "inputs": ["Tc"],
             "disturbances": ["ka", "kg", "UA"],
         }

@@ -349,8 +349,6 @@ class make_env(gym.Env):
                 * self.state[: self.Nx_oracle]
                 * noise_percentage
             )
-        # print(self.state)
-        
         if self.normalise_o is True:
             self.normstate = (
                 2
