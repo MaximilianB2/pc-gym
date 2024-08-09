@@ -4,28 +4,30 @@ import numpy as np
 from casadi import fmin, fmax
 
 @dataclass(frozen=False, kw_only=True)
-class cstr:
-    """
-    Continuous Stirred Tank Reactor (CSTR) model.
+class BaseModel:
+    int_method: str = "jax"
 
-    This model represents a highly exothermic reaction in an unstable CSTR reactor.
-    It is an example of a highly nonlinear process prone to exponential run-away
-    when the temperature rises too quickly.
+    def apply_uncertainties(self):
+        if hasattr(self, 'uncertainties'):
+            for param, percentage in self.uncertainties.items():
+                initial_value = getattr(self, param)
+                noise = np.random.uniform(-percentage, percentage)
+                new_value = initial_value * (1 + noise)
+                setattr(self, param, new_value)
 
-    Attributes:
-        q (float): Flow rate (m3/s)
-        V (float): Reactor volume (m3)
-        rho (float): Density (kg/m3)
-        C (float): Heat capacity (Joules/kg K)
-        deltaHr (float): Heat of reaction (Joules/kg K)
-        EA_over_R (float): Activation energy over gas constant (K)
-        k0 (float): Pre-exponential factor (1/sec)
-        UA (float): Heat transfer coefficient times area (W/K)
-        Ti (float): Inlet temperature (K)
-        Caf (float): Feed concentration
-        int_method (str): Integration method ('jax' or other)
-    """
+    def info(self) -> dict:
+        info = {
+            "parameters": self.__dict__.copy(),
+            "states": self.states,
+            "inputs": self.inputs,
+            "disturbances": self.disturbances,
+            "uncertainties": list(self.uncertainties.keys()) if self.uncertainties else [],
+        }
+        info["parameters"].pop("int_method", None)
+        return info
 
+@dataclass(frozen=False, kw_only=True)
+class cstr(BaseModel):
     q: float = 100
     V: float = 100
     rho: float = 1000
@@ -36,42 +38,37 @@ class cstr:
     UA: float = 5e4
     Ti: float = 350
     Caf: float = 1
-    int_method: str = "jax"
+
+    states: list = None
+    inputs: list = None
+    disturbances: list = None
+    uncertainties: dict = None
+
+    def __post_init__(self):
+        self.states = ["Ca", "T"]
+        self.inputs = ["Tc"]
+        self.disturbances = ["Ti", "Caf"]
+        self.uncertainties = {"UA": 0.05, "C": 0.02, "k0": 0.03}  # Example values (in %)
 
     def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
-        """
-        Calculate the state derivatives for the CSTR model.
-
-        Args:
-            x (np.ndarray): Current state [ca, T]
-            u (np.ndarray): Input [Tc] or [Tc, Ti, Caf]
-
-        Returns:
-            np.ndarray: State derivatives [dca/dt, dT/dt]
-        """
-        if self.int_method == "jax":
-            ca, T = x[0], x[1]
-            if u.shape == (1,):
-                Tc = u[0]
-            else:
-                Tc, self.Ti, self.Caf = u[0], u[1], u[2]
+        self.apply_uncertainties()
+        
+        ca, T = x[0], x[1]
+        if u.shape == (1,):
             Tc = u[0]
+        else:
+            Tc, self.Ti, self.Caf = u[0], u[1], u[2]
+
+        if self.int_method == "jax":
             rA = self.k0 * jnp.exp(-self.EA_over_R / T) * ca
-            dxdt = jnp.array(
-                [
-                    self.q / self.V * (self.Caf - ca) - rA,
-                    self.q / self.V * (self.Ti - T)
-                    + ((-self.deltaHr) * rA) * (1 / (self.rho * self.C))
-                    + self.UA * (Tc - T) * (1 / (self.rho * self.C * self.V)),
-                ]
-            )
+            dxdt = jnp.array([
+                self.q / self.V * (self.Caf - ca) - rA,
+                self.q / self.V * (self.Ti - T)
+                + ((-self.deltaHr) * rA) * (1 / (self.rho * self.C))
+                + self.UA * (Tc - T) * (1 / (self.rho * self.C * self.V)),
+            ])
             return dxdt
         else:
-            ca, T = x[0], x[1]
-            if u.shape == (1, 1):
-                Tc = u[0]
-            else:
-                Tc, self.Ti, self.Caf = u[0], u[1], u[2]
             rA = self.k0 * np.exp(-self.EA_over_R / T) * ca
             dxdt = [
                 self.q / self.V * (self.Caf - ca) - rA,
@@ -80,22 +77,6 @@ class cstr:
                 + self.UA * (Tc - T) * (1 / (self.rho * self.C * self.V)),
             ]
             return dxdt
-
-    def info(self) -> dict:
-        """
-        Get model information.
-
-        Returns:
-            dict: Dictionary containing model parameters, states, inputs, and disturbances.
-        """
-        info = {
-            "parameters": self.__dict__.copy(),
-            "states": ["Ca", "T"],
-            "inputs": ["Tc"],
-            "disturbances": ["Ti", "Caf"],
-        }
-        info["parameters"].pop("int_method", None)
-        return info
 
 @dataclass(frozen=False, kw_only=True)
 class first_order_system:

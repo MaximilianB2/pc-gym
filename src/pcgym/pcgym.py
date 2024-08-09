@@ -36,6 +36,7 @@ class make_env(gym.Env):
         integration_method (str): Method used for numerical integration.
         constraint_active (bool): Whether constraints are active.
         disturbance_active (bool): Whether disturbances are active.
+        uncertainty_active (bool): Whether uncertainties are active.
         custom_reward (bool): Whether a custom reward function is used.
     """
 
@@ -183,13 +184,42 @@ class make_env(gym.Env):
                 self.observation_space = spaces.Box(
                 low=extended_obs_low, high=extended_obs_high, dtype=np.float32
             )
-                
+
+        # Uncertainties
+        self.uncertainty_active = False
+        if env_params.get("uncertainty") is True:
+            self.uncertainty_active = True
+            self.uncertainty_percentages = env_params["uncertainty_percentages"]
+            self.uncertainties = env_params["uncertainties"]
+
+            # user has defined uncertainty bounds within env_params
+            uncertainty_low = env_params["uncertainty_bounds"]["low"]
+            uncertainty_high = env_params["uncertainty_bounds"]["high"]
+            # Extend the observation space bounds to include uncertainties
+            extended_obs_low = np.concatenate((base_obs_low, uncertainty_low))
+            extended_obs_high = np.concatenate((base_obs_high, uncertainty_high))
+            # Define the extended observation space
+            self.observation_space_base = spaces.Box(
+                low=extended_obs_low, high=extended_obs_high, dtype=np.float32
+            )
+            
+            if self.normalise_o:
+                self.observation_space = spaces.Box(low=np.array([-1]*extended_obs_low.shape[0]), high=np.array([1]*extended_obs_high.shape[0]))
+            else:
+                self.observation_space = spaces.Box(
+                low=extended_obs_low, high=extended_obs_high, dtype=np.float32
+            )
+
         # Custom reward function
         self.custom_reward = False # Set custom_reward to False by default
         if env_params.get("custom_reward") is not None:
             self.custom_reward = True
             self.custom_reward_f = env_params["custom_reward"]
         pass
+
+    def apply_uncertainties(self, value, percentage):
+        noise = np.random.uniform(-percentage, percentage)
+        return value * (1 + noise)
 
     def reset(self, seed:int=0, **kwargs) -> tuple[np.array, dict]:  
         """
@@ -211,7 +241,13 @@ class make_env(gym.Env):
         
         self.int_eng = integration_engine(make_env, self.env_params)
         self.int_error = False
+        
+        # Initialize state with potential random uncertainties in x0
         state = copy.deepcopy(self.env_params["x0"])
+        if self.uncertainty_active and "x0" in self.uncertainty_percentages:
+            x0_uncertainty = self.uncertainty_percentages["x0"]
+            for idx, percentage in x0_uncertainty.items():
+                state[idx] = self.apply_uncertainties(state[idx], percentage)
 
         # If disturbances are active, expand the initial state with disturbances
         if self.disturbance_active:
@@ -222,9 +258,22 @@ class make_env(gym.Env):
 
             # Append initial disturbances to the state
             state = np.concatenate((state, initial_disturbances))
+
+        # Handle initial uncertainties
+        if self.uncertainty_active:
+            initial_uncertainties = []
+            for param, percentage in self.uncertainty_percentages.items():
+                if param != "x0":  # x0 handled separately
+                    initial_value = getattr(self.model, param)
+                    new_value = self.apply_uncertainties(initial_value, percentage)
+                    setattr(self.model, param, new_value)
+                    initial_uncertainties.append(new_value)
+            state = np.concatenate((state, initial_uncertainties))
+        
         if self.a_delta:
             self.a_save = self.a_0
         self.state = state
+        
         if self.custom_reward:
             r_init = 0
         elif not self.custom_reward:
