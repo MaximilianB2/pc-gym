@@ -2,6 +2,7 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 from model_classes import (
+    BaseModel,
     cstr,
     first_order_system,
     multistage_extraction,
