@@ -1,7 +1,7 @@
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-from model_classes import (
+from .model_classes import (
     cstr,
     first_order_system,
     multistage_extraction,
@@ -193,6 +193,37 @@ class make_env(gym.Env):
             self.custom_reward = True
             self.custom_reward_f = env_params["custom_reward"]
         pass
+        
+        # Initial state and/or parametric uncertainty
+        self.uncertainty = False 
+        if env_params.get('uncertainty_percentages') is not None:
+            self.uncertainty = True
+            self.uncertainty_percentages = env_params['uncertainty_percentages']
+            self.original_param_values = {}
+
+            for param in self.uncertainty_percentages:
+                if param != "x0":
+                    self.original_param_values[param] = getattr(self.model, param)
+
+            # User has defined uncertainty bounds within env_params
+            uncertainty_low = env_params["uncertainty_bounds"]["low"]
+            uncertainty_high = env_params["uncertainty_bounds"]["high"]
+
+            # Extend the observation space bounds to include uncertainties
+            extended_obs_low = np.concatenate((base_obs_low, uncertainty_low))
+            extended_obs_high = np.concatenate((base_obs_high, uncertainty_high))
+
+            # Define the extended observation space
+            self.observation_space_base = spaces.Box(
+                low=extended_obs_low, high=extended_obs_high, dtype=np.float32
+            )
+            
+            if self.normalise_o:
+                self.observation_space = spaces.Box(low=np.array([-1]*extended_obs_low.shape[0]), high=np.array([1]*extended_obs_high.shape[0]))
+            else:
+                self.observation_space = spaces.Box(
+                low=extended_obs_low, high=extended_obs_high, dtype=np.float32)
+        
 
     def apply_uncertainties(self, value, percentage):
         noise = np.random.uniform(-percentage, percentage)
@@ -217,11 +248,10 @@ class make_env(gym.Env):
         self.t = 0
         
         self.int_eng = integration_engine(make_env, self.env_params)
-        self.int_error = False
         
         # Initialize state with potential random uncertainties in x0
         state = copy.deepcopy(self.env_params["x0"])
-        if self.uncertainty_active and "x0" in self.uncertainty_percentages:
+        if self.uncertainty and "x0" in self.uncertainty_percentages:
             x0_uncertainty = self.uncertainty_percentages["x0"]
             for idx, percentage in x0_uncertainty.items():
                 state[idx] = self.apply_uncertainties(state[idx], percentage)
@@ -237,15 +267,15 @@ class make_env(gym.Env):
             state = np.concatenate((state, initial_disturbances))
 
         # Handle initial uncertainties
-        if self.uncertainty_active:
-            initial_uncertainties = []
+        if self.uncertainty:
+            uncertain_params = []
             for param, percentage in self.uncertainty_percentages.items():
                 if param != "x0":  # x0 handled separately
-                    initial_value = getattr(self.model, param)
-                    new_value = self.apply_uncertainties(initial_value, percentage)
+                    original_value = self.original_param_values[param]
+                    new_value = self.apply_uncertainties(original_value, percentage)
                     setattr(self.model, param, new_value)
-                    initial_uncertainties.append(new_value)
-            state = np.concatenate((state, initial_uncertainties))
+                    uncertain_params.append(new_value)
+            state = np.concatenate((state, uncertain_params))
         
         if self.a_delta:
             self.a_save = self.a_0
@@ -256,7 +286,7 @@ class make_env(gym.Env):
         elif not self.custom_reward:
             r_init = 0
         self.done = False
-
+        
         if self.normalise_o is True:
         
             self.normstate = (
@@ -312,9 +342,9 @@ class make_env(gym.Env):
             )
             disturbance_values = []
             disturbance_values_state = []
-            for i, k in enumerate(self.model.info()["disturbances"], start=0):
+            for i, k in enumerate(self.model.info()["disturbances"]):
                 if k in self.disturbances:
-                    current_disturbance_value = self.disturbances[k][self.t]
+                    current_disturbance_value = self.disturbances[k][self.t+1]
                     uk[self.Nu - self.Nd_model + i] = self.disturbances[k][
                         self.t
                     ]  # Add disturbance to control vector
@@ -331,6 +361,7 @@ class make_env(gym.Env):
                     
 
             # Update the state vector with current disturbance values
+            
             self.state[self.Nx_oracle + len(self.SP) :] = disturbance_values_state
         else:
             uk = action  # Add action to control vector
@@ -382,7 +413,6 @@ class make_env(gym.Env):
                 / (self.observation_space_base.high - self.observation_space_base.low)
                 - 1
             )
-            
             return self.normstate, rew, self.done, False, self.info
         else:
             return self.state, rew, self.done, False, self.info
