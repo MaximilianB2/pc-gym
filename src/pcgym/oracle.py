@@ -21,11 +21,14 @@ class oracle:
             self.N = MPC_params["N"]
             self.R = MPC_params["R"]
         self.model_info = self.env.model.info()
+
         if env_params.get('a_delta') is not None:
-            self.u_0 = env_params.get("a_0", 0) 
+            self.u_0 = env_params.get("a_0", 0)  # Initialize u_0
             self.use_delta_u = True
+        else:
+            self.u_0 = None  # Initialize u_0 as None when not using delta_u
+
         self.integral_error = np.zeros(len(self.env_params["SP"]))
-        pass
 
     def setup_mpc(self) -> tuple[do_mpc.controller.MPC, do_mpc.simulator.Simulator]:
         model_type = 'continuous'
@@ -193,11 +196,12 @@ class oracle:
 
         return mpc, simulator
 
-
     def mpc(self) -> tuple[np.array, np.array]:
         mpc, simulator = self.setup_mpc()
 
         x0 = np.array(self.x0[:self.env.Nx_oracle])
+        
+        # Initialize u_prev only if delta_u is used
         if self.use_delta_u:
             u_prev = np.full((self.env.Nu, 1), self.u_0)  # Use the initial input from init
 
@@ -213,7 +217,7 @@ class oracle:
         delta_u_log = np.zeros((self.env.Nu, self.env.N)) if self.use_delta_u else None
 
         for i in range(self.env.N):
-            # Update u_prev parameter
+            # Update u_prev parameter if delta_u is used
             if self.use_delta_u:
                 mpc.u0 = u_prev
                 simulator.u0 = u_prev
