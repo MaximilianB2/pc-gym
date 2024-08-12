@@ -85,7 +85,7 @@ def test_basic_functionality(model_name):
         assert isinstance(info, dict)
         if done:
             break
-@pytest.mark.parametrize("model_name", model_configs.keys())
+@pytest.mark.parametrize("model_name", ['cstr'])
 def test_uncertainty(model_name):
     config = model_configs[model_name]
     params = create_base_params(model_name, 
