@@ -2,8 +2,9 @@ import numpy as np
 import do_mpc
 from casadi import vertcat, sum1, reshape
 from gymnasium import Env
+
 class oracle:
-    def __init__(self, env:Env, env_params:dict, MPC_params:bool=False) -> None:
+    def __init__(self, env: Env, env_params: dict, MPC_params: bool = False) -> None:
         self.env_params = env_params
         self.env_params["integration_method"] = "casadi"
         self.env = env(env_params)
@@ -40,6 +41,7 @@ class oracle:
 
         # Set point (as a parameter)
         SP = model.set_variable(var_type='_p', var_name='SP', shape=(len(self.env_params["SP"]), 1))
+
         # System dynamics
         dx_list = self.env.model(x, u)
         try:
@@ -48,6 +50,7 @@ class oracle:
             dx_list_reshaped = [reshape(dx_i, 1, 1) for dx_i in dx_list]
             dx = vertcat(*dx_list_reshaped)
         model.set_rhs('x', dx)
+
         # Setup the model   
         model.setup()
 
@@ -61,8 +64,8 @@ class oracle:
         }
         mpc.set_param(**setup_mpc)
         mpc.n_combinations = 1
+
         # Objective function
-        # Stage cost (lterm)
         lterm = 0
         for i, sp_key in enumerate(self.env_params["SP"]):
             state_index = self.model_info["states"].index(sp_key)
@@ -83,17 +86,15 @@ class oracle:
         else:
             r_term_dict = {'u': self.R * np.ones(self.env.Nu)}
         mpc.set_rterm(**r_term_dict)
+
         # Constraints
-                
         if self.use_delta_u:
             mpc.bounds['lower', '_u', 'delta_u'] = self.env_params["a_space"]["low"]
             mpc.bounds['upper', '_u', 'delta_u'] = self.env_params["a_space"]["high"]
-            
 
-        
             # Add constraint on u (u_prev + delta_u)
             u = model.p['u_prev'] + model.u['delta_u']
-            
+
             # Lower bound constraint
             mpc.set_nl_cons('u_lower', u - self.env_params["a_space_act"]["low"], soft_constraint=True, penalty_term_cons=1e3)
             
@@ -111,16 +112,13 @@ class oracle:
                     if self.env_params["cons_type"][k][j] == "<=":
                         mpc.bounds['upper', '_x', 'x', state_index] = constraint_value
                     elif self.env_params["cons_type"][k][j] == ">=":
-                            mpc.bounds['lower', '_x', 'x', state_index] = constraint_value
+                        mpc.bounds['lower', '_x', 'x', state_index] = constraint_value
 
-        
-        # p_template = mpc.get_p_template(1)  # We use 1 here as we don't have multiple scenarios
         simulator = do_mpc.simulator.Simulator(model)
         simulator.set_param(t_step=self.env.dt)
-        p_template_sim = simulator.get_p_template()
-        # Define parameter function
+
         def p_fun(t_now):
-            p_template = mpc.get_p_template(1)  # We use 1 here as we don't have multiple scenarios
+            p_template = mpc.get_p_template(1)
             
             # Set SP (setpoint) values
             SP_values = []
@@ -131,9 +129,10 @@ class oracle:
             
             p_template['_p', 0, 'SP'] = np.array(SP_values).reshape(-1, 1)
             
-            # Set u_prev
-            p_template['_p', 0, 'u_prev'] = mpc.u0
-            
+            # Set u_prev only if delta_u is used
+            if self.use_delta_u:
+                p_template['_p', 0, 'u_prev'] = mpc.u0
+
             return p_template
 
         def p_fun_sim(t_now):
@@ -145,22 +144,17 @@ class oracle:
             
             SP_values = np.array(SP_values).reshape(-1, 1)  # Reshape to column vector
             
-            # Create a new p_template for each call
             p_template_sim = simulator.get_p_template()
-            
-            # Assign the SP_values to the p_template_sim
             p_template_sim['SP'] = SP_values
             
             return p_template_sim
+
         # Set parameter function for both MPC and simulator
         mpc.set_p_fun(p_fun)
         simulator.set_p_fun(p_fun_sim)
 
         simulator.setup()
-        # mpc.set_param(nlpsol_opts={
-        # })
         mpc.set_param(nlpsol_opts={'ipopt.print_level': 0, 'print_time': 0, 'ipopt.sb': 'yes'})
-        # mpc.set_param(nlpsol_opts={'ipopt.nlp_scaling_method': 'gradient-based'})
         mpc.setup()
 
         # Set the initial guess
