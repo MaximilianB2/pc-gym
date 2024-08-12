@@ -7,7 +7,10 @@ class oracle:
     def __init__(self, env: Env, env_params: dict, MPC_params: bool = False) -> None:
         self.env_params = env_params
         self.env_params["integration_method"] = "casadi"
-        self.env = env(env_params)
+        try:
+            self.env = env(env_params)
+        except Exception:
+            self.env = env
         self.use_delta_u = False
         self.x0 = env_params["x0"]
         self.T = self.env.tsim
@@ -39,11 +42,18 @@ class oracle:
         else:
             u = model.set_variable(var_type='_u', var_name='u', shape=(self.env.Nu, 1))
 
+        # Disturbances (as parameters)
+        if self.env_params.get("disturbances") is not None:
+            d = model.set_variable(var_type='_p', var_name='d', shape=(self.env.Nd_model, 1))
+            u_full = vertcat(u[:self.env.Nu - self.env.Nd_model], d)
+        else:
+            u_full = u
+
         # Set point (as a parameter)
         SP = model.set_variable(var_type='_p', var_name='SP', shape=(len(self.env_params["SP"]), 1))
 
         # System dynamics
-        dx_list = self.env.model(x, u)
+        dx_list = self.env.model(x, u_full)
         try:
             dx = vertcat(*dx_list)  # Convert list to CasADi symbolic expression
         except Exception: 
@@ -71,7 +81,7 @@ class oracle:
             state_index = self.model_info["states"].index(sp_key)
             lterm += (x[state_index] - SP[i])**2
 
-        u_normalized = (u - self.env_params["a_space"]["low"]) / (self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"])
+        u_normalized = (u[:self.env.Nu - self.env.Nd_model] - self.env_params["a_space"]["low"]) / (self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"])
         lterm += sum1(self.R * u_normalized**2)
         
         # Terminal cost (mterm) - only includes state costs
@@ -81,28 +91,32 @@ class oracle:
             mterm += (x[state_index] - SP[i])**2
 
         mpc.set_objective(lterm=lterm, mterm=mterm)
+        
+        # Set r_term for both controlled inputs and disturbances
+        r_term = np.zeros(self.env.Nu)
+        r_term[:self.env.Nu - self.env.Nd_model] = self.R
         if self.use_delta_u:
-            r_term_dict = {'delta_u': self.R * np.ones(self.env.Nu)}
+            r_term_dict = {'delta_u': r_term}
         else:
-            r_term_dict = {'u': self.R * np.ones(self.env.Nu)}
+            r_term_dict = {'u': r_term}
         mpc.set_rterm(**r_term_dict)
 
         # Constraints
         if self.use_delta_u:
-            mpc.bounds['lower', '_u', 'delta_u'] = self.env_params["a_space"]["low"]
-            mpc.bounds['upper', '_u', 'delta_u'] = self.env_params["a_space"]["high"]
+            mpc.bounds['lower', '_u', 'delta_u'] = np.concatenate([self.env_params["a_space"]["low"], np.zeros(self.env.Nd_model)])
+            mpc.bounds['upper', '_u', 'delta_u'] = np.concatenate([self.env_params["a_space"]["high"], np.zeros(self.env.Nd_model)])
 
             # Add constraint on u (u_prev + delta_u)
             u = model.p['u_prev'] + model.u['delta_u']
 
             # Lower bound constraint
-            mpc.set_nl_cons('u_lower', u - self.env_params["a_space_act"]["low"], soft_constraint=True, penalty_term_cons=1e3)
+            mpc.set_nl_cons('u_lower', u[:self.env.Nu - self.env.Nd_model] - self.env_params["a_space_act"]["low"], soft_constraint=True, penalty_term_cons=1e3)
             
             # Upper bound constraint
-            mpc.set_nl_cons('u_upper', self.env_params["a_space_act"]["high"] - u, soft_constraint=True, penalty_term_cons=1e3)
+            mpc.set_nl_cons('u_upper', self.env_params["a_space_act"]["high"] - u[:self.env.Nu - self.env.Nd_model], soft_constraint=True, penalty_term_cons=1e3)
         else:
-            mpc.bounds['lower', '_u', 'u'] = self.env_params["a_space"]["low"]
-            mpc.bounds['upper', '_u', 'u'] = self.env_params["a_space"]["high"]
+            mpc.bounds['lower', '_u', 'u'] = np.concatenate([self.env_params["a_space"]["low"], -np.inf * np.ones(self.env.Nd_model)])
+            mpc.bounds['upper', '_u', 'u'] = np.concatenate([self.env_params["a_space"]["high"], np.inf * np.ones(self.env.Nd_model)])
 
         # User-defined constraints
         if self.env_params.get("constraints") is not None:
@@ -133,19 +147,36 @@ class oracle:
             if self.use_delta_u:
                 p_template['_p', 0, 'u_prev'] = mpc.u0
 
+            # Set disturbances if present
+            if self.env_params.get("disturbances") is not None:
+                d_values = []
+                for k in self.env_params["disturbances"]:
+                    d_array = self.env_params["disturbances"][k]
+                    current_index = min(int(t_now/self.env.dt-1), len(d_array) - 1)
+                    d_values.append(d_array[current_index])
+                p_template['_p', 0, 'd'] = np.array(d_values).reshape(-1, 1)
+
             return p_template
 
         def p_fun_sim(t_now):
+            p_template_sim = simulator.get_p_template()
+            
+            # Set SP (setpoint) values
             SP_values = []
             for k in self.env_params["SP"]:
                 sp_array = self.env_params["SP"][k]
                 current_index = min(int(t_now/self.env.dt), len(sp_array) - 1)
                 SP_values.append(sp_array[current_index])
+            p_template_sim['SP'] = np.array(SP_values).reshape(-1, 1)
             
-            SP_values = np.array(SP_values).reshape(-1, 1)  # Reshape to column vector
-            
-            p_template_sim = simulator.get_p_template()
-            p_template_sim['SP'] = SP_values
+            # Set disturbances if present
+            if self.env_params.get("disturbances") is not None:
+                d_values = []
+                for k in self.env_params["disturbances"]:
+                    d_array = self.env_params["disturbances"][k]
+                    current_index = min(int(t_now/self.env.dt), len(d_array) - 1)
+                    d_values.append(d_array[current_index])
+                p_template_sim['d'] = np.array(d_values).reshape(-1, 1)
             
             return p_template_sim
 
@@ -167,7 +198,8 @@ class oracle:
         mpc, simulator = self.setup_mpc()
 
         x0 = np.array(self.x0[:self.env.Nx_oracle])
-        u_prev = np.full((self.env.Nu, 1), self.u_0)  # Use the initial input from init
+        if self.use_delta_u:
+            u_prev = np.full((self.env.Nu, 1), self.u_0)  # Use the initial input from init
 
         # Set the initial state
         mpc.x0 = x0
