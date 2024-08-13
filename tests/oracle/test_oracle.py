@@ -63,7 +63,7 @@ def test_oracle_initialization(model_name):
     oracle_instance = oracle(env, env_params)
     
     assert oracle_instance.N == 5, f"Default prediction horizon should be 5 for {model_name}"
-    assert np.array_equal(oracle_instance.R, np.zeros(env.Nu-env.Nd_model)), f"Default control penalty should be 0 for {model_name}"
+    assert np.array_equal(oracle_instance.R, np.zeros((env.Nu-env.Nd_model,env.Nu-env.Nd_model))), f"Default control penalty should be 0 for {model_name}"
     assert oracle_instance.T == env_params["tsim"], f"Simulation time mismatch for {model_name}"
     assert np.allclose(oracle_instance.x0, env_params["x0"]), f"Initial state mismatch for {model_name}"
 
