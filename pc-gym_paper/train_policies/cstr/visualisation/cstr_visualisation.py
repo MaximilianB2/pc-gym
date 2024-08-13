@@ -80,7 +80,7 @@ PPO_cstr = PPO.load('./policies/PPO_CSTR')
 DDPG_cstr = DDPG.load('./policies/DDPG_CSTR')
 
 # Visualise policies with the oracle
-evaluator, data = env.get_rollouts({'SAC':SAC_cstr,'PPO':PPO_cstr,'DDPG':DDPG_cstr}, reps=20, oracle=True, MPC_params={'N':17, 'R':0})
+evaluator, data = env.get_rollouts({'SAC':SAC_cstr,'PPO':PPO_cstr,'DDPG':DDPG_cstr}, reps=20, oracle=True, MPC_params={'N':17})
 
 def paper_plot(data):
     # Set up LaTeX rendering

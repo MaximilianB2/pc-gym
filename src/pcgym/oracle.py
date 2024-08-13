@@ -1,6 +1,6 @@
 import numpy as np
 import do_mpc
-from casadi import vertcat, sum1, reshape
+from casadi import vertcat, sum1, reshape, DM, mtimes
 from gymnasium import Env
 
 class oracle:
@@ -16,12 +16,14 @@ class oracle:
         self.T = self.env.tsim
         if not MPC_params:
             self.N = 5
-            self.R = 0
+            self.R = np.zeros((self.env.Nu - self.env.Nd_model, self.env.Nu - self.env.Nd_model))
+            self.Q = np.eye(self.env.Nx_oracle)
         else:
-            self.N = MPC_params["N"]
-            self.R = MPC_params["R"]
+            self.N = MPC_params.get("N", 5)
+            self.R = MPC_params.get("R", np.zeros((self.env.Nu - self.env.Nd_model, self.env.Nu - self.env.Nd_model)))
+            self.Q = MPC_params.get("Q", np.eye(self.env.Nx_oracle))
         self.model_info = self.env.model.info()
-
+        self.R_sym = DM(self.R)
         if env_params.get('a_delta') is not None:
             self.u_0 = env_params.get("a_0", 0)  # Initialize u_0
             self.use_delta_u = True
@@ -41,7 +43,7 @@ class oracle:
             delta_u = model.set_variable(var_type='_u', var_name='delta_u', shape=(self.env.Nu, 1))
             u = u_prev + delta_u
         else:
-            u = model.set_variable(var_type='_u', var_name='u', shape=(self.env.Nu, 1))
+            u = model.set_variable(var_type='_u', var_name='u', shape=(self.env.Nu-self.env.Nd_model, 1))
 
         # Disturbances (as parameters)
         if self.env_params.get("disturbances") is not None:
@@ -51,7 +53,7 @@ class oracle:
             u_full = u
 
         # Set point (as a parameter)
-        SP = model.set_variable(var_type='_p', var_name='SP', shape=(self.N, 1))
+        SP = model.set_variable(var_type='_p', var_name='SP', shape=(len(self.env.SP), 1))
 
         # System dynamics
         dx_list = self.env.model(x, u_full)
@@ -81,22 +83,20 @@ class oracle:
         lterm = 0
         for i, sp_key in enumerate(self.env_params["SP"]):
             state_index = self.model_info["states"].index(sp_key)
-            lterm += (x[state_index] - SP[i])**2
+            lterm += self.Q[state_index, state_index] * (x[state_index] - SP[i])**2
 
-        u_normalized = (u[:self.env.Nu - self.env.Nd_model] - self.env_params["a_space"]["low"]) / (self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"])
-        lterm += sum1(self.R * u_normalized**2)
+        lterm += u.T @ self.R_sym @ u
         
         # Terminal cost (mterm) - only includes state costs
         mterm = 0
         for i, sp_key in enumerate(self.env_params["SP"]):
             state_index = self.model_info["states"].index(sp_key)
-            mterm += (x[state_index] - SP[i])**2
+            mterm += self.Q[state_index, state_index] * (x[state_index] - SP[i])**2
 
         mpc.set_objective(lterm=lterm, mterm=mterm)
         
         # Set r_term for both controlled inputs and disturbances
-        r_term = np.ones(self.env.Nu)
-        r_term[:self.env.Nu - self.env.Nd_model] = self.R * r_term
+        r_term = np.diag(self.R)
         if self.use_delta_u:
             r_term_dict = {'delta_u': r_term}
         else:
@@ -136,9 +136,13 @@ class oracle:
         def p_fun(t_now):
             p_template = mpc.get_p_template(1)
             
-            # Set SP (setpoint) values
-            SP_values = np.array([self.env_params["SP"][k][max(0, min(int(t_now/self.env.dt) - 1, len(self.env_params["SP"][k])-1))] for k in self.env_params["SP"]])
-            p_template['_p', 0, 'SP'] = SP_values.reshape(-1, 1)
+            SP_values = []
+            for k in self.env_params["SP"]:
+                sp_array = self.env_params["SP"][k]
+                current_index = min(int(t_now/self.env.dt-1), len(sp_array) - 1)
+                SP_values.append(sp_array[current_index])
+
+            p_template['_p', 0, 'SP'] = np.array(SP_values).reshape(-1, 1)
 
             # Set u_prev only if delta_u is used
             if self.use_delta_u:
@@ -159,8 +163,12 @@ class oracle:
             p_template_sim = simulator.get_p_template()
             
             # Set SP (setpoint) values
-            SP_values = np.array([self.env_params["SP"][k][max(0, min(int(t_now/self.env.dt) - 1, len(self.env_params["SP"][k])-1))] for k in self.env_params["SP"]])
-            p_template_sim['SP'] = SP_values.reshape(-1, 1)
+            SP_values = []
+            for k in self.env_params["SP"]:
+                sp_array = self.env_params["SP"][k]
+                current_index = min(int(t_now/self.env.dt), len(sp_array) - 1)
+                SP_values.append(sp_array[current_index])
+            p_template_sim['SP'] = np.array(SP_values).reshape(-1, 1)
             
             # Set disturbances if present
             if self.env_params.get("disturbances") is not None:
@@ -201,7 +209,7 @@ class oracle:
         mpc.set_initial_guess()
             
 
-        u_log = np.zeros((self.env.Nu, self.env.N))
+        u_log = np.zeros((self.env.Nu-self.env.Nd_model, self.env.N))
         x_log = np.zeros((self.env.Nx_oracle, self.env.N))
         delta_u_log = np.zeros((self.env.Nu, self.env.N)) if self.use_delta_u else None
 

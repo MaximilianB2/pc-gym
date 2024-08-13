@@ -63,7 +63,7 @@ def test_oracle_initialization(model_name):
     oracle_instance = oracle(env, env_params)
     
     assert oracle_instance.N == 5, f"Default prediction horizon should be 5 for {model_name}"
-    assert oracle_instance.R == 0, f"Default control penalty should be 0 for {model_name}"
+    assert np.array_equal(oracle_instance.R, np.zeros(env.Nu-env.Nd_model)), f"Default control penalty should be 0 for {model_name}"
     assert oracle_instance.T == env_params["tsim"], f"Simulation time mismatch for {model_name}"
     assert np.allclose(oracle_instance.x0, env_params["x0"]), f"Initial state mismatch for {model_name}"
 
@@ -85,7 +85,7 @@ def test_oracle_mpc_execution(model_name):
     env = make_env(env_params)
     oracle_instance = oracle(env, env_params)
     if model_name == 'biofilm_reactor':
-        oracle_instance = oracle(env, env_params, MPC_params={'N':2, 'R':0})
+        oracle_instance = oracle(env, env_params, MPC_params={'N':2})
     x_log, u_log = oracle_instance.mpc()
     
     assert x_log.shape == (env.Nx_oracle, env.N), f"State log shape mismatch for {model_name}"
@@ -95,12 +95,12 @@ def test_oracle_mpc_execution(model_name):
 def test_oracle_with_custom_mpc_params(model_name):
     env_params = create_base_env_params(model_name)
     env = make_env(env_params)
-    mpc_params = {"N": 2, "R": 0.1}
+    mpc_params = {"N": 2, "R": np.eye(env.Nu - env.Nd_model)*3, "Q": np.eye(env.Nx_oracle)*3}
     oracle_instance = oracle(env, env_params, MPC_params=mpc_params)
     
     assert oracle_instance.N == 2, f"Custom prediction horizon not set correctly for {model_name}"
-    assert oracle_instance.R == 0.1, f"Custom control penalty not set correctly for {model_name}"
-    
+    assert np.array_equal(oracle_instance.R, np.eye(env.Nu-env.Nd_model)*3), f"Custom control penalty not set correctly for {model_name}"
+    assert np.array_equal(oracle_instance.Q, np.eye(env.Nx_oracle)*3), f"Custom control penalty not set correctly for {model_name}"
     x_log, u_log = oracle_instance.mpc()
     assert x_log.shape == (env.Nx_oracle, env.N), f"State log shape mismatch for {model_name} with custom MPC params"
     assert u_log.shape == (env.Nu, env.N), f"Control input log shape mismatch for {model_name} with custom MPC params"
@@ -183,6 +183,7 @@ def test_oracle_constraint_handling(model_name):
     elif model_name == 'four_tank':
         env_params["tsim"] = 1000
         env_params["N"] = 60
+
     env_params["constraints"] = constraint_configs[model_name]
     env_params['done_on_cons_vio'] = False
     env_params['r_penalty'] = False
