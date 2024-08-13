@@ -11,7 +11,7 @@ from matplotlib import rcParams
 T = 26
 nsteps = 60
 SP = {
-    'Ca': [0.85 for i in range(int(nsteps/3))] + [0.89 for i in range(int(nsteps/3))]+ [0.86 for i in range(int(nsteps/3))],
+    'Ca': [0.86 for i in range(int(nsteps/3))] + [0.89 for i in range(int(nsteps/3))]+ [0.86 for i in range(int(nsteps/3))],
 }
 
 action_space = {
@@ -80,7 +80,13 @@ PPO_cstr = PPO.load('./policies/PPO_CSTR')
 DDPG_cstr = DDPG.load('./policies/DDPG_CSTR')
 
 # Visualise policies with the oracle
-evaluator, data = env.get_rollouts({'SAC':SAC_cstr,'PPO':PPO_cstr,'DDPG':DDPG_cstr}, reps=20, oracle=True, MPC_params={'N':17})
+# evaluator, data = env.get_rollouts({'SAC':SAC_cstr,'PPO':PPO_cstr,'DDPG':DDPG_cstr}, reps=100, oracle=True, MPC_params={'N':17})
+# np.save('data.npy', data)
+data = np.load('data.npy', allow_pickle=True).item()
+oracle_r = np.mean(data['oracle']["r"].sum(axis=1).flatten())
+policies = ['SAC', 'PPO', 'DDPG']
+for i, policy in enumerate(policies):
+    print(f'{policy} optimality gap: {oracle_r - np.mean(data[policy]["r"].sum(axis=1).flatten())}')
 
 def paper_plot(data):
     # Set up LaTeX rendering

@@ -71,6 +71,7 @@ env_params = {
     'noise':True, 
     'integration_method': 'casadi', 
     'noise_percentage':0.001, 
+    'custom_reward': oracle_reward
 }
 
 env = make_env(env_params)
@@ -79,24 +80,24 @@ env = make_env(env_params)
 nsteps_train = 5e4
 training_reps = 1
 for r_i in range(training_reps):
-    # print(f'Training repition:{r_i+1}')
-    # # Train SAC 
-    # log_file = f"learning_curves\SAC_CSTR_LC_rep_{r_i}.csv"
-    # SAC_CSTR =  SAC("MlpPolicy", env, verbose=1, learning_rate=0.01)
-    # callback = LearningCurveCallback(log_file=log_file)
-    # SAC_CSTR.learn(nsteps_train,callback=callback)
+    print(f'Training repition:{r_i+1}')
+    # Train SAC 
+    log_file = f"learning_curves\SAC_CSTR_LC_rep_{r_i}.csv"
+    SAC_CSTR =  SAC("MlpPolicy", env, verbose=1, learning_rate=0.01)
+    callback = LearningCurveCallback(log_file=log_file)
+    SAC_CSTR.learn(nsteps_train,callback=callback)
 
-    # # Save SAC Policy 
-    # SAC_CSTR.save(f'policies\SAC_CSTR_rep_{r_i}.zip')
+    # Save SAC Policy 
+    SAC_CSTR.save(f'policies\SAC_CSTR_rep_{r_i}.zip')
 
-    # # Train PPO 
-    # log_file = f"learning_curves\PPO_CSTR_LC_rep_{r_i}.csv"
-    # PPO_CSTR =  PPO("MlpPolicy", env, verbose=1, learning_rate=0.001)
-    # callback = LearningCurveCallback(log_file=log_file)
-    # PPO_CSTR.learn(nsteps_train,callback=callback)
+    # Train PPO 
+    log_file = f"learning_curves\PPO_CSTR_LC_rep_{r_i}.csv"
+    PPO_CSTR =  PPO("MlpPolicy", env, verbose=1, learning_rate=0.001)
+    callback = LearningCurveCallback(log_file=log_file)
+    PPO_CSTR.learn(nsteps_train,callback=callback)
 
-    # # Save SAC Policy 
-    # PPO_CSTR.save(f'policies\PPO_CSTR_rep_{r_i}.zip')
+    # Save SAC Policy 
+    PPO_CSTR.save(f'policies\PPO_CSTR_rep_{r_i}.zip')
 
     # Train SAC 
     log_file = f'learning_curves\DDPG_CSTR_LC_rep_{r_i}.csv'
