@@ -1,30 +1,62 @@
 # Policy Evaluation Class for pc-gym
 import numpy as np
 import matplotlib.pyplot as plt
-from oracle import oracle
+from .oracle import oracle
 
 class policy_eval:
     """
-    Policy Evaluation Class
+    Policy Evaluation Class for pc-gym.
 
-    Inputs: Environment, policy and number of policy repitions
+    This class provides methods for evaluating policies in a given environment,
+    including rollouts, oracle comparisons, and data visualization.
 
-    Outputs: Plots of states/control/constraints/setpoints (complete),
-             return distribution (incomplete), expected return (incomplete),
-             oracle trajectories (incomplete) and lower confidence bounds (incomplete)
+    Attributes:
+        make_env: Callable
+            Function to create the environment.
+        env_params: dict
+            Parameters for the environment.
+        env: Environment
+            The environment instance.
+        policies: dict
+            Dictionary of policies to evaluate.
+        n_pi: int
+            Number of policies.
+        reps: int
+            Number of repetitions for evaluation.
+        oracle: bool
+            Whether to use oracle comparisons.
+        cons_viol: bool
+            Whether to plot constraint violations.
+        save_fig: bool
+            Whether to save generated figures.
+        MPC_params: dict or bool
+            Parameters for MPC, if applicable.
     """
 
     def __init__(
         self,
-        make_env,
-        policies,
-        reps,
-        env_params,
-        oracle=False,
-        MPC_params=False,
-        cons_viol=False,
-        save_fig=False
+        make_env: callable,
+        policies: dict,
+        reps: int,
+        env_params: dict,
+        oracle: bool = False,
+        MPC_params: dict = False,
+        cons_viol: bool = False,
+        save_fig: bool = False
     ):
+        """
+        Initialize the policy_eval class.
+
+        Args:
+            make_env (callable): Function to create the environment.
+            policies (dict): Dictionary of policies to evaluate.
+            reps (int): Number of repetitions for evaluation.
+            env_params (dict): Parameters for the environment.
+            oracle (bool, optional): Whether to use oracle comparisons. Defaults to False.
+            MPC_params (dict, optional): Parameters for MPC, if applicable. Defaults to False.
+            cons_viol (bool, optional): Whether to plot constraint violations. Defaults to False.
+            save_fig (bool, optional): Whether to save generated figures. Defaults to False.
+        """
         self.make_env = make_env
         self.env_params = env_params
         self.env = make_env(env_params)
@@ -34,23 +66,22 @@ class policy_eval:
         self.oracle = oracle
         self.cons_viol = cons_viol
         self.save_fig = save_fig
-
         self.MPC_params = MPC_params
 
     def rollout(self, policy_i):
         """
-        Rollout the policy for N steps and return the total reward, states and actions
+        Rollout the policy for N steps and return the total reward, states and actions.
 
-        Input:
-            policy - policy to be rolled out
+        Args:
+            policy_i: Policy to be rolled out.
 
-        Outputs:
-            total_reward - total reward obtained
-            states - states obtained from rollout
-            actions - actions obtained from rollout
-
+        Returns:
+            tuple: Containing:
+                - total_reward (list): Total reward obtained.
+                - s_rollout (np.ndarray): States obtained from rollout.
+                - actions (np.ndarray): Actions obtained from rollout.
+                - cons_info (np.ndarray): Constraint information.
         """
-
         total_reward = []
         s_rollout = np.zeros((self.env.Nx, self.env.N))
         actions = np.zeros((self.env.env_params["a_space"]["low"].shape[0], self.env.N))
@@ -62,9 +93,7 @@ class policy_eval:
             self.env.observation_space_base.high - self.env.observation_space_base.low
         ) / 2 + self.env.observation_space_base.low
         for i in range(self.env.N - 1):
-            a, _s = policy_i.predict(
-                o, deterministic=True
-            )  # Rollout with a deterministic policy
+            a, _s = policy_i.predict(o, deterministic=True)
             o, r, term, trunc, info = self.env.step(a)
             actions[:, i] = (a + 1) * (
                 self.env.env_params["a_space"]["high"]
@@ -90,33 +119,37 @@ class policy_eval:
         
         return total_reward, s_rollout, actions, cons_info
     
-    def oracle_reward_fn(self, x, u):
+    def oracle_reward_fn(self, x: np.ndarray, u: np.ndarray) -> list:
+        """
+        Calculate the oracle reward for given states and actions.
+
+        Args:
+            x (np.ndarray): State trajectory.
+            u (np.ndarray): Action trajectory.
+
+        Returns:
+            list: Oracle rewards for each time step.
+        """
         r_opt = []
-        for i in range(x.shape[1]): # Loop over all time steps
+        for i in range(x.shape[1]):
             self.env.t = i
             if self.env.custom_reward:
-                r_opt.append(self.env.custom_reward_f(self.env,x[:,i],u[:,i],0)) # TODO: add constraint violation for oracle here
+                r_opt.append(self.env.custom_reward_f(self.env,x[:,i],u[:,i],0))
             else:
-                r_opt.append(self.env.reward_fn(x[:,i],u[:,i],0)) 
+                r_opt.append(self.env.reward_fn(x[:,i], False)) 
         return r_opt
 
-    def get_rollouts(self):
+    def get_rollouts(self) -> dict:
         """
-        Function to plot the rollout of the policy
+        Perform rollouts for all policies and collect data.
 
-        Inputs:
-            policy - policy to be rolled out
-            reps - number of rollouts to be performed
-
-        Outputs:
-            Plot of states and actions with setpoints and constraints if they exist]
-
+        Returns:
+            dict: Dictionary containing rollout data for each policy and oracle (if applicable).
         """
         data = {}
         action_space_shape = self.env.env_params["a_space"]["low"].shape[0]
         num_states = self.env.Nx
 
-        # Collect Oracle data
         if self.oracle:
             r_opt = np.zeros((1, self.env.N, self.reps))
             x_opt = np.zeros((self.env.Nx_oracle, self.env.N, self.reps))
@@ -127,7 +160,6 @@ class policy_eval:
                 r_opt[:, :, i] = np.array(self.oracle_reward_fn(x_opt[:, :, i], u_opt[:, :, i])).reshape(1,self.env.N)
             data.update({"oracle": {"r": r_opt, "x": x_opt, "u": u_opt}})
 
-        # Collect RL rollouts for all policies
         for pi_name, pi_i in self.policies.items():
             states = np.zeros((num_states, self.env.N, self.reps))
             actions = np.zeros((action_space_shape, self.env.N, self.reps))
@@ -150,6 +182,13 @@ class policy_eval:
         return data
 
     def plot_data(self, data, reward_dist=False):
+        """
+        Plot the rollout data for all policies.
+
+        Args:
+            data (dict): Dictionary containing rollout data.
+            reward_dist (bool, optional): Whether to plot reward distribution. Defaults to False.
+        """
         t = np.linspace(0, self.env.tsim, self.env.N)
         len_d = 0
 

@@ -1,51 +1,69 @@
-
 import pickle
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import rcParams
 
 # Load in the learning data
-# Load data_DDPG_square
-with open('data_DDPG_square.pkl', 'rb') as f:
-    data_DDPG_square = pickle.load(f)
+def load_data(filename):
+    with open(filename, 'rb') as f:
+        return pickle.load(f)
 
-# Load data_DDPG_sparse
-with open('data_DDPG_sparse.pkl', 'rb') as f:
-    data_DDPG_sparse = pickle.load(f)
+data_DDPG_square = load_data('data_DDPG_square.pkl')
+data_DDPG_sparse = load_data('data_DDPG_sparse.pkl')
+data_DDPG_abs = load_data('data_DDPG_abs.pkl')
 
-# Load data_DDPG_abs
-with open('data_DDPG_abs.pkl', 'rb') as f:
-    data_DDPG_abs = pickle.load(f)
+def paper_plot(data_DDPG_square, data_DDPG_sparse, data_DDPG_abs):
+    # Set up LaTeX rendering
+    rcParams['text.usetex'] = True
+    rcParams['font.family'] = 'serif'
+    rcParams['axes.labelsize'] = 10
+    rcParams['xtick.labelsize'] = 10
+    rcParams['ytick.labelsize'] = 10
+    rcParams['legend.fontsize'] = 10
 
+    t = np.linspace(0, 25, 120)
+    
+    # A4 width in inches
+    a4_width_inches = 8.27
+    
+    # Calculate height to maintain aspect ratio
+    height = a4_width_inches * 0.4  # Adjust this factor as needed
+    
+    fig, ax = plt.subplots(figsize=(a4_width_inches, height))
+    plt.subplots_adjust(top=0.85, bottom=0.15, left=0.08, right=0.98)
 
-t = np.linspace(0,25,120)
-plt.figure(figsize=(10,5))
-alphas = np.linspace(0.1,1,30)
-plt.rcParams['text.usetex'] = 'True'
-plt.rcParams['font.family'] = 'serif'
-for i, alpha in enumerate(alphas):
+    alphas = np.linspace(0.1, 1, 30)
+    colors = ['tab:blue', 'tab:red', 'tab:green']
+    labels = ['Square error', 'Sparse reward', 'Absolute error']
+    data_sets = [data_DDPG_square, data_DDPG_sparse, data_DDPG_abs]
 
-    # Only plot for even i
-        iterations = (i + 1) * 500  # calculate the number of iterations
+    # Create lines for the legend
+    lines = []
+    for i, label in enumerate(labels):
+        line, = ax.plot([], [], color=colors[i], label=label)
+        lines.append(line)
+    ref_line, = ax.plot([], [], color='black', linestyle='--', label='Reference')
+    lines.append(ref_line)
 
-        if i in [0, 14, 29]:
-            label_square = f'Square error ({iterations} timesteps)'
-            label_sparse = f'Sparse reward ({iterations} timesteps)'
-            label_abs = f'Absolute error ({iterations} timesteps)'
-        else:
-            label_square = label_sparse = label_abs = None
-        if i % 2 == 0 or i == 29: 
-            print(i)
-            plt.plot(t, data_DDPG_square[i]['pol_i']['x'][0,:,0], color='tab:blue', alpha=alpha, label=label_square)
-            plt.plot(t, data_DDPG_sparse[i]['pol_i']['x'][0,:,0], color='tab:red', alpha=alpha, label=label_sparse)
-            plt.plot(t, data_DDPG_abs[i]['pol_i']['x'][0,:,0], color='tab:green', alpha=alpha, label=label_abs)
+    # Create legend above the plot
+    fig.legend(handles=lines, loc='upper center', bbox_to_anchor=(0.5, 0.98),
+               ncol=4, frameon=False, columnspacing=1)
 
-plt.step(t, data_DDPG_abs[0]['pol_i']['x'][2,:,0],'--',color = 'black')
-plt.xlabel('Time (min)',fontsize = 'large')
-plt.ylabel('$C_A$ (mol/m$^3$)', fontsize = 'large')
-plt.xlim(0,25)
-plt.grid('True')
-plt.legend(bbox_to_anchor=(0.5, 1.01), loc='lower center', ncol=3,fontsize='medium', frameon=False)
-plt.tight_layout()
-plt.savefig('r_showcase_learning.pdf')
-plt.show()
+    for i, alpha in enumerate(alphas):
+        iterations = (i + 1) * 500
+        if i % 2 == 0 or i == 29:
+            for j, data in enumerate(data_sets):
+                ax.plot(t, data[i]['pol_i']['x'][0,:,0], color=colors[j], alpha=alpha)
 
+    ax.step(t, data_DDPG_abs[0]['pol_i']['x'][2,:,0], '--', color='black')
+    
+    ax.set_xlabel(r'Time [min]')
+    ax.set_ylabel(r'$C_A$ [mol/m$^3$]')
+    ax.set_xlim(0, 25)
+    ax.grid(True, linestyle='--', alpha=0.7)
+    ax.set_axisbelow(True)
+
+    plt.savefig('r_showcase_learning.pdf', bbox_inches='tight', pad_inches=0.1)
+    plt.show()
+
+paper_plot(data_DDPG_square, data_DDPG_sparse, data_DDPG_abs)

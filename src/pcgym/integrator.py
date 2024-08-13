@@ -1,19 +1,30 @@
+from typing import Callable, Dict, List, Any
 from casadi import SX, vertcat, Function, integrator
 from diffrax import diffeqsolve, ODETerm, Tsit5, PIDController
 import jax.numpy as jnp
-
+import numpy as np
 
 class integration_engine:
     """
-    Integration class
-    Contains both the casadi and JAX integration wrappers.
+    Integration class that contains both the casadi and JAX integration wrappers.
 
-    Inputs: Environment, x0, dt,u_t
+    This class provides methods for integrating dynamical systems using either
+    CasADi or JAX libraries.
 
-    Output: x+
+    Attributes:
+        env: The environment object.
+        integration_method: The chosen integration method ('jax' or 'casadi').
     """
 
-    def __init__(self, make_env, env_params):
+    def __init__(self, make_env: Callable, env_params: Dict[str, Any]) -> None:
+        
+        """
+        Initialize the integration engine.
+
+        Args:
+            make_env: A function to create the environment.
+            env_params: A dictionary of environment parameters.
+        """
         self.env = make_env(env_params)
         try:
             integration_method = env_params["integration_method"]
@@ -24,13 +35,7 @@ class integration_engine:
             "casadi",
         ], "integration_method must be either 'jax' or 'casadi'"
 
-        # NOTE common ode model signature
-        # all self.env.model currently have the signature ODE(states, controls)
-        # diffrax expects the signature ode(t, states, params)
-        # the parameters are fixed within the models so the controllers are the inputs instead
-
         if integration_method == "casadi":
-            # Generate casadi model
             self.sym_x = self.gen_casadi_variable(self.env.Nx_oracle, "x")
             self.sym_u = self.gen_casadi_variable(self.env.Nu, "u")
             self.casadi_sym_model = self.casadify(
@@ -45,27 +50,30 @@ class integration_engine:
             )
 
         if integration_method == "jax":
-
-            def autonomous_model(t, x, u):  # ignore time
-                return jnp.array(self.env.model(x, u))  # ignore time
+            def autonomous_model(t: float, x: jnp.ndarray, u: jnp.ndarray) -> jnp.ndarray:
+                return jnp.array(self.env.model(x, u))
 
             self.jax_ode = ODETerm(autonomous_model)
             self.jax_solver = Tsit5()
             self.t0 = 0.0
             self.tf = self.env.dt
-            self.dt0 = None  # adaptive step size
-            self.step_controller = PIDController(rtol=1e-5, atol=1e-5)
+            self.dt0 = None
+            self.step_controller = PIDController(rtol=1e-8, atol=1e-8)
+            
+        pass 
 
-    def jax_step(self, state, uk):
+    def jax_step(self, state: np.ndarray, uk: np.ndarray) -> np.ndarray:
         """
-        Integrate one time step with JAX.
+        Integrate one time step using JAX.
 
-        input: x0, uk
-        output: x+
+        Args:
+            state: The current state.
+            uk: The control input.
+
+        Returns:
+            The next state after integration.
         """
-        y0 = jnp.array(
-            state[: self.env.Nx_oracle]
-        )  # Only pass the states of the model (exclude the setpoints)
+        y0 = jnp.array(state[: self.env.Nx_oracle])
         uk = jnp.array(uk)
         solution = diffeqsolve(
             self.jax_ode,
@@ -77,14 +85,18 @@ class integration_engine:
             args=uk,
             stepsize_controller=self.step_controller,
         )
-        return solution.ys[-1, :]  # return only final state
+        return solution.ys[-1, :]
 
-    def casadi_step(self, state, uk):
+    def casadi_step(self, state: np.ndarray, uk: np.ndarray) -> np.ndarray:
         """
-        Integrate one time step with casadi.
+        Integrate one time step using CasADi.
 
-        input: x0, uk
-        output: x+
+        Args:
+            state: The current state.
+            uk: The control input.
+
+        Returns:
+            The next state after integration.
         """
         plant_func = self.casadi_model_func
         discretised_plant = self.discretise_model(plant_func, self.env.dt)
@@ -94,77 +106,77 @@ class integration_engine:
         Fk = discretised_plant(x0=xk, p=uk)
         return Fk
 
-    def casadify(self, model, sym_x, sym_u):
+    def casadify(self, model: Callable, sym_x: SX, sym_u: SX) -> SX:
         """
-        Given a model with Nx states and Nu inputs and returns rhs of ode,
-        return casadi symbolic model (Not function!)
+        Convert a given model to CasADi symbolic form.
 
-        Inputs:
-            model - model to be casidified i.e. a list of ode rhs of size Nx
+        Args:
+            model: The model to be converted.
+            sym_x: Symbolic states.
+            sym_u: Symbolic inputs.
 
-        Outputs:
-            dxdt - casadi symbolic model of size Nx of rhs of ode
+        Returns:
+            CasADi symbolic model representing the right-hand side of the ODE.
         """
-
         dxdt = model(sym_x, sym_u)
-        dxdt = vertcat(*dxdt)  # Return casadi list of size Nx
-
+        dxdt = vertcat(*dxdt)
         return dxdt
 
-    def gen_casadi_variable(self, n_dim, name="x"):
+    def gen_casadi_variable(self, n_dim: int, name: str = "x") -> SX:
         """
-        Generates casadi symbolic variable given n_dim and name for variable
+        Generate a CasADi symbolic variable.
 
-        Inputs:
-            n_dim - symbolic variable dimension
-            name - name for symbolic variable
+        Args:
+            n_dim: The dimension of the variable.
+            name: The name of the variable (default: "x").
 
-        Outputs:
-            var - symbolic version of variable
+        Returns:
+            A CasADi symbolic variable.
         """
-
         var = SX.sym(name, n_dim)
-
         return var
 
     def gen_casadi_function(
-        self, casadi_input, casadi_output, name, input_name=[], output_name=[]
-    ):
+        self,
+        casadi_input: List[SX],
+        casadi_output: List[SX],
+        name: str,
+        input_name: List[str] = [],
+        output_name: List[str] = []
+    ) -> Function:
         """
-        Generates a casadi function which maps inputs (casadi symbolic inputs) to outputs (casadi symbolic outputs)
+        Generate a CasADi function.
 
-        Inputs:
-            casadi_input - list of casadi symbolics constituting inputs
-            casadi_output - list of casadi symbolic output of function
-            name - name of function
-            input_name - list of names for each input
-            output_name - list of names for each output
+        Args:
+            casadi_input: List of CasADi symbolic inputs.
+            casadi_output: List of CasADi symbolic outputs.
+            name: Name of the function.
+            input_name: List of names for each input (optional).
+            output_name: List of names for each output (optional).
 
-        Outputs:
-            casadi function mapping [inputs] -> [outputs]
-
+        Returns:
+            A CasADi function mapping inputs to outputs.
         """
-
         function = Function(name, casadi_input, casadi_output, input_name, output_name)
-
         return function
 
-    def discretise_model(self, casadi_func, delta_t):
+    def discretise_model(self, casadi_func: Function, delta_t: float) -> Function:
         """
-        Input:
-            casadi_func to be discretised
+        Discretize a continuous-time CasADi model.
 
-        Output:
-            discretised casadi func
+        Args:
+            casadi_func: The continuous-time CasADi function to be discretized.
+            delta_t: The time step for discretization.
+
+        Returns:
+            A discretized CasADi function.
         """
         x = SX.sym("x", self.env.Nx_oracle)
-
         u = SX.sym("u", self.env.Nu)
         xdot = casadi_func(x, u)
 
         dae = {"x": x, "p": u, "ode": xdot}
         t0 = 0
         tf = delta_t
-        discrete_model = integrator("discrete_model", "cvodes", dae, t0, tf)
-
+        discrete_model = integrator("discrete_model", "cvodes", dae, t0, tf,)
         return discrete_model

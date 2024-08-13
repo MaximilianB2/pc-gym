@@ -4,13 +4,12 @@ sys.path.append("..\..\..\..\src\pcgym") # Add local pc-gym files to path.
 from pcgym import make_env
 from stable_baselines3 import PPO, DDPG, SAC
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
-
+from matplotlib import rcParams
 
 # Define environment
-T = 600
-nsteps = 100
+T = 1000
+nsteps = 60
 
 
 # Define reward to be equal to the OCP (i.e the same as the oracle)
@@ -21,7 +20,7 @@ def oracle_reward(self,x,u,con):
     for k in self.env_params["SP"]:
         i = self.model.info()["states"].index(k)
         SP = self.SP[k]
-     
+        
         o_space_low = self.env_params["o_space"]["low"][i] 
         o_space_high = self.env_params["o_space"]["high"][i] 
 
@@ -46,11 +45,9 @@ def oracle_reward(self,x,u,con):
         return r
 
 SP = {
-      'h1': [0.125 for i in range(int(nsteps/2))] + [0.125 for i in range(int(nsteps/2))],
-      'h2': [0.25 for i in range(int(nsteps/2))] + [0.25 for i in range(int(nsteps/2))],
-      'h3': [0.6 for i in range(int(nsteps/2))] + [0.1 for i in range(int(nsteps/2))],
-      'h4': [0.2 for i in range(int(nsteps/2))] + [0.3 for i in range(int(nsteps/2))],
-  }
+        'h3': [0.5 for i in range(int(nsteps/2))] + [0.1 for i in range(int(nsteps/2))],
+        'h4': [0.2 for i in range(int(nsteps/2))] + [0.3 for i in range(int(nsteps/2))],
+    }
 
 action_space = {
     'low': np.array([0,0]),
@@ -58,8 +55,8 @@ action_space = {
 }
 
 observation_space = {
-    'low' : np.array([0,]*8),
-    'high' : np.array([0.5]*8)  
+    'low' : np.array([0,]*6),
+    'high' : np.array([0.5]*6)  
 }
 
 
@@ -70,7 +67,7 @@ env_params_4tank = {
     'o_space' : observation_space,
     'a_space' : action_space,
     'dt': 15,
-    'x0': np.array([0.141, 0.112, 0.072, 0.42,SP['h1'][0],SP['h2'][0],SP['h3'][0],SP['h4'][0]]),
+    'x0': np.array([0.141, 0.112, 0.072, 0.42,SP['h3'][0],SP['h4'][0]]),
     'model': 'four_tank', 
     'normalise_a': True, #Normalise the actions
     'normalise_o':True, #Normalise the states,
@@ -88,8 +85,111 @@ SAC_4tank = SAC.load('..//policies/SAC_4tank_rep_0')
 
 # Visualise policies with the oracle
 # 'PPO':PPO_4tank,'DDPG':DDPG_4tank
-evaluator, data = env.plot_rollout({'SAC':SAC_4tank,}, reps=1, oracle=True, MPC_params={'N':10,'R':0.01},save_fig=True)
+evaluator, data = env.get_rollouts({'SAC':SAC_4tank,}, reps=1, oracle=True, MPC_params={'N': 19, 'R': 0})
 
+def paper_plot(data):
+    # Set up LaTeX rendering
+    rcParams['text.usetex'] = True
+    rcParams['font.family'] = 'serif'
+    rcParams['axes.labelsize'] = 10
+    rcParams['xtick.labelsize'] = 10
+    rcParams['ytick.labelsize'] = 10
+    rcParams['legend.fontsize'] = 10
+
+    t = np.linspace(0, 25, 60)
+    
+    # A4 width in inches
+    a4_width_inches = 8.27
+    
+    # Calculate height to maintain aspect ratio
+    height = a4_width_inches * 0.8  # Adjusted for more subplots
+    
+    fig, axs = plt.subplots(2, 3, figsize=(a4_width_inches, height))
+    plt.subplots_adjust(wspace=0.3, hspace=0.4, top=0.85, bottom=0.1, left=0.08, right=0.98)
+
+    policies = ['oracle', 'SAC',]
+    cols = ['tab:orange', 'tab:red', ]
+    labels = ['Oracle','SAC']
+
+    # Create lines for the legend
+    lines = []
+    for i, policy in enumerate(policies):
+        line, = axs[0, 0].plot([], [], color=cols[i], label=labels[i])
+        lines.append(line)
+    ref_line, = axs[0, 0].plot([], [], color='black', linestyle='--',  label='Reference')
+    lines.append(ref_line)
+
+    # Create legend above the plots
+    fig.legend(handles=lines, loc='upper center', bbox_to_anchor=(0.5, 0.98),
+                ncol=5, frameon=False, columnspacing=1)
+
+    y_labels = [r'$h_1$ [m]', r'$h_2$ [m]', r'$h_3$ [m]', r'$h_4$ [m]']
+    u_labels = [r'$V_1$ [V]', r'$V_2$ [V]']
+    
+    for idx in range(2):  # Loop for 4 states
+        row, col = idx // 3, idx % 3
+        ax = axs[row, col]
+        ax.grid(True, linestyle='--', alpha=0.7)
+        ax.set_axisbelow(True)
+        
+        for i, policy in enumerate(policies):
+            ax.plot(t, np.median(data[policy]['x'][idx,:,:], axis=1), color=cols[i], linewidth=1.25)
+            if policy == 'SAC' and idx > 1:
+                    ax.step(t, np.median(data[policy]['x'][idx+2,:,:], axis=1), color='black', linestyle = '--') 
+            
+            ax.fill_between(t, np.max(data[policy]['x'][idx,:,:], axis=1), 
+                            np.min(data[policy]['x'][idx,:,:], axis=1), 
+                            alpha=0.2, linewidth=0, color=cols[i])
+            
+        ax.set_ylabel(y_labels[idx])
+        ax.set_xlabel(r'Time (min)')
+        ax.set_xlim(0, 25)
+        
+
+    # Plot for 2 controls
+    for idx in range(2):
+        ax = axs[1, idx+1]
+        ax.grid(True, linestyle='--', alpha=0.7)
+        ax.set_axisbelow(True)
+        
+        for i, policy in enumerate(policies):
+            ax.step(t, np.median(data[policy]['u'][idx,:,:], axis=1), color=cols[i], where='post', linewidth=1.25)
+            ax.fill_between(t, np.max(data[policy]['u'][idx,:,:], axis=1), 
+                            np.min(data[policy]['u'][idx,:,:], axis=1),
+                            step="post", alpha=0.2, linewidth=0, color=cols[i])
+        
+        ax.set_ylabel(u_labels[idx])
+        ax.set_xlabel(r'Time (min)')
+        ax.set_xlim(0, 25)
+
+    # Histogram plot
+    # ax = axs[1, 2]
+    # all_rewards = np.concatenate([data[policy]["r"].sum(axis=1).flatten() for policy in policies])
+    # min_reward, max_reward = np.min(all_rewards), np.max(all_rewards)
+    # bins = np.linspace(min_reward, max_reward, 11)
+
+    # for i, policy in enumerate(policies):
+    #     ax.hist(
+    #         data[policy]["r"].sum(axis=1).flatten(),
+    #         bins=bins,
+    #         color=cols[i],
+    #         alpha=0.5,
+    #         label=labels[i],
+    #         edgecolor='None',
+    #     )
+
+    # ax.set_ylabel('Frequency')
+    # ax.set_xlabel('Cumulative Reward')
+    # ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.35), ncol=2, frameon=False)
+
+    # Adjust the plots to be square and the same size
+    for ax in axs.flatten():
+        ax.set_box_aspect(1)
+    
+    plt.savefig('4tank_vis.pdf', bbox_inches='tight', pad_inches=0.1)
+    plt.show()
+
+paper_plot(data)
 
 # # Visualise the learning curves
 # reps = 3

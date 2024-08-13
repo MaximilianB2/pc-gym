@@ -1,14 +1,16 @@
-
 import sys
-sys.path.append("..\..\..\..\src\pcgym") # Add local pc-gym files to path.
+sys.path.append("..")  # Adds higher directory to python modules path for callback class. 
+sys.path.append("..\..\..\src\pcgym") # Add local pc-gym files to path.
+
 from pcgym import make_env
-from stable_baselines3 import PPO, DDPG, SAC
+from callback import LearningCurveCallback
 import numpy as np
-import pandas as pd
+from stable_baselines3 import PPO, DDPG, SAC
 import matplotlib.pyplot as plt
 
-
-T = 100
+from matplotlib import rcParams
+# Define environment
+T = 200
 nsteps = 100
 
 
@@ -20,7 +22,7 @@ def oracle_reward(self,x,u,con):
     for k in self.env_params["SP"]:
         i = self.model.info()["states"].index(k)
         SP = self.SP[k]
-     
+
         o_space_low = self.env_params["o_space"]["low"][i] 
         o_space_high = self.env_params["o_space"]["high"][i] 
 
@@ -39,55 +41,158 @@ def oracle_reward(self,x,u,con):
     # Add the control cost
     cost += R * u_normalized**2
     r = -cost
-    try:
-        return r[0]
-    except Exception:
-        return r
+    return r
 
 SP = {
-      'H_R':[20 for i in range(int(nsteps/2))] + [20 for i in range(int(nsteps/2))],
-      'H_M':[20 for i in range(int(nsteps/2))] + [20 for i in range(int(nsteps/2))],
-      'H_B':[20 for i in range(int(nsteps/2))] + [20 for i in range(int(nsteps/2))],
-  }
+        'S2_A':[10 for i in range(int(nsteps/2))] + [15 for i in range(int(nsteps/2))]
+    }
 
 action_space = {
-    'low': np.array([0.667,25,25,0.67,26]),
-    'high':np.array([0.667,35,35,3,35])
+    'low': np.array([0, 1, 0.05, 0.05, 0.05]),
+    'high':np.array([10, 30, 1, 1, 1])
 }
 
 observation_space = {
-    'low' : np.array([10, 0, 0, 0, 10, 0, 0, 0, 10, 0, 0.75, 0, 15, 15, 15]),
-    'high' : np.array([30, 1, 0.15, 0.02, 30, 1, 0.15, 0.02, 30, 0.15, 1, 0.15, 25, 25, 25])  
+    'low' : np.array([0,0,0,0]*4+[0]),
+    'high' : np.array([10,10,10,500]*4+[20])  
 }
 
 
 
-env_params_RSR = {
+env_params_bio = {
     'N': nsteps,
     'tsim':T,
     'SP':SP,
     'o_space' : observation_space,
     'a_space' : action_space,
-    'x0': np.array([20, 0.8861, 0.1082, 0.0058, 20, 0.8861, 0.1082, 0.0058, 20, 0.1139, 0.7779, 0.1082, 20,20,20]),
-    'model': 'RSR', 
+    'x0': np.array([10.,5.,5.,300.]*4+[10]),
+    'model': 'biofilm_reactor', 
     'normalise_a': True, #Normalise the actions
     'normalise_o':True, #Normalise the states,
-    'noise':False, #Add noise to the states
-    'custom_reward': oracle_reward,
+    'noise':True, #Add noise to the states
+    'noise_percentage':0.001,
     'integration_method': 'casadi'
 }
-env = make_env(env_params_RSR)
+env = make_env(env_params_bio)
+
 
 # Load trained policies
-SAC_RSR = SAC.load('..//policies/SAC_RSR_rep_0')
+SAC_bio = SAC.load('./policies/SAC_biofilm_rep_0')
 # PPO_RSR = PPO.load('./policies/PPO_RSR')
 # DDPG_RSR = DDPG.load('./policies/DDPG_RSR')
 
 # Visualise policies with the oracle
 # 'PPO':PPO_RSR,'DDPG':DDPG_RSR
-evaluator, data = env.plot_rollout({'SAC':SAC_RSR,}, reps=1, oracle=True, MPC_params={'N':5,'R':0.00001},save_fig=True)
+evaluator, data = env.get_rollouts({'SAC':SAC_bio,}, reps=1, oracle=True, MPC_params={'N':10,'R':0})
+np.save('data.npy', data)
+data = np.load('data.npy', allow_pickle=True).item()
 
+def paper_plot(data):
+    # Set up LaTeX rendering
+    rcParams['text.usetex'] = True
+    rcParams['font.family'] = 'serif'
+    rcParams['axes.labelsize'] = 10
+    rcParams['xtick.labelsize'] = 10
+    rcParams['ytick.labelsize'] = 10
+    rcParams['legend.fontsize'] = 10
 
+    t = np.linspace(0, T, nsteps)
+    
+    # A4 width in inches
+    a4_width_inches = 8.27
+    
+    # Calculate height to maintain aspect ratio
+    height = a4_width_inches * 0.4  # Adjusted for more subplots
+    
+    fig, axs = plt.subplots(2, 3, figsize=(a4_width_inches, height))
+    plt.subplots_adjust(wspace=0.5, hspace=0.4, top=0.85, bottom=0.1, left=0.08, right=0.98)
+    policies = ['oracle','SAC']
+    cols = ['tab:orange', 'tab:red', 'tab:blue', 'tab:green', ]
+    labels = ['Oracle','SAC']
+
+    # Create lines for the legend
+    lines = []
+
+    for i, policy in enumerate(policies):
+        line, = axs[0,0].plot([], [], color=cols[i], label=labels[i])
+        lines.append(line)
+    ref_line, = axs[0,0].plot([], [], color='black', linestyle='--',  label='Reference')
+    lines.append(ref_line)
+
+    # Create legend above the plots
+    fig.legend(handles=lines, loc='upper center', bbox_to_anchor=(0.5, 0.98),
+                ncol=5, frameon=False, columnspacing=1)
+
+    y_labels = [r'$S_A$ [kg/m$^3$]']
+    u_labels = [r'F', r'Fr', r'S1_F', r'S2_F', r'S3_F']
+    
+
+    ax = axs[0,0]
+    ax.grid(True, linestyle='--', alpha=0.7)
+    ax.set_axisbelow(True)
+    
+    for i, policy in enumerate(policies):
+
+        ax.plot(t, np.median(data[policy]['x'][13,:,:], axis=1), color=cols[i], linewidth=1.25)
+        if policy == 'SAC':
+                ax.step(t, np.median(data[policy]['x'][16,:,:], axis=1), color='black', linestyle = '--') 
+        
+        ax.fill_between(t, np.max(data[policy]['x'][0,:,:], axis=1), 
+                        np.min(data[policy]['x'][0,:,:], axis=1), 
+                        alpha=0.2, linewidth=0, color=cols[i])
+        
+    ax.set_ylabel(y_labels[0])
+    ax.set_xlabel(r'Time (hr)')
+    ax.set_xlim(0, T)
+        
+
+    # Plot for 2 controls
+    for idx in range(5):
+        if idx < 2:
+            ax = axs[0,idx+1]
+        else:
+            ax = axs[1,idx-2]
+        ax.grid(True, linestyle='--', alpha=0.7)
+        ax.set_axisbelow(True)
+        
+        for i, policy in enumerate(policies):
+            ax.step(t, np.median(data[policy]['u'][idx,:,:], axis=1), color=cols[i], where='post', linewidth=1.25)
+            ax.fill_between(t, np.max(data[policy]['u'][idx,:,:], axis=1), 
+                            np.min(data[policy]['u'][idx,:,:], axis=1),
+                            step="post", alpha=0.2, linewidth=0, color=cols[i])
+        
+        ax.set_ylabel(u_labels[idx])
+        ax.set_xlabel(r'Time (hr)')
+        ax.set_xlim(0, T)
+
+    # Histogram plot
+    # ax = axs[1, 2]
+    # all_rewards = np.concatenate([data[policy]["r"].sum(axis=1).flatten() for policy in policies])
+    # min_reward, max_reward = np.min(all_rewards), np.max(all_rewards)
+    # bins = np.linspace(min_reward, max_reward, 11)
+
+    # for i, policy in enumerate(policies):
+    #     ax.hist(
+    #         data[policy]["r"].sum(axis=1).flatten(),
+    #         bins=bins,
+    #         color=cols[i],
+    #         alpha=0.5,
+    #         label=labels[i],
+    #         edgecolor='None',
+    #     )
+
+    # ax.set_ylabel('Frequency')
+    # ax.set_xlabel('Cumulative Reward')
+    # ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.35), ncol=2, frameon=False)
+
+    # Adjust the plots to be square and the same size
+    for ax in axs.flatten():
+        ax.set_box_aspect(1)
+    
+    plt.savefig('biofilm_vis.pdf', bbox_inches='tight', pad_inches=0.1)
+    plt.show()
+
+paper_plot(data)
 # # Visualise the learning curves
 # reps = 3
 # algorithms = ['SAC', 'DDPG', 'PPO']
@@ -171,3 +276,5 @@ evaluator, data = env.plot_rollout({'SAC':SAC_RSR,}, reps=1, oracle=True, MPC_pa
 # # plt.savefig('cstr_lc.pdf')
 # # plt.show()
 
+
+# %%

@@ -8,8 +8,8 @@ import numpy as np
 from stable_baselines3 import PPO, DDPG, SAC
 
 # Define environment
-T = 600
-nsteps = 100
+T = 1000
+nsteps = 60
 
 
 # Define reward to be equal to the OCP (i.e the same as the oracle)
@@ -20,7 +20,7 @@ def oracle_reward(self,x,u,con):
     for k in self.env_params["SP"]:
         i = self.model.info()["states"].index(k)
         SP = self.SP[k]
-     
+        
         o_space_low = self.env_params["o_space"]["low"][i] 
         o_space_high = self.env_params["o_space"]["high"][i] 
 
@@ -45,11 +45,9 @@ def oracle_reward(self,x,u,con):
         return r
 
 SP = {
-      'h1': [0.125 for i in range(int(nsteps/2))] + [0.125 for i in range(int(nsteps/2))],
-      'h2': [0.25 for i in range(int(nsteps/2))] + [0.25 for i in range(int(nsteps/2))],
-      'h3': [0.6 for i in range(int(nsteps/2))] + [0.1 for i in range(int(nsteps/2))],
-      'h4': [0.25 for i in range(int(nsteps/2))] + [0.25 for i in range(int(nsteps/2))],
-  }
+        'h3': [0.5 for i in range(int(nsteps/2))] + [0.1 for i in range(int(nsteps/2))],
+        'h4': [0.2 for i in range(int(nsteps/2))] + [0.3 for i in range(int(nsteps/2))],
+    }
 
 action_space = {
     'low': np.array([0,0]),
@@ -57,10 +55,10 @@ action_space = {
 }
 
 observation_space = {
-    'low' : np.array([0,]*8),
-    'high' : np.array([0.5]*8)  
+    'low' : np.array([0,]*6),
+    'high' : np.array([0.5]*6)  
 }
-r_scale = {'h1':10,'h2':10,'h3':10,'h4':10,}
+
 
 env_params_4tank = {
     'N': nsteps,
@@ -68,14 +66,13 @@ env_params_4tank = {
     'SP':SP,
     'o_space' : observation_space,
     'a_space' : action_space,
-    'dt': 15,
-    'x0': np.array([0.141, 0.112, 0.072, 0.42,SP['h1'][0],SP['h2'][0],SP['h3'][0],SP['h4'][0]]),
+    'x0': np.array([0.141, 0.112, 0.072, 0.42,SP['h3'][0],SP['h4'][0]]),
     'model': 'four_tank', 
     'normalise_a': True, #Normalise the actions
     'normalise_o':True, #Normalise the states,
     'noise':True, #Add noise to the states
     'noise_percentage':0.001,
-    'r_scale':r_scale,
+    'custom_reward': oracle_reward,
     'integration_method': 'casadi'
 }
 env = make_env(env_params_4tank)
@@ -84,7 +81,7 @@ env = make_env(env_params_4tank)
 
 
 # Global timesteps
-nsteps_train = 1e5
+nsteps_train = 1e4
 training_reps = 3
 for r_i in range(training_reps):
     print(f'Training repition: {r_i+1}')
@@ -98,22 +95,22 @@ for r_i in range(training_reps):
     # Save SAC Policy 
     SAC_4tank.save(f'policies\SAC_4tank_rep_{r_i}.zip')
 
-    # # Train PPO 
-    print('Training using PPO...')
-    log_file = f"learning_curves\PPO_4tank_LC_rep_{r_i}.csv"
-    PPO_4tank =  PPO("MlpPolicy", env, verbose=1, learning_rate=0.001)
-    callback = LearningCurveCallback(log_file=log_file)
-    PPO_4tank.learn(nsteps_train,callback=callback)
+    # # # Train PPO 
+    # print('Training using PPO...')
+    # log_file = f"learning_curves\PPO_4tank_LC_rep_{r_i}.csv"
+    # PPO_4tank =  PPO("MlpPolicy", env, verbose=1, learning_rate=0.001)
+    # callback = LearningCurveCallback(log_file=log_file)
+    # PPO_4tank.learn(nsteps_train,callback=callback)
 
-    # # Save PPO Policy 
-    PPO_4tank.save(f'policies\PPO_4tank_rep_{r_i}.zip')
+    # # # Save PPO Policy 
+    # PPO_4tank.save(f'policies\PPO_4tank_rep_{r_i}.zip')
 
-    # # Train DDPG
-    print('Training using DDPG...')
-    log_file = f'learning_curves\DDPG_4tank_LC_rep_{r_i}.csv'
-    DDPG_4tank =  DDPG("MlpPolicy", env, verbose=1, learning_rate=0.001)
-    callback = LearningCurveCallback(log_file=log_file)
-    DDPG_4tank.learn(nsteps_train,callback=callback)
+    # # # Train DDPG
+    # print('Training using DDPG...')
+    # log_file = f'learning_curves\DDPG_4tank_LC_rep_{r_i}.csv'
+    # DDPG_4tank =  DDPG("MlpPolicy", env, verbose=1, learning_rate=0.001)
+    # callback = LearningCurveCallback(log_file=log_file)
+    # DDPG_4tank.learn(nsteps_train,callback=callback)
 
-    # Save DDPG Policy 
-    DDPG_4tank.save(f'policies\DDPG_4tank_rep_{r_i}.zip')
+    # # Save DDPG Policy 
+    # DDPG_4tank.save(f'policies\DDPG_4tank_rep_{r_i}.zip')
