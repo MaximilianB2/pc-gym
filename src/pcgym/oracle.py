@@ -28,8 +28,6 @@ class oracle:
         else:
             self.u_0 = None  # Initialize u_0 as None when not using delta_u
 
-        self.integral_error = np.zeros(len(self.env_params["SP"]))
-
     def setup_mpc(self) -> tuple[do_mpc.controller.MPC, do_mpc.simulator.Simulator]:
         model_type = 'continuous'
         model = do_mpc.model.Model(model_type)
@@ -53,7 +51,7 @@ class oracle:
             u_full = u
 
         # Set point (as a parameter)
-        SP = model.set_variable(var_type='_p', var_name='SP', shape=(len(self.env_params["SP"]), 1))
+        SP = model.set_variable(var_type='_p', var_name='SP', shape=(self.N, 1))
 
         # System dynamics
         dx_list = self.env.model(x, u_full)
@@ -62,6 +60,7 @@ class oracle:
         except Exception: 
             dx_list_reshaped = [reshape(dx_i, 1, 1) for dx_i in dx_list]
             dx = vertcat(*dx_list_reshaped)
+
         model.set_rhs('x', dx)
 
         # Setup the model   
@@ -96,8 +95,8 @@ class oracle:
         mpc.set_objective(lterm=lterm, mterm=mterm)
         
         # Set r_term for both controlled inputs and disturbances
-        r_term = np.zeros(self.env.Nu)
-        r_term[:self.env.Nu - self.env.Nd_model] = self.R
+        r_term = np.ones(self.env.Nu)
+        r_term[:self.env.Nu - self.env.Nd_model] = self.R * r_term
         if self.use_delta_u:
             r_term_dict = {'delta_u': r_term}
         else:
@@ -118,8 +117,8 @@ class oracle:
             # Upper bound constraint
             mpc.set_nl_cons('u_upper', self.env_params["a_space_act"]["high"] - u[:self.env.Nu - self.env.Nd_model], soft_constraint=True, penalty_term_cons=1e3)
         else:
-            mpc.bounds['lower', '_u', 'u'] = np.concatenate([self.env_params["a_space"]["low"], -np.inf * np.ones(self.env.Nd_model)])
-            mpc.bounds['upper', '_u', 'u'] = np.concatenate([self.env_params["a_space"]["high"], np.inf * np.ones(self.env.Nd_model)])
+            mpc.bounds['lower', '_u', 'u'] = self.env_params["a_space"]["low"]
+            mpc.bounds['upper', '_u', 'u'] = self.env_params["a_space"]["high"]
 
         # User-defined constraints
         if self.env_params.get("constraints") is not None:
@@ -138,14 +137,9 @@ class oracle:
             p_template = mpc.get_p_template(1)
             
             # Set SP (setpoint) values
-            SP_values = []
-            for k in self.env_params["SP"]:
-                sp_array = self.env_params["SP"][k]
-                current_index = min(int(t_now/self.env.dt-1), len(sp_array) - 1)
-                SP_values.append(sp_array[current_index])
-            
-            p_template['_p', 0, 'SP'] = np.array(SP_values).reshape(-1, 1)
-            
+            SP_values = np.array([self.env_params["SP"][k][max(0, min(int(t_now/self.env.dt) - 1, len(self.env_params["SP"][k])-1))] for k in self.env_params["SP"]])
+            p_template['_p', 0, 'SP'] = SP_values.reshape(-1, 1)
+
             # Set u_prev only if delta_u is used
             if self.use_delta_u:
                 p_template['_p', 0, 'u_prev'] = mpc.u0
@@ -165,12 +159,8 @@ class oracle:
             p_template_sim = simulator.get_p_template()
             
             # Set SP (setpoint) values
-            SP_values = []
-            for k in self.env_params["SP"]:
-                sp_array = self.env_params["SP"][k]
-                current_index = min(int(t_now/self.env.dt), len(sp_array) - 1)
-                SP_values.append(sp_array[current_index])
-            p_template_sim['SP'] = np.array(SP_values).reshape(-1, 1)
+            SP_values = np.array([self.env_params["SP"][k][max(0, min(int(t_now/self.env.dt) - 1, len(self.env_params["SP"][k])-1))] for k in self.env_params["SP"]])
+            p_template_sim['SP'] = SP_values.reshape(-1, 1)
             
             # Set disturbances if present
             if self.env_params.get("disturbances") is not None:
@@ -208,9 +198,8 @@ class oracle:
         # Set the initial state
         mpc.x0 = x0
         simulator.x0 = x0
-
-        if self.use_delta_u:
-            mpc.set_initial_guess()
+        mpc.set_initial_guess()
+            
 
         u_log = np.zeros((self.env.Nu, self.env.N))
         x_log = np.zeros((self.env.Nx_oracle, self.env.N))

@@ -7,14 +7,6 @@ from casadi import fmin, fmax
 class BaseModel:
     int_method: str = "jax"
 
-    def apply_uncertainties(self):
-        if hasattr(self, 'uncertainties'):
-            for param, percentage in self.uncertainties.items():
-                initial_value = getattr(self, param)
-                noise = np.random.uniform(-percentage, percentage)
-                new_value = initial_value * (1 + noise)
-                setattr(self, param, new_value)
-
     def info(self) -> dict:
         info = {
             "parameters": self.__dict__.copy(),
@@ -48,10 +40,8 @@ class cstr(BaseModel):
         self.states = ["Ca", "T"]
         self.inputs = ["Tc"]
         self.disturbances = ["Ti", "Caf"]
-        self.uncertainties = {"UA": 0.05, "C": 0.02, "k0": 0.03}  # Example values (in %)
 
     def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
-        self.apply_uncertainties()
         ca, T = x[0], x[1]
         if self.int_method == "jax":
             if u.shape == (1,):

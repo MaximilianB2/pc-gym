@@ -68,8 +68,8 @@ env_params = {
     'normalise_o':True, 
     'noise':True, 
     'integration_method': 'casadi', 
-    'noise_percentage':0.001, 
-    'custom_reward': oracle_reward
+    'noise_percentage':0.001,
+    'custom_reward': oracle_reward 
 }
 
 env = make_env(env_params)
@@ -80,7 +80,7 @@ PPO_cstr = PPO.load('./policies/PPO_CSTR')
 DDPG_cstr = DDPG.load('./policies/DDPG_CSTR')
 
 # Visualise policies with the oracle
-evaluator, data = env.get_rollouts({'SAC':SAC_cstr,'PPO':PPO_cstr,'DDPG':DDPG_cstr}, reps=100, oracle=True, MPC_params={'N': 19, 'R': 3.080281761409522e-10})
+evaluator, data = env.get_rollouts({'SAC':SAC_cstr,'PPO':PPO_cstr,'DDPG':DDPG_cstr}, reps=20, oracle=True, MPC_params={'N':17, 'R':0})
 
 def paper_plot(data):
     # Set up LaTeX rendering
@@ -132,7 +132,7 @@ def paper_plot(data):
                                 alpha=0.2, linewidth=0, color=cols[i])
                 
                 ax.set_ylabel(y_labels[idx])
-                ax.set_xlabel(r'Time (min)')
+                ax.set_xlabel(r'Time [min]')
                 ax.set_xlim(0, 25)
             if idx == 0:
                 ax.step(t, data['SAC']['x'][2,:,0], color='black', linestyle='--')
@@ -143,12 +143,12 @@ def paper_plot(data):
                                 np.min(data[policy]['u'][0,:,:], axis=1),
                                 step="post", alpha=0.2, linewidth=0, color=cols[i])
                 ax.set_ylabel(y_labels[idx])
-                ax.set_xlabel(r'Time (min)')
+                ax.set_xlabel(r'Time [min]')
                 ax.set_xlim(0, 25)
         if idx == 2:
             all_rewards = np.concatenate([data[policy]["r"].sum(axis=1).flatten() for policy in policies])
             min_reward, max_reward = np.min(all_rewards), np.max(all_rewards)
-            bins = np.linspace(min_reward, max_reward, 11)
+            bins = np.linspace(min_reward, max_reward, 21)
 
             for i, policy in enumerate(policies):
                 ax.hist(
