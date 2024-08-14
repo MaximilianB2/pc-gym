@@ -185,6 +185,7 @@ class oracle:
         simulator.set_p_fun(p_fun_sim)
 
         simulator.setup()
+        mpc.set_param(nlpsol_opts={'ipopt.print_level': 0, 'print_time': 0, 'ipopt.sb': 'yes'})
         mpc.setup()
 
         return mpc, simulator
