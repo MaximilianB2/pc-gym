@@ -190,7 +190,7 @@ def test_oracle_constraint_handling(model_name):
     env_params["cons_type"] = {k: [">=", "<="] for k in constraint_configs[model_name].keys()}
     
     env = make_env(env_params)
-    oracle_instance = oracle(env, env_params,)
+    oracle_instance = oracle(env, env_params,MPC_params={'N':2})
     
     x_log, u_log = oracle_instance.mpc()
     

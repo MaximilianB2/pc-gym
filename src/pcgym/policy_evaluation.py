@@ -134,7 +134,7 @@ class policy_eval:
         for i in range(x.shape[1]):
             self.env.t = i
             if self.env.custom_reward:
-                r_opt.append(self.env.custom_reward_f(self.env,x[:,i],u[:,i],0))
+                r_opt.append(self.env.custom_reward_f(self.env, x[:,i], u[:,i], 0))
             else:
                 r_opt.append(self.env.reward_fn(x[:,i], False)) 
         return r_opt

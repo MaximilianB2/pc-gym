@@ -344,10 +344,8 @@ class make_env(gym.Env):
             disturbance_values_state = []
             for i, k in enumerate(self.model.info()["disturbances"]):
                 if k in self.disturbances:
-                    current_disturbance_value = self.disturbances[k][self.t+1]
-                    uk[self.Nu - self.Nd_model + i] = self.disturbances[k][
-                        self.t
-                    ]  # Add disturbance to control vector
+                    current_disturbance_value = self.disturbances[k][self.t]
+                    uk[self.Nu - self.Nd_model + i] = self.disturbances[k][self.t]  # Add disturbance to control vector
                     
                     disturbance_values_state.append(current_disturbance_value)
                     disturbance_values.append(current_disturbance_value)
@@ -395,7 +393,7 @@ class make_env(gym.Env):
         # Update timestep
         self.t += 1
 
-        if self.t == self.N:
+        if self.t == self.N-1:
             self.done = True
 
         # add noise to state
