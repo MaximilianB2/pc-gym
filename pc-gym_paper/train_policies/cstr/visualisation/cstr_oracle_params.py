@@ -72,7 +72,6 @@ env_params = {
     'noise':True, 
     'integration_method': 'casadi', 
     'noise_percentage':0.001, 
-    'custom_reward': oracle_reward
 }
 
 env = make_env(env_params)
@@ -84,24 +83,24 @@ DDPG_cstr = DDPG.load('./policies/DDPG_CSTR')
 def objective(trial):
     # Define the hyperparameters to optimize
     N = trial.suggest_int('N', 5, 40)
-    R = trial.suggest_float('R', 0, 1e-4)
+    R = trial.suggest_float('R', 0, 1e-8)
 
 
-    MPC_params = {'N': N, 'R': R,}
+    MPC_params = {'N': N, 'R': np.eye(1)*R,}
     
     evaluator, data = env.get_rollouts({'SAC':SAC_cstr,}, 
                                         reps=1, oracle=True, MPC_params=MPC_params)
     
     # Calculate performance metric (example: mean absolute error of CA)
-    oracle_CA = data['oracle']['x'][0,:,0]  # Assuming CA is the first state
-    mae = sum((oracle_CA - data['SAC']['x'][2,:,0])**2)  # Comparing to setpoint
     
-    performance = mae 
+    
+    
+    performance =  data['oracle']["r"].sum(axis=1)[0]
     
     return performance
 
 def optimize_parallel(n_trials, n_jobs):
-    study = optuna.create_study(direction='minimize')
+    study = optuna.create_study(direction='maximize')
     
     parallel = Parallel(n_jobs=n_jobs, backend="multiprocessing")
     
@@ -110,7 +109,7 @@ def optimize_parallel(n_trials, n_jobs):
     
     return study
 def optimize_study(storage, n_trials):
-    study = optuna.load_study(storage=storage, study_name="parallel_optimization19")
+    study = optuna.load_study(storage=storage, study_name="parallel_optimization23")
     study.optimize(objective, n_trials=n_trials)
 if __name__ == '__main__':
     n_trials = 300
@@ -121,7 +120,7 @@ if __name__ == '__main__':
         engine_kwargs={"connect_args": {"timeout": 30}}
     )
 
-    study = optuna.create_study(direction='minimize', storage=storage, study_name="parallel_optimization19")
+    study = optuna.create_study(direction='minimize', storage=storage, study_name="parallel_optimization23")
 
     # Run optimization in parallel
     processes = []
@@ -134,7 +133,7 @@ if __name__ == '__main__':
         p.join()
 
     # After all processes are done, load the study results
-    study = optuna.load_study(storage=storage, study_name="parallel_optimization19")
+    study = optuna.load_study(storage=storage, study_name="parallel_optimization23")
 
     # Print the best parameters
     print('Best parameters:')
