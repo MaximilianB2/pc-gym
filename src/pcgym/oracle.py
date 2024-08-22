@@ -82,7 +82,7 @@ class oracle:
         for i, sp_key in enumerate(self.env_params["SP"]):
             state_index = self.model_info["states"].index(sp_key)
             lterm += self.Q[state_index, state_index] * (x[state_index] - SP[i])**2
-        lterm += u.T @ self.R_sym @ u
+        lterm += u_full.T @ self.R_sym @ u_full
     
         mterm = 0
         for i, sp_key in enumerate(self.env_params["SP"]):
@@ -102,8 +102,8 @@ class oracle:
 
         # Constraints
         if self.use_delta_u:
-            mpc.bounds['lower', '_u', 'delta_u'] = np.concatenate([self.env_params["a_space"]["low"], np.zeros(self.env.Nd_model)])
-            mpc.bounds['upper', '_u', 'delta_u'] = np.concatenate([self.env_params["a_space"]["high"], np.zeros(self.env.Nd_model)])
+            mpc.bounds['lower', '_u', 'delta_u'] = np.concatenate([self.env_params["a_space"]["low"]])
+            mpc.bounds['upper', '_u', 'delta_u'] = np.concatenate([self.env_params["a_space"]["high"]])
 
             # Add constraint on u (u_prev + delta_u)
             u = model.p['u_prev'] + model.u['delta_u']
@@ -228,6 +228,10 @@ class oracle:
                 u_log[:, i] = u_full.flatten()
             else:
                 u_log[:, i] = u0.flatten()
+
+            if self.use_delta_u:
+                delta_u_log[:, i] = delta_u0.flatten()
+                u_prev = u0  # Update u_prev for the next iteration
             x_log[:, i] = x0.flatten()
 
         return x_log, u_log

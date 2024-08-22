@@ -16,7 +16,10 @@ nsteps = 60
 def oracle_reward(self,x,u,con):
     Sp_i = 0
     cost = 0 
-    R = 4
+    R = 0.1
+    if not hasattr(self, 'u_prev'):
+        self.u_prev = u
+
     for k in self.env_params["SP"]:
         i = self.model.info()["states"].index(k)
         SP = self.SP[k]
@@ -35,9 +38,13 @@ def oracle_reward(self,x,u,con):
     u_normalized = (u - self.env_params["a_space"]["low"]) / (
         self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
     )
+    u_prev_norm =  (self.u_prev - self.env_params["a_space"]["low"]) / (
+        self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
+    )
+    self.u_prev = u
 
     # Add the control cost
-    cost += R * u_normalized**2
+    cost += np.sum(R * (u_normalized-u_prev_norm)**2)
     r = -cost
     try:
         return r[0]
@@ -50,13 +57,13 @@ SP = {
     }
 
 action_space = {
-    'low': np.array([0,0]),
+    'low': np.array([0.1,0.1]),
     'high':np.array([10,10])
 }
 
 observation_space = {
     'low' : np.array([0,]*6),
-    'high' : np.array([0.5]*6)  
+    'high' : np.array([0.6]*6)  
 }
 
 
@@ -71,7 +78,7 @@ env_params_4tank = {
     'normalise_a': True, #Normalise the actions
     'normalise_o':True, #Normalise the states,
     'noise':True, #Add noise to the states
-    'noise_percentage':0.001,
+    'noise_percentage':0.05,
     'custom_reward': oracle_reward,
     'integration_method': 'casadi'
 }
@@ -81,8 +88,8 @@ env = make_env(env_params_4tank)
 
 
 # Global timesteps
-nsteps_train = 1e4
-training_reps = 3
+nsteps_train = 2.5e4
+training_reps = 1
 for r_i in range(training_reps):
     print(f'Training repition: {r_i+1}')
     # Train SAC 
@@ -95,22 +102,22 @@ for r_i in range(training_reps):
     # Save SAC Policy 
     SAC_4tank.save(f'policies\SAC_4tank_rep_{r_i}.zip')
 
-    # # # Train PPO 
-    # print('Training using PPO...')
-    # log_file = f"learning_curves\PPO_4tank_LC_rep_{r_i}.csv"
-    # PPO_4tank =  PPO("MlpPolicy", env, verbose=1, learning_rate=0.001)
-    # callback = LearningCurveCallback(log_file=log_file)
-    # PPO_4tank.learn(nsteps_train,callback=callback)
+    # # Train PPO 
+    print('Training using PPO...')
+    log_file = f"learning_curves\PPO_4tank_LC_rep_{r_i}.csv"
+    PPO_4tank =  PPO("MlpPolicy", env, verbose=1, learning_rate=0.001)
+    callback = LearningCurveCallback(log_file=log_file)
+    PPO_4tank.learn(nsteps_train,callback=callback)
 
-    # # # Save PPO Policy 
-    # PPO_4tank.save(f'policies\PPO_4tank_rep_{r_i}.zip')
+    # # Save PPO Policy 
+    PPO_4tank.save(f'policies\PPO_4tank_rep_{r_i}.zip')
 
-    # # # Train DDPG
-    # print('Training using DDPG...')
-    # log_file = f'learning_curves\DDPG_4tank_LC_rep_{r_i}.csv'
-    # DDPG_4tank =  DDPG("MlpPolicy", env, verbose=1, learning_rate=0.001)
-    # callback = LearningCurveCallback(log_file=log_file)
-    # DDPG_4tank.learn(nsteps_train,callback=callback)
+    # # Train DDPG
+    print('Training using DDPG...')
+    log_file = f'learning_curves\DDPG_4tank_LC_rep_{r_i}.csv'
+    DDPG_4tank =  DDPG("MlpPolicy", env, verbose=1, learning_rate=0.001)
+    callback = LearningCurveCallback(log_file=log_file)
+    DDPG_4tank.learn(nsteps_train,callback=callback)
 
-    # # Save DDPG Policy 
-    # DDPG_4tank.save(f'policies\DDPG_4tank_rep_{r_i}.zip')
+    # Save DDPG Policy 
+    DDPG_4tank.save(f'policies\DDPG_4tank_rep_{r_i}.zip')

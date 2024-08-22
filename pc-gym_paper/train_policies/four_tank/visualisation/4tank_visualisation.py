@@ -16,7 +16,10 @@ nsteps = 60
 def oracle_reward(self,x,u,con):
     Sp_i = 0
     cost = 0 
-    R = 4
+    R = 0
+    if not hasattr(self, 'u_prev'):
+        self.u_prev = u
+
     for k in self.env_params["SP"]:
         i = self.model.info()["states"].index(k)
         SP = self.SP[k]
@@ -35,23 +38,26 @@ def oracle_reward(self,x,u,con):
     u_normalized = (u - self.env_params["a_space"]["low"]) / (
         self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
     )
+    u_prev_norm =  (self.u_prev - self.env_params["a_space"]["low"]) / (
+        self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
+    )
+    self.u_prev = u
 
     # Add the control cost
-    cost += R * u_normalized**2
+    cost += np.sum(R * (u_normalized-u_prev_norm)**2)
     r = -cost
     try:
         return r[0]
     except Exception:
         return r
-
 SP = {
         'h3': [0.5 for i in range(int(nsteps/2))] + [0.1 for i in range(int(nsteps/2))],
         'h4': [0.2 for i in range(int(nsteps/2))] + [0.3 for i in range(int(nsteps/2))],
     }
 
 action_space = {
-    'low': np.array([0,0]),
-    'high':np.array([10,10])
+    'low': np.array([0.1, 0.1]),
+    'high':np.array([10, 10])
 }
 
 observation_space = {
@@ -72,7 +78,7 @@ env_params_4tank = {
     'normalise_a': True, #Normalise the actions
     'normalise_o':True, #Normalise the states,
     'noise':True, #Add noise to the states
-    'noise_percentage':0.001,
+    'noise_percentage':0.05,
     'custom_reward': oracle_reward,
     'integration_method': 'casadi'
 }
@@ -80,12 +86,15 @@ env = make_env(env_params_4tank)
 
 # Load trained policies
 SAC_4tank = SAC.load('..//policies/SAC_4tank_rep_0')
-# PPO_4tank = PPO.load('./policies/PPO_4tank')
-# DDPG_4tank = DDPG.load('./policies/DDPG_4tank')
+PPO_4tank = PPO.load('..//policies/PPO_4tank_rep_0')
+DDPG_4tank = DDPG.load('..//policies/DDPG_4tank_rep_0')
 
 # Visualise policies with the oracle
 # 'PPO':PPO_4tank,'DDPG':DDPG_4tank
-evaluator, data = env.get_rollouts({'SAC':SAC_4tank,}, reps=1, oracle=True, MPC_params={'N': 19, 'R': 0})
+# evaluator, data = env.get_rollouts({'SAC':SAC_4tank,'PPO':PPO_4tank,'DDPG':DDPG_4tank}, reps=50, oracle=True, MPC_params={'N': 19,})
+# np.save('data.npy', data)
+data = np.load('data.npy', allow_pickle=True).item()
+
 
 def paper_plot(data):
     # Set up LaTeX rendering
@@ -96,7 +105,7 @@ def paper_plot(data):
     rcParams['ytick.labelsize'] = 10
     rcParams['legend.fontsize'] = 10
 
-    t = np.linspace(0, 25, 60)
+    t = np.linspace(0, 1000, 60)
     
     # A4 width in inches
     a4_width_inches = 8.27
@@ -104,51 +113,54 @@ def paper_plot(data):
     # Calculate height to maintain aspect ratio
     height = a4_width_inches * 0.8  # Adjusted for more subplots
     
-    fig, axs = plt.subplots(2, 3, figsize=(a4_width_inches, height))
-    plt.subplots_adjust(wspace=0.3, hspace=0.4, top=0.85, bottom=0.1, left=0.08, right=0.98)
+    fig, axs = plt.subplots(1, 4, figsize=(a4_width_inches, height))
+    plt.subplots_adjust(wspace=0.4, hspace=0.4, top=0.85, bottom=0.1, left=0.08, right=0.98)
 
-    policies = ['oracle', 'SAC',]
-    cols = ['tab:orange', 'tab:red', ]
-    labels = ['Oracle','SAC']
+    policies = ['oracle', 'SAC', 'PPO', 'DDPG']
+    cols = ['tab:orange', 'tab:red', 'tab:blue', 'tab:green', ]
+    labels = ['Oracle','SAC', 'PPO', 'DDPG']
+
 
     # Create lines for the legend
     lines = []
     for i, policy in enumerate(policies):
-        line, = axs[0, 0].plot([], [], color=cols[i], label=labels[i])
+        line, = axs[0].plot([], [], color=cols[i], label=labels[i])
         lines.append(line)
-    ref_line, = axs[0, 0].plot([], [], color='black', linestyle='--',  label='Reference')
+    ref_line, = axs[0].plot([], [], color='black', linestyle='--',  label='Reference')
     lines.append(ref_line)
 
     # Create legend above the plots
-    fig.legend(handles=lines, loc='upper center', bbox_to_anchor=(0.5, 0.98),
+    fig.legend(handles=lines, loc='upper center', bbox_to_anchor=(0.5, 0.65),
                 ncol=5, frameon=False, columnspacing=1)
 
     y_labels = [r'$h_1$ [m]', r'$h_2$ [m]', r'$h_3$ [m]', r'$h_4$ [m]']
     u_labels = [r'$V_1$ [V]', r'$V_2$ [V]']
     
     for idx in range(2):  # Loop for 4 states
-        row, col = idx // 3, idx % 3
-        ax = axs[row, col]
+
+        ax = axs[idx]
         ax.grid(True, linestyle='--', alpha=0.7)
         ax.set_axisbelow(True)
         
         for i, policy in enumerate(policies):
-            ax.plot(t, np.median(data[policy]['x'][idx,:,:], axis=1), color=cols[i], linewidth=1.25)
-            if policy == 'SAC' and idx > 1:
-                    ax.step(t, np.median(data[policy]['x'][idx+2,:,:], axis=1), color='black', linestyle = '--') 
+            ax.plot(t, np.median(data[policy]['x'][idx+2,:,:], axis=1), color=cols[i], linewidth=1.25)
+            if policy == 'SAC' and idx == 0:
+                    ax.step(t, np.median(data[policy]['x'][idx+4,:,:], axis=1), color='black', linestyle = '--')
+            if policy == 'SAC' and idx == 1:
+                ax.step(t, np.median(data[policy]['x'][idx+4,:,:], axis=1), color='black', linestyle = '--') 
             
-            ax.fill_between(t, np.max(data[policy]['x'][idx,:,:], axis=1), 
-                            np.min(data[policy]['x'][idx,:,:], axis=1), 
+            ax.fill_between(t, np.max(data[policy]['x'][idx+2,:,:], axis=1), 
+                            np.min(data[policy]['x'][idx+2,:,:], axis=1), 
                             alpha=0.2, linewidth=0, color=cols[i])
             
         ax.set_ylabel(y_labels[idx])
-        ax.set_xlabel(r'Time (min)')
-        ax.set_xlim(0, 25)
+        ax.set_xlabel(r'Time [s]')
+        ax.set_xlim(0, T)
         
 
     # Plot for 2 controls
     for idx in range(2):
-        ax = axs[1, idx+1]
+        ax = axs[idx+2]
         ax.grid(True, linestyle='--', alpha=0.7)
         ax.set_axisbelow(True)
         
@@ -159,38 +171,76 @@ def paper_plot(data):
                             step="post", alpha=0.2, linewidth=0, color=cols[i])
         
         ax.set_ylabel(u_labels[idx])
-        ax.set_xlabel(r'Time (min)')
-        ax.set_xlim(0, 25)
-
-    # Histogram plot
-    # ax = axs[1, 2]
-    # all_rewards = np.concatenate([data[policy]["r"].sum(axis=1).flatten() for policy in policies])
-    # min_reward, max_reward = np.min(all_rewards), np.max(all_rewards)
-    # bins = np.linspace(min_reward, max_reward, 11)
-
-    # for i, policy in enumerate(policies):
-    #     ax.hist(
-    #         data[policy]["r"].sum(axis=1).flatten(),
-    #         bins=bins,
-    #         color=cols[i],
-    #         alpha=0.5,
-    #         label=labels[i],
-    #         edgecolor='None',
-    #     )
-
-    # ax.set_ylabel('Frequency')
-    # ax.set_xlabel('Cumulative Reward')
-    # ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.35), ncol=2, frameon=False)
-
-    # Adjust the plots to be square and the same size
+        ax.set_xlabel(r'Time [s]')
+        ax.set_xlim(0, T)
     for ax in axs.flatten():
         ax.set_box_aspect(1)
     
     plt.savefig('4tank_vis.pdf', bbox_inches='tight', pad_inches=0.1)
     plt.show()
 
-paper_plot(data)
 
+def paper_r_distribution(data):
+    # Set up LaTeX rendering
+    rcParams['text.usetex'] = True
+    rcParams['font.family'] = 'serif'
+    rcParams['axes.labelsize'] = 10
+    rcParams['xtick.labelsize'] = 10
+    rcParams['ytick.labelsize'] = 10
+    rcParams['legend.fontsize'] = 10
+
+    # A4 width in inches
+    a4_width_inches = 8.27*0.5
+    
+    # Calculate height to maintain aspect ratio
+    height = a4_width_inches   # Adjust this factor as needed
+    
+    fig, ax = plt.subplots(1, 1, figsize=(a4_width_inches, height))
+    plt.subplots_adjust(wspace=0.3, top=0.85, bottom=0.15, left=0.12, right=0.98)
+    policies = ['oracle', 'SAC', 'PPO', 'DDPG']
+    cols = ['tab:orange', 'tab:red', 'tab:blue', 'tab:green']
+    labels = ['Oracle', 'SAC', 'PPO', 'DDPG']
+
+    # Calculate the global min and max across all datasets
+    all_rewards = np.concatenate([data[policy]["r"].sum(axis=1).flatten() for policy in policies])
+    global_min, global_max = np.min(all_rewards), np.max(all_rewards)
+
+    # Create a single set of bins for all datasets
+    num_bins = 20 # Increase this for more granularity
+    bins = np.linspace(global_min, global_max, num_bins)
+
+
+    for i, policy in enumerate(policies):
+        rewards = data[policy]["r"].sum(axis=1).flatten()
+        
+        # Plot histogram
+        n, _, patches = ax.hist(
+            rewards,
+            bins=bins,
+            color=cols[i],
+            alpha=0.5,
+            label=labels[i],
+            edgecolor='None',
+        )
+
+    ax.set_ylabel('Frequency')
+    ax.set_xlabel('Cumulative Reward')
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.18), ncol=2, frameon=False)
+    ax.set_box_aspect(1)
+    
+
+    plt.savefig('4tank_vis_r_dist.pdf', bbox_inches='tight', pad_inches=0.1)
+    plt.show()
+
+
+
+
+oracle_r = np.median(data['oracle']["r"].sum(axis=1).flatten())
+policies = ['SAC', 'PPO', 'DDPG']
+for i, policy in enumerate(policies):
+    print(f'{policy} optimality gap: {oracle_r - np.median(data[policy]["r"].sum(axis=1).flatten())}')
+paper_plot(data)
+paper_r_distribution(data)
 # # Visualise the learning curves
 # reps = 3
 # algorithms = ['SAC', 'DDPG', 'PPO']

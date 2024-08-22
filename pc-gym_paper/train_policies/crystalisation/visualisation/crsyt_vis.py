@@ -16,12 +16,36 @@ nsteps = 30
 # Define reward to be equal to the OCP (i.e the same as the oracle)
 def oracle_reward(self,x,u,con):
 
-    
+    R = 0.01
     SP = self.SP
-    
+    if not hasattr(self, 'u_prev'):
+        self.u_prev = u
+
     CV = (x[2]*x[0]/(x[1]**2) - 1)**0.5
     ln = x[1]/x[0]
-    r = -1*(abs(SP['CV'][self.t] - CV) + abs((SP['Ln'][self.t]-ln)/10))
+
+    o_space_low = self.env_params["o_space"]["low"][[5,6]] 
+    o_space_high = self.env_params["o_space"]["high"][[5,6]] 
+
+    CV_normalized = (CV - o_space_low[0]) / (o_space_high[0] - o_space_low[0])
+    Ln_normalized = (ln - o_space_low[1]) / (o_space_high[1] - o_space_low[1])
+    SP_CV = (SP['CV'][self.t] - o_space_low[0]) / (o_space_high[0] - o_space_low[0])
+    SP_Ln = (SP['Ln'][self.t] - o_space_low[1]) / (o_space_high[1] - o_space_low[1])
+
+    r = -1*((SP_CV - CV_normalized)**2 + (SP_Ln - Ln_normalized)**2)
+
+
+    u_normalized = (u - self.env_params["a_space"]["low"]) / (
+        self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
+    )
+    u_prev_norm =  (self.u_prev - self.env_params["a_space"]["low"]) / (
+        self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
+    )
+
+    r -= np.sum(R * (u_normalized-u_prev_norm)**2)
+    self.u_prev = u
+    print(r)
+    
     return r
 
 SP = {
@@ -71,13 +95,16 @@ env_params_cryst = {
     'a_0':39,
     'a_delta':True,
     'a_space_act':action_space_act,
+    'custom_reward':oracle_reward
 }
 env = make_env(env_params_cryst)
 
 SAC_cryst = SAC.load('./policies/SAC_cryst_rep_0')
-evaluator, data = env.get_rollouts({'SAC':SAC_cryst,}, reps=3, oracle=True, MPC_params={'N':2,'R':0})
+PPO_cryst = PPO.load('./policies/PPO_cryst_rep_0')
+DDPG_cryst = DDPG.load('./policies/DDPG_cryst_rep_0')
+# evaluator, data = env.get_rollouts({'SAC':SAC_cryst, 'PPO':PPO_cryst,'DDPG':DDPG_cryst}, reps=50, oracle=True, MPC_params={'N':2,})
 # np.save('data.npy', data)
-# data = np.load('data.npy', allow_pickle=True).item()
+data = np.load('data.npy', allow_pickle=True).item()
 def paper_plot(data):
     # Set up LaTeX rendering
     rcParams['text.usetex'] = True
@@ -95,11 +122,11 @@ def paper_plot(data):
     # Calculate height to maintain aspect ratio
     height = a4_width_inches * 0.4  # Adjusted for more subplots
     
-    fig, axs = plt.subplots(1, 3, figsize=(a4_width_inches, height))
-    plt.subplots_adjust(wspace=0.5, hspace=0.4, top=0.85, bottom=0.1, left=0.08, right=0.98)
-    policies = ['oracle','SAC']
+    fig, axs = plt.subplots(1, 4, figsize=(a4_width_inches, height))
+    plt.subplots_adjust(wspace=0.35, hspace=0.4, top=0.85, bottom=0.1, left=0.08, right=0.98)
+    policies = ['oracle','SAC' , 'PPO', 'DDPG']
     cols = ['tab:orange', 'tab:red', 'tab:blue', 'tab:green', ]
-    labels = ['Oracle','SAC']
+    labels = ['Oracle','SAC','PPO','DDPG']
 
     # Create lines for the legend
     lines = []
@@ -111,11 +138,11 @@ def paper_plot(data):
     lines.append(ref_line)
 
     # Create legend above the plots
-    fig.legend(handles=lines, loc='upper center', bbox_to_anchor=(0.5, 0.9),
+    fig.legend(handles=lines, loc='upper center', bbox_to_anchor=(0.4, 0.85),
                 ncol=5, frameon=False, columnspacing=1)
 
     y_labels = [r'$CV$', r'$\bar{L}_n$ [$\mu$m]']
-    u_labels = [r'$T_c$ [$^\circ$ C]']
+    u_labels = [r'$T_c$ [$^\circ$C]']
     
     for idx in range(2):
       ax = axs[idx]
@@ -133,7 +160,7 @@ def paper_plot(data):
                           alpha=0.2, linewidth=0, color=cols[i])
           
       ax.set_ylabel(y_labels[idx])
-      ax.set_xlabel(r'Time (hr)')
+      ax.set_xlabel(r'Time [hr]')
       ax.set_xlim(0, T)
         
 
@@ -144,7 +171,7 @@ def paper_plot(data):
     ax.set_axisbelow(True)
     
     for i, policy in enumerate(policies):
-        if policy == 'SAC':
+        if policy in ['SAC', 'PPO', 'DDPG']:
           u_0 = 39  # Initial u value
           delta_u = data[policy]['u'][0,:,:]  # Assuming this contains delta u values
           actual_u = np.cumsum(delta_u, axis=0) + u_0  # Convert to actual u
@@ -160,34 +187,38 @@ def paper_plot(data):
                           step="post", alpha=0.2, linewidth=0, color=cols[i])
       
     ax.set_ylabel(u_labels[0])
-    ax.set_xlabel(r'Time (hr)')
+    ax.set_xlabel(r'Time [hr]')
     ax.set_xlim(0, T)
 
     # Histogram plot
-    # ax = axs[1, 2]
-    # all_rewards = np.concatenate([data[policy]["r"].sum(axis=1).flatten() for policy in policies])
-    # min_reward, max_reward = np.min(all_rewards), np.max(all_rewards)
-    # bins = np.linspace(min_reward, max_reward, 11)
+    ax = axs[3]
+    all_rewards = np.concatenate([data[policy]["r"].sum(axis=1).flatten() for policy in policies])
+    min_reward, max_reward = np.min(all_rewards), np.max(all_rewards)
+    bins = np.linspace(min_reward, max_reward, 25)
 
-    # for i, policy in enumerate(policies):
-    #     ax.hist(
-    #         data[policy]["r"].sum(axis=1).flatten(),
-    #         bins=bins,
-    #         color=cols[i],
-    #         alpha=0.5,
-    #         label=labels[i],
-    #         edgecolor='None',
-    #     )
+    for i, policy in enumerate(policies):
+        ax.hist(
+            data[policy]["r"].sum(axis=1).flatten(),
+            bins=bins,
+            color=cols[i],
+            alpha=0.5,
+            label=labels[i],
+            edgecolor='None',
+        )
 
-    # ax.set_ylabel('Frequency')
-    # ax.set_xlabel('Cumulative Reward')
-    # ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.35), ncol=2, frameon=False)
+    ax.set_ylabel('Frequency')
+    ax.set_xlabel('Cumulative Reward')
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.35), ncol=2, frameon=False)
 
     # Adjust the plots to be square and the same size
     for ax in axs.flatten():
         ax.set_box_aspect(1)
     
-    plt.savefig('biofilm_vis.pdf', bbox_inches='tight', pad_inches=0.1)
+    plt.savefig('cryst_vis.pdf', bbox_inches='tight', pad_inches=0.1)
     plt.show()
-
+data = np.load('data.npy', allow_pickle=True).item()
+oracle_r = np.median(data['oracle']["r"].sum(axis=1).flatten())
+policies = ['SAC', 'PPO', 'DDPG']
+for i, policy in enumerate(policies):
+    print(f'{policy} optimality gap: {oracle_r - np.median(data[policy]["r"].sum(axis=1).flatten())}')
 paper_plot(data)

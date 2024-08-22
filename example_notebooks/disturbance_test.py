@@ -61,5 +61,5 @@ PPO_policy = PPO.load('test_pol')
 
 
 
-evaluator, data = env.plot_rollout({'PPO': PPO_policy}, oracle = True, reps = 1, MPC_params={'N':30,})
+evaluator, data = env.plot_rollout({'PPO': PPO_policy}, oracle = True, reps = 3, MPC_params={'N':2,})
 # print(data['oracle']['x'])

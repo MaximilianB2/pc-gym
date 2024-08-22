@@ -24,36 +24,46 @@ observation_space = {
     'high' : np.array([1,350,0.9])  
 }
 
-r_scale = {'Ca':1e4}
+r_scale = {'Ca':1}
 
 # Define reward to be equal to the OCP (i.e the same as the oracle)
 def oracle_reward(self,x,u,con):
     Sp_i = 0
     cost = 0 
-    R = 0.001
+    R = 0.01
+    if not hasattr(self, 'u_prev'):
+        self.u_prev = u
+
     for k in self.env_params["SP"]:
         i = self.model.info()["states"].index(k)
         SP = self.SP[k]
-
+        
         o_space_low = self.env_params["o_space"]["low"][i] 
         o_space_high = self.env_params["o_space"]["high"][i] 
 
         x_normalized = (x[i] - o_space_low) / (o_space_high - o_space_low)
         setpoint_normalized = (SP - o_space_low) / (o_space_high - o_space_low)
 
-        
+        r_scale = self.env_params.get("r_scale", {})
 
-        cost += (np.sum(np.abs(x_normalized - setpoint_normalized[self.t]))) # Analyse with IAE otherwise too much bias for small errors 
-        
+        cost += (np.sum(x_normalized - setpoint_normalized[self.t]) ** 2) * r_scale.get(k, 1)
+
         Sp_i += 1
     u_normalized = (u - self.env_params["a_space"]["low"]) / (
         self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
     )
+    u_prev_norm =  (self.u_prev - self.env_params["a_space"]["low"]) / (
+        self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
+    )
+    self.u_prev = u
 
     # Add the control cost
-    cost += R * u_normalized**2
+    cost += np.sum(R * (u_normalized-u_prev_norm)**2)
     r = -cost
-    return r
+    try:
+        return r[0]
+    except Exception:
+        return r
 
 env_params = {
     'N': nsteps, 
@@ -80,8 +90,8 @@ PPO_cstr = PPO.load('./policies/PPO_CSTR')
 DDPG_cstr = DDPG.load('./policies/DDPG_CSTR')
 
 # Visualise policies with the oracle
-# evaluator, data = env.get_rollouts({'SAC':SAC_cstr,'PPO':PPO_cstr,'DDPG':DDPG_cstr}, reps=100, oracle=True, MPC_params={'N':17})
-# np.save('data.npy', data)
+evaluator, data = env.get_rollouts({'SAC':SAC_cstr,'PPO':PPO_cstr,'DDPG':DDPG_cstr}, reps=50, oracle=True, MPC_params={'N':17})
+np.save('data.npy', data)
 data = np.load('data.npy', allow_pickle=True).item()
 oracle_r = np.mean(data['oracle']["r"].sum(axis=1).flatten())
 policies = ['SAC', 'PPO', 'DDPG']

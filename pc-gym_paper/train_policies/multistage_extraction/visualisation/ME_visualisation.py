@@ -8,8 +8,45 @@ import matplotlib.pyplot as plt
 from matplotlib import rcParams
 
 # Define environment
-T = 100
+T = 60
 nsteps = 60
+def oracle_reward(self,x,u,con):
+    Sp_i = 0
+    cost = 0 
+    R = 0.1
+    if not hasattr(self, 'u_prev'):
+        self.u_prev = u
+
+    for k in self.env_params["SP"]:
+        i = self.model.info()["states"].index(k)
+        SP = self.SP[k]
+        
+        o_space_low = self.env_params["o_space"]["low"][i] 
+        o_space_high = self.env_params["o_space"]["high"][i] 
+
+        x_normalized = (x[i] - o_space_low) / (o_space_high - o_space_low)
+        setpoint_normalized = (SP - o_space_low) / (o_space_high - o_space_low)
+
+        r_scale = self.env_params.get("r_scale", {})
+
+        cost += (np.sum(x_normalized - setpoint_normalized[self.t]) ** 2) * r_scale.get(k, 1)
+
+        Sp_i += 1
+    u_normalized = (u - self.env_params["a_space"]["low"]) / (
+        self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
+    )
+    u_prev_norm =  (self.u_prev - self.env_params["a_space"]["low"]) / (
+        self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
+    )
+    self.u_prev = u
+
+    # Add the control cost
+    cost += np.sum(R * (u_normalized-u_prev_norm)**2)
+    r = -cost
+    try:
+        return r[0]
+    except Exception:
+        return r
 
 SP = {
     'X5': [0.3 for i in range(int(nsteps/3))] + [0.4 for i in range(int(nsteps/3))]+ [0.3 for i in range(int(nsteps/3))],
@@ -42,8 +79,9 @@ env_params_ms = {
     'normalise_a': True, #Normalise the actions
     'normalise_o':True, #Normalise the states,
     'noise':True, #Add noise to the states
-    'noise_percentage':0.01,
-    'integration_method': 'casadi'
+    'noise_percentage':0.1,
+    'integration_method': 'casadi',
+    'custom_reward': oracle_reward
 }
 env = make_env(env_params_ms)
 
@@ -54,7 +92,13 @@ PPO_cstr = PPO.load('./policies/PPO_ME_rep_0')
 DDPG_cstr = DDPG.load('./policies/DDPG_ME_rep_0')
 
 # Visualise policies with the oracle
-evaluator, data = env.get_rollouts({'SAC':SAC_cstr,'PPO':PPO_cstr,'DDPG':DDPG_cstr}, reps=1, oracle=True, MPC_params={'N':20,'R':0})
+# evaluator, data = env.get_rollouts({'SAC':SAC_cstr,'PPO':PPO_cstr,'DDPG':DDPG_cstr}, reps=50, oracle=True, MPC_params={'N':20})
+# np.save('data.npy', data)
+data = np.load('data.npy', allow_pickle=True).item()
+oracle_r = np.median(data['oracle']["r"].sum(axis=1).flatten())
+policies = ['SAC', 'PPO', 'DDPG']
+for i, policy in enumerate(policies):
+    print(f'{policy} optimality gap: {oracle_r - np.median(data[policy]["r"].sum(axis=1).flatten())}')
 def paper_plot(data):
     # Set up LaTeX rendering
     rcParams['text.usetex'] = True
@@ -90,7 +134,7 @@ def paper_plot(data):
     fig.legend(handles=lines, loc='upper center', bbox_to_anchor=(0.5, 0.82),
                 ncol=5, frameon=False, columnspacing=1)
 
-    y_labels = [r'$X_5$ [kg/m$^3$]', r'$Y_5$ [kg/m$^3$]', ]
+    y_labels = [r'$Y_5$ [kg/m$^3$]', r'$X_5$ [kg/m$^3$]', ]
     u_labels = [r'$L$ [m$^3$/hr]', r'$G$ [m$^3$/hr]']
     
     for idx in range(7,9):  # Loop for 4 states
@@ -156,8 +200,62 @@ def paper_plot(data):
     plt.savefig('ME_vis.pdf', bbox_inches='tight', pad_inches=0.1)
     plt.show()
 
-paper_plot(data)
+def paper_r_distribution(data):
+    # Set up LaTeX rendering
+    rcParams['text.usetex'] = True
+    rcParams['font.family'] = 'serif'
+    rcParams['axes.labelsize'] = 10
+    rcParams['xtick.labelsize'] = 10
+    rcParams['ytick.labelsize'] = 10
+    rcParams['legend.fontsize'] = 10
 
+    # A4 width in inches
+    a4_width_inches = 8.27*0.5
+    
+    # Calculate height to maintain aspect ratio
+    height = a4_width_inches   # Adjust this factor as needed
+    
+    fig, ax = plt.subplots(1, 1, figsize=(a4_width_inches, height))
+    plt.subplots_adjust(wspace=0.3, top=0.85, bottom=0.15, left=0.12, right=0.98)
+    policies = ['oracle', 'SAC', 'PPO', 'DDPG']
+    cols = ['tab:orange', 'tab:red', 'tab:blue', 'tab:green']
+    labels = ['Oracle', 'SAC', 'PPO', 'DDPG']
+
+    # Calculate the global min and max across all datasets
+    all_rewards = np.concatenate([data[policy]["r"].sum(axis=1).flatten() for policy in policies])
+    global_min, global_max = np.min(all_rewards), np.max(all_rewards)
+
+    # Create a single set of bins for all datasets
+    num_bins = 50 # Increase this for more granularity
+    bins = np.linspace(global_min, global_max, num_bins)
+
+
+    for i, policy in enumerate(policies):
+        rewards = data[policy]["r"].sum(axis=1).flatten()
+        
+        # Plot histogram
+        n, _, patches = ax.hist(
+            rewards,
+            bins=bins,
+            color=cols[i],
+            alpha=0.5,
+            label=labels[i],
+            edgecolor='None',
+        )
+
+    ax.set_ylabel('Density')
+    ax.set_xlabel('Cumulative Reward')
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.18), ncol=2, frameon=False)
+    ax.set_box_aspect(1)
+    
+
+    plt.savefig('ME_vis_r_dist.pdf', bbox_inches='tight', pad_inches=0.1)
+    plt.show()
+
+
+
+paper_plot(data)
+paper_r_distribution(data)
 # Visualise the learning curves
 # reps = 3
 # algorithms = ['SAC', 'DDPG', 'PPO']

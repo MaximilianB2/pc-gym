@@ -32,11 +32,14 @@ r_scale = {'Ca':1e3}
 def oracle_reward(self,x,u,con):
     Sp_i = 0
     cost = 0 
-    R = 4
+    R = 0.1
+    if not hasattr(self, 'u_prev'):
+        self.u_prev = u
+
     for k in self.env_params["SP"]:
         i = self.model.info()["states"].index(k)
         SP = self.SP[k]
-     
+        
         o_space_low = self.env_params["o_space"]["low"][i] 
         o_space_high = self.env_params["o_space"]["high"][i] 
 
@@ -51,12 +54,18 @@ def oracle_reward(self,x,u,con):
     u_normalized = (u - self.env_params["a_space"]["low"]) / (
         self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
     )
+    u_prev_norm =  (self.u_prev - self.env_params["a_space"]["low"]) / (
+        self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
+    )
+    self.u_prev = u
 
     # Add the control cost
-    cost += R * u_normalized**2
+    cost += np.sum(R * (u_normalized-u_prev_norm)**2)
     r = -cost
-    return r
-
+    try:
+        return r[0]
+    except Exception:
+        return r
 env_params = {
     'N': nsteps, 
     'tsim':T, 
@@ -77,7 +86,7 @@ env_params = {
 env = make_env(env_params)
 
 # Global timesteps
-nsteps_train = 5e4
+nsteps_train = 2.5e4
 training_reps = 1
 for r_i in range(training_reps):
     print(f'Training repition:{r_i+1}')

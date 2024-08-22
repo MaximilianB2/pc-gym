@@ -10,20 +10,43 @@ import matplotlib.pyplot as plt
 from matplotlib import rcParams
 
 # Define environment
-T = 55
-nsteps = 55
-
+T = 30
+nsteps = 30
 
 # Define reward to be equal to the OCP (i.e the same as the oracle)
 def oracle_reward(self,x,u,con):
 
-    
+    R = 0.01
     SP = self.SP
-    
+    if not hasattr(self, 'u_prev'):
+        self.u_prev = u
+
     CV = (x[2]*x[0]/(x[1]**2) - 1)**0.5
     ln = x[1]/x[0]
-    r = -1*(abs(SP['CV'][self.t] - CV) + abs((SP['Ln'][self.t]-ln)/10))
+
+    o_space_low = self.env_params["o_space"]["low"][[5,6]] 
+    o_space_high = self.env_params["o_space"]["high"][[5,6]] 
+
+    CV_normalized = (CV - o_space_low[0]) / (o_space_high[0] - o_space_low[0])
+    Ln_normalized = (ln - o_space_low[1]) / (o_space_high[1] - o_space_low[1])
+    SP_CV = (SP['CV'][self.t] - o_space_low[0]) / (o_space_high[0] - o_space_low[0])
+    SP_Ln = (SP['Ln'][self.t] - o_space_low[1]) / (o_space_high[1] - o_space_low[1])
+
+    r = -1*((SP_CV - CV_normalized)**2 + (SP_Ln - Ln_normalized)**2)
+
+
+    u_normalized = (u - self.env_params["a_space"]["low"]) / (
+        self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
+    )
+    u_prev_norm =  (self.u_prev - self.env_params["a_space"]["low"]) / (
+        self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
+    )
+
+    r -= np.sum(R * (u_normalized-u_prev_norm)**2)
+    self.u_prev = u
+
     return r
+
 
 SP = {
         'CV': [1 for i in range(int(nsteps))],
@@ -66,17 +89,18 @@ env_params_cryst = {
     'model': 'crystallization', 
     'normalise_a': True, #Normalise the actions
     'normalise_o':True, #Normalise the states,
-    'noise':False, #Add noise to the states
+    'noise':True, #Add noise to the states
     'noise_percentage':0.001,
     'integration_method': 'casadi',
     'a_0':39,
     'a_delta':True,
     'a_space_act':action_space_act,
+    'custom_reward':oracle_reward
 }
 env = make_env(env_params_cryst)
 
 # Global timesteps
-nsteps_train = 0.5e4
+nsteps_train = 2.5e4
 training_reps = 1
 for r_i in range(training_reps):
     print(f'Training repition: {r_i+1}')
@@ -92,21 +116,21 @@ for r_i in range(training_reps):
     SAC_cryst.save(f'policies\SAC_cryst_rep_{r_i}.zip')
     env.plot_rollout({'SAC':SAC_cryst},oracle=False, reps=1)
     # Train PPO 
-    # print('Training using PPO...')
-    # log_file = f"learning_curves\PPO_cryst_LC_rep_{r_i}.csv"
-    # PPO_cryst =  PPO("MlpPolicy", env, verbose=1, learning_rate=0.001)
-    # callback = LearningCurveCallback(log_file=log_file)
-    # PPO_cryst.learn(nsteps_train,callback=callback)
+    print('Training using PPO...')
+    log_file = f"learning_curves\PPO_cryst_LC_rep_{r_i}.csv"
+    PPO_cryst =  PPO("MlpPolicy", env, verbose=1, learning_rate=0.001)
+    callback = LearningCurveCallback(log_file=log_file)
+    PPO_cryst.learn(nsteps_train,callback=callback)
 
-    # # Save PPO Policy 
-    # PPO_cryst.save(f'policies\PPO_cryst_rep_{r_i}.zip')
+    # Save PPO Policy 
+    PPO_cryst.save(f'policies\PPO_cryst_rep_{r_i}.zip')
 
     # Train DDPG
-    # print('Training using DDPG...')
-    # log_file = f'learning_curves\DDPG_cryst_LC_rep_{r_i}.csv'
-    # DDPG_cryst =  DDPG("MlpPolicy", env, verbose=1, learning_rate=0.001)
-    # callback = LearningCurveCallback(log_file=log_file)
-    # DDPG_cryst.learn(nsteps_train,callback=callback)
+    print('Training using DDPG...')
+    log_file = f'learning_curves\DDPG_cryst_LC_rep_{r_i}.csv'
+    DDPG_cryst =  DDPG("MlpPolicy", env, verbose=1, learning_rate=0.001)
+    callback = LearningCurveCallback(log_file=log_file)
+    DDPG_cryst.learn(nsteps_train,callback=callback)
 
     # Save DDPG Policy 
-    # DDPG_cryst.save(f'policies\DDPG_cryst_rep_{r_i}.zip')
+    DDPG_cryst.save(f'policies\DDPG_cryst_rep_{r_i}.zip')
