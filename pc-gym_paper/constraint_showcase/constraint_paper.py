@@ -1,7 +1,7 @@
 import sys
 sys.path.append("..\..\src\pcgym") # Add local pc-gym files to path.
 import numpy as np
-from stable_baselines3 import SAC
+from stable_baselines3 import SAC, DDPG
 from pcgym import make_env
 
 
@@ -23,7 +23,7 @@ observation_space = {
     'high' : np.array([1,350,0.9])  
 }
 
-r_scale = {'Ca':1e3}
+r_scale = {'Ca':1}
 
 
 # Define reward to be equal to the OCP (i.e the same as the oracle)
@@ -83,7 +83,7 @@ def oracle_reward(self, x, u, con = False):
             elif cons_type[k][1] == '>=' and x_normalized < lower_normalized:
                 constraint_violation += (lower_normalized - x_normalized) ** 2
         # Add the normalized constraint violation to the cost
-        cost += constraint_violation*500
+        cost += constraint_violation
 
     r = -cost
     
@@ -129,19 +129,19 @@ env_params.pop('cons_type')
 
 env = make_env(env_params)
 
-# SAC_constraint = SAC("MlpPolicy", env_con, verbose=1, learning_rate=0.01).learn(1e4)
-SAC_norm = SAC("MlpPolicy", env, verbose=1, learning_rate=0.01).learn(1e4)
+DDPG_constraint = DDPG("MlpPolicy", env_con, verbose=1, learning_rate=0.001).learn(2.5e4)
+DDPG_norm = DDPG("MlpPolicy", env, verbose=1, learning_rate=0.001).learn(2.5e4)
 
 
-# SAC_constraint.save('SAC_constraint.zip')
-SAC_norm.save('SAC_norm.zip')
+DDPG_constraint.save('DDPG_constraint.zip')
+DDPG_norm.save('DDPG_norm.zip')
 
-SAC_constraint = SAC.load('SAC_constraint.zip')
-SAC_norm = SAC.load('SAC_norm.zip')
-_, con_data = env_con.get_rollouts({'SAC':SAC_constraint,}, reps=50, oracle=True, MPC_params={'N':20,})
+DDPG_constraint = DDPG.load('DDPG_constraint.zip')
+DDPG_norm = DDPG.load('DDPG_norm.zip')
+_, con_data = env_con.get_rollouts({'DDPG':DDPG_constraint,}, reps=50, oracle=True, MPC_params={'N':20,})
 
 np.save('constraint_rollout_data.npy', con_data, allow_pickle=True)
 
-_, norm_data = env_con.get_rollouts({'SAC':SAC_norm,}, reps=50)
+_, norm_data = env_con.get_rollouts({'DDPG':DDPG_norm,}, reps=50)
 
 np.save('norm_rollout_data.npy', norm_data, allow_pickle=True)

@@ -11,16 +11,20 @@ norm_data = np.load('norm_rollout_data.npy', allow_pickle=True).item()
 cons_data = np.load('constraint_rollout_data.npy', allow_pickle=True).item()
 
 
-norm_x = norm_data['SAC']['x']
-norm_u = norm_data['SAC']['u']
+norm_x = norm_data['DDPG']['x']
+norm_u = norm_data['DDPG']['u']
 
-cons_x = cons_data['SAC']['x']
-cons_u = cons_data['SAC']['u']
+cons_x = cons_data['DDPG']['x']
+cons_u = cons_data['DDPG']['u']
 
 oracle_cons_x = cons_data['oracle']['x']
 oracle_cons_u = cons_data['oracle']['u']
 
 
+oracle_r = np.median(cons_data['oracle']["r"].sum(axis=1).flatten())
+policies = ['DDPG']
+for i, policy in enumerate(policies):
+    print(f'{policy} optimality gap: {oracle_r - np.median(cons_data[policy]["r"].sum(axis=1).flatten())}')
 def cstr_comparison_plot(norm_data, cons_data, cons, cons_type):
     # Set up LaTeX rendering
     rcParams['text.usetex'] = True
@@ -66,14 +70,14 @@ def cstr_comparison_plot(norm_data, cons_data, cons, cons_type):
         ax.set_axisbelow(True)
         
         if idx < 2:  # For Ca and T plots
-            ax.plot(t, np.median(norm_data['SAC']['x'][idx,:,:], axis=1), color=cols[0], linewidth=1.25)
-            ax.fill_between(t, np.max(norm_data['SAC']['x'][idx,:,:], axis=1), 
-                            np.min(norm_data['SAC']['x'][idx,:,:], axis=1), 
+            ax.plot(t, np.median(norm_data['DDPG']['x'][idx,:,:], axis=1), color=cols[0], linewidth=1.25)
+            ax.fill_between(t, np.max(norm_data['DDPG']['x'][idx,:,:], axis=1), 
+                            np.min(norm_data['DDPG']['x'][idx,:,:], axis=1), 
                             alpha=0.2, linewidth=0, color=cols[0])
             
-            ax.plot(t, np.median(cons_data['SAC']['x'][idx,:,:], axis=1), color=cols[1], linewidth=1.25)
-            ax.fill_between(t, np.max(cons_data['SAC']['x'][idx,:,:], axis=1), 
-                            np.min(cons_data['SAC']['x'][idx,:,:], axis=1), 
+            ax.plot(t, np.median(cons_data['DDPG']['x'][idx,:,:], axis=1), color=cols[1], linewidth=1.25)
+            ax.fill_between(t, np.max(cons_data['DDPG']['x'][idx,:,:], axis=1), 
+                            np.min(cons_data['DDPG']['x'][idx,:,:], axis=1), 
                             alpha=0.2, linewidth=0, color=cols[1])
             
             ax.plot(t, np.median(cons_data['oracle']['x'][idx,:,:], axis=1), color=cols[2], linewidth=1.25)
@@ -87,7 +91,7 @@ def cstr_comparison_plot(norm_data, cons_data, cons, cons_type):
             
             
             if idx == 0:
-                ax.step(t, cons_data['SAC']['x'][2,:,0], color='black', linestyle='--')
+                ax.step(t, cons_data['DDPG']['x'][2,:,0], color='black', linestyle='--')
             
             # Add constraint visualization for temperature plot
             if idx == 1:  # Temperature plot
@@ -100,14 +104,14 @@ def cstr_comparison_plot(norm_data, cons_data, cons, cons_type):
                         ax.fill_between(t, ax.get_ylim()[0], constraint_value, alpha=0.1, color='red')
         
         elif idx == 2:  # For Tc plot
-            ax.step(t, np.median(norm_data['SAC']['u'][0,:,:], axis=1), color=cols[0], where='post', linewidth=1.25)
-            ax.fill_between(t, np.max(norm_data['SAC']['u'][0,:,:], axis=1), 
-                            np.min(norm_data['SAC']['u'][0,:,:], axis=1),
+            ax.step(t, np.median(norm_data['DDPG']['u'][0,:,:], axis=1), color=cols[0], where='post', linewidth=1.25)
+            ax.fill_between(t, np.max(norm_data['DDPG']['u'][0,:,:], axis=1), 
+                            np.min(norm_data['DDPG']['u'][0,:,:], axis=1),
                             step="post", alpha=0.2, linewidth=0, color=cols[0])
             
-            ax.step(t, np.median(cons_data['SAC']['u'][0,:,:], axis=1), color=cols[1], where='post', linewidth=1.25)
-            ax.fill_between(t, np.max(cons_data['SAC']['u'][0,:,:], axis=1), 
-                            np.min(cons_data['SAC']['u'][0,:,:], axis=1),
+            ax.step(t, np.median(cons_data['DDPG']['u'][0,:,:], axis=1), color=cols[1], where='post', linewidth=1.25)
+            ax.fill_between(t, np.max(cons_data['DDPG']['u'][0,:,:], axis=1), 
+                            np.min(cons_data['DDPG']['u'][0,:,:], axis=1),
                             step="post", alpha=0.2, linewidth=0, color=cols[1])
             
             ax.step(t, np.median(cons_data['oracle']['u'][0,:,:], axis=1), color=cols[2], where='post', linewidth=1.25)
@@ -138,15 +142,15 @@ def calculate_violation_metric(data, cons):
         violations = (x > cons['T'][0]) | (x < cons['T'][1])
         return np.mean(violations)
 
-    N = data['SAC']['x'].shape[2]  # Number of time steps
+    N = data['DDPG']['x'].shape[2]  # Number of time steps
     
     metrics = {}
     
     # Normal policy (from norm_data)
-    metrics['Normal'] = violation_rate(data['SAC']['x'][1, :, :])
+    metrics['Normal'] = violation_rate(data['DDPG']['x'][1, :, :])
     
-    # Constrained policy (from cons_data['SAC'])
-    metrics['Constrained'] = violation_rate(data['SAC']['x'][1, :, :])
+    # Constrained policy (from cons_data['DDPG'])
+    metrics['Constrained'] = violation_rate(data['DDPG']['x'][1, :, :])
     
     # Oracle policy (from cons_data['oracle'])
     try:
