@@ -97,8 +97,19 @@ DDPG_cstr = DDPG.load('./policies/DDPG_ME_rep_0')
 data = np.load('data.npy', allow_pickle=True).item()
 oracle_r = np.median(data['oracle']["r"].sum(axis=1).flatten())
 policies = ['SAC', 'PPO', 'DDPG']
-for i, policy in enumerate(policies):
-    print(f'{policy} optimality gap: {oracle_r - np.median(data[policy]["r"].sum(axis=1).flatten())}')
+
+# Calculate normalized optimality gap and MAD
+for policy in policies:
+    rewards = data[policy]["r"].sum(axis=1).flatten()
+    rewards = np.median(rewards)
+    print(policy,oracle_r, rewards)
+    normalized_gap = (oracle_r - rewards) / oracle_r
+
+    mad = np.median(np.abs( np.median(data[policy]["r"].sum(axis=1).flatten()) - data[policy]["r"].sum(axis=1).flatten()))
+    
+    print(f'{policy}:')
+    print(f'  Normalized Optimality Gap: {normalized_gap:.4f}')
+    print(f'  Median Absolute Deviation (MAD): {mad}')
 def paper_plot(data):
     # Set up LaTeX rendering
     rcParams['text.usetex'] = True
@@ -217,9 +228,9 @@ def paper_r_distribution(data):
     
     fig, ax = plt.subplots(1, 1, figsize=(a4_width_inches, height))
     plt.subplots_adjust(wspace=0.3, top=0.85, bottom=0.15, left=0.12, right=0.98)
-    policies = ['oracle', 'SAC', 'PPO', 'DDPG']
-    cols = ['tab:orange', 'tab:red', 'tab:blue', 'tab:green']
-    labels = ['Oracle', 'SAC', 'PPO', 'DDPG']
+    policies = ['SAC', 'PPO', 'DDPG']
+    cols = ['tab:red', 'tab:blue', 'tab:green']
+    labels = ['SAC', 'PPO', 'DDPG']
 
     # Calculate the global min and max across all datasets
     all_rewards = np.concatenate([data[policy]["r"].sum(axis=1).flatten() for policy in policies])
@@ -228,7 +239,6 @@ def paper_r_distribution(data):
     # Create a single set of bins for all datasets
     num_bins = 50 # Increase this for more granularity
     bins = np.linspace(global_min, global_max, num_bins)
-
 
     for i, policy in enumerate(policies):
         rewards = data[policy]["r"].sum(axis=1).flatten()
@@ -243,11 +253,14 @@ def paper_r_distribution(data):
             edgecolor='None',
         )
 
+    # Add vertical line for oracle
+    oracle_reward = np.median(data['oracle']["r"].sum(axis=1).flatten())
+    ax.axvline(x=oracle_reward, color='tab:orange', linestyle='--', linewidth=2, label='Oracle')
+
     ax.set_ylabel('Density')
     ax.set_xlabel('Cumulative Reward')
     ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.18), ncol=2, frameon=False)
     ax.set_box_aspect(1)
-    
 
     plt.savefig('ME_vis_r_dist.pdf', bbox_inches='tight', pad_inches=0.1)
     plt.show()

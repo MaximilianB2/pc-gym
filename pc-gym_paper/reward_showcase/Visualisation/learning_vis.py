@@ -27,22 +27,23 @@ def paper_plot(data_DDPG_square, data_DDPG_sparse, data_DDPG_abs):
     a4_width_inches = 8.27
     
     # Calculate height to maintain aspect ratio
-    height = a4_width_inches * 0.4  # Adjust this factor as needed
+    height = a4_width_inches * 0.8  # Increased height for three subplots
     
-    fig, ax = plt.subplots(figsize=(a4_width_inches, height))
-    plt.subplots_adjust(top=0.85, bottom=0.15, left=0.08, right=0.98)
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(a4_width_inches, height), sharex=True)
+    plt.subplots_adjust(top=0.92, bottom=0.08, left=0.08, right=0.98, hspace=0.2)
 
     alphas = np.linspace(0.1, 1, 30)
     colors = ['tab:blue', 'tab:red', 'tab:green']
     labels = ['Square error', 'Sparse reward', 'Absolute error']
     data_sets = [data_DDPG_square, data_DDPG_sparse, data_DDPG_abs]
+    axes = [ax1, ax2, ax3]
 
     # Create lines for the legend
     lines = []
     for i, label in enumerate(labels):
-        line, = ax.plot([], [], color=colors[i], label=label)
+        line, = ax1.plot([], [], color=colors[i], label=label)
         lines.append(line)
-    ref_line, = ax.plot([], [], color='black', linestyle='--', label='Reference')
+    ref_line, = ax1.plot([], [], color='black', linestyle='--', label='Reference')
     lines.append(ref_line)
 
     # Create legend above the plot
@@ -52,18 +53,19 @@ def paper_plot(data_DDPG_square, data_DDPG_sparse, data_DDPG_abs):
     for i, alpha in enumerate(alphas):
         iterations = (i + 1) * 500
         if i % 2 == 0 or i == 29:
-            for j, data in enumerate(data_sets):
+            for j, (data, ax) in enumerate(zip(data_sets, axes)):
                 ax.plot(t, data[i]['pol_i']['x'][0,:,0], color=colors[j], alpha=alpha)
 
-    ax.step(t, data_DDPG_abs[0]['pol_i']['x'][2,:,0], '--', color='black')
-    
-    ax.set_xlabel(r'Time [min]')
-    ax.set_ylabel(r'$C_A$ [mol/m$^3$]')
-    ax.set_xlim(0, 25)
-    ax.grid(True, linestyle='--', alpha=0.7)
-    ax.set_axisbelow(True)
+    for ax in axes:
+        ax.step(t, data_DDPG_abs[0]['pol_i']['x'][2,:,0], '--', color='black')
+        ax.grid(True, linestyle='--', alpha=0.7)
+        ax.set_axisbelow(True)
+        ax.set_ylabel(r'$C_A$ [mol/m$^3$]')
+        ax.set_xlim(0, 25)
 
-    plt.savefig('r_showcase_learning.pdf', bbox_inches='tight', pad_inches=0.1)
+    ax3.set_xlabel(r'Time [min]')
+
+    plt.savefig('r_showcase_learning_split.pdf', bbox_inches='tight', pad_inches=0.1)
     plt.show()
 
 paper_plot(data_DDPG_square, data_DDPG_sparse, data_DDPG_abs)

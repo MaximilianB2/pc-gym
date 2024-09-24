@@ -196,7 +196,7 @@ def paper_plot(data):
     min_reward, max_reward = np.min(all_rewards), np.max(all_rewards)
     bins = np.linspace(min_reward, max_reward, 25)
 
-    for i, policy in enumerate(policies):
+    for i, policy in enumerate(policies[1:], start=1):  # Start from 1 to skip oracle
         ax.hist(
             data[policy]["r"].sum(axis=1).flatten(),
             bins=bins,
@@ -205,6 +205,10 @@ def paper_plot(data):
             label=labels[i],
             edgecolor='None',
         )
+
+    # Add vertical line for oracle
+    oracle_reward = np.median(data['oracle']["r"].sum(axis=1).flatten())
+    ax.axvline(x=oracle_reward, color=cols[0], linestyle='--', linewidth=2, label='Oracle')
 
     ax.set_ylabel('Frequency')
     ax.set_xlabel('Cumulative Reward')
@@ -219,6 +223,15 @@ def paper_plot(data):
 data = np.load('data.npy', allow_pickle=True).item()
 oracle_r = np.median(data['oracle']["r"].sum(axis=1).flatten())
 policies = ['SAC', 'PPO', 'DDPG']
-for i, policy in enumerate(policies):
-    print(f'{policy} optimality gap: {oracle_r - np.median(data[policy]["r"].sum(axis=1).flatten())}')
+for policy in policies:
+    rewards = data[policy]["r"].sum(axis=1).flatten()
+    rewards = np.median(rewards)
+    print(policy,oracle_r, rewards)
+    normalized_gap = (oracle_r - rewards) / abs(oracle_r)
+
+    mad = np.median(np.abs( np.median(data[policy]["r"].sum(axis=1).flatten()) - data[policy]["r"].sum(axis=1).flatten()))
+    
+    print(f'{policy}:')
+    print(f'  Normalized Optimality Gap: {normalized_gap:.4f}')
+    print(f'  Median Absolute Deviation (MAD): {mad}')
 paper_plot(data)

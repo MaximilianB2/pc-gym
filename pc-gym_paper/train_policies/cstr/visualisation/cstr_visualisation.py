@@ -95,8 +95,9 @@ np.save('data.npy', data)
 data = np.load('data.npy', allow_pickle=True).item()
 oracle_r = np.mean(data['oracle']["r"].sum(axis=1).flatten())
 policies = ['SAC', 'PPO', 'DDPG']
+print(oracle_r)
 for i, policy in enumerate(policies):
-    print(f'{policy} optimality gap: {oracle_r - np.mean(data[policy]["r"].sum(axis=1).flatten())}')
+    print(f'{policy} optimality gap: {(abs(oracle_r - np.mean(data[policy]["r"].sum(axis=1).flatten()))) / abs(oracle_r)}')
 
 def paper_plot(data):
     # Set up LaTeX rendering
@@ -119,8 +120,8 @@ def paper_plot(data):
     plt.subplots_adjust(wspace=0.3, top=0.85, bottom=0.15, left=0.08, right=0.98)
 
     policies = ['oracle', 'SAC', 'PPO', 'DDPG']
-    cols = ['tab:orange', 'tab:red', 'tab:blue', 'tab:green', ]
-    labels = ['Oracle','SAC', 'PPO', 'DDPG']
+    cols = ['tab:orange', 'tab:red', 'tab:blue', 'tab:green']
+    labels = ['Oracle', 'SAC', 'PPO', 'DDPG']
 
     # Create lines for the legend
     lines = []
@@ -162,11 +163,28 @@ def paper_plot(data):
                 ax.set_xlabel(r'Time [min]')
                 ax.set_xlim(0, 25)
         if idx == 2:
+            # Calculate oracle reward
+            oracle_reward = np.median(data['oracle']["r"].sum(axis=1))
+            
+            # Calculate normalized optimality gap for each policy (for statistics only)
+            normalized_gaps = {}
+            for policy in policies[1:]:  # Exclude oracle
+                gaps = (oracle_reward - data[policy]["r"].sum(axis=1)) / oracle_reward
+                normalized_gaps[policy] = gaps.flatten()
+            
+            # Calculate median absolute deviation and median normalized optimality gap
+            mad = {}
+            for policy in policies[1:]:
+                mad[policy] = np.median(np.abs(data[policy]['r'].sum(axis=1) - np.median(data[policy]['r'].sum(axis=1))))
+                print(f"{policy}:")
+                print(f"  Median Absolute Deviation (MAD): {mad[policy]:.4f}")
+            
+            # Plot histograms using non-normalized reward values
             all_rewards = np.concatenate([data[policy]["r"].sum(axis=1).flatten() for policy in policies])
             min_reward, max_reward = np.min(all_rewards), np.max(all_rewards)
             bins = np.linspace(min_reward, max_reward, 21)
 
-            for i, policy in enumerate(policies):
+            for i, policy in enumerate(policies[1:], start=1):
                 ax.hist(
                     data[policy]["r"].sum(axis=1).flatten(),
                     bins=bins,
@@ -175,10 +193,12 @@ def paper_plot(data):
                     label=labels[i],
                     edgecolor='None',
                 )
-
+            ax.axvline(x=oracle_reward, color=cols[0], linestyle='--', linewidth=2, label='Oracle')
             ax.set_ylabel('Frequency')
             ax.set_xlabel('Cumulative Reward')
-            ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.23), ncol=2, frameon=False)
+            
+            ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.25), ncol=2, frameon=False)
+    
     # Adjust the plots to be square and the same size
     for ax in axs:
         ax.set_box_aspect(1)
@@ -187,6 +207,7 @@ def paper_plot(data):
     plt.show()
 
 paper_plot(data)
+
 
 
 

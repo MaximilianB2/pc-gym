@@ -209,19 +209,22 @@ def paper_r_distribution(data):
     num_bins = 20 # Increase this for more granularity
     bins = np.linspace(global_min, global_max, num_bins)
 
+    for i, policy in enumerate(policies[1:], start=1):
+            rewards = data[policy]["r"].sum(axis=1).flatten()
+            
+            # Plot histogram
+            n, _, patches = ax.hist(
+                rewards,
+                bins=bins,
+                color=cols[i],
+                alpha=0.5,
+                label=labels[i],
+                edgecolor='None',
+            )
 
-    for i, policy in enumerate(policies):
-        rewards = data[policy]["r"].sum(axis=1).flatten()
-        
-        # Plot histogram
-        n, _, patches = ax.hist(
-            rewards,
-            bins=bins,
-            color=cols[i],
-            alpha=0.5,
-            label=labels[i],
-            edgecolor='None',
-        )
+    # Add vertical line for oracle
+    oracle_reward = np.median(data['oracle']["r"].sum(axis=1).flatten())
+    ax.axvline(x=oracle_reward, color='tab:orange', linestyle='--', linewidth=2, label='Oracle')
 
     ax.set_ylabel('Frequency')
     ax.set_xlabel('Cumulative Reward')
@@ -237,8 +240,17 @@ def paper_r_distribution(data):
 
 oracle_r = np.median(data['oracle']["r"].sum(axis=1).flatten())
 policies = ['SAC', 'PPO', 'DDPG']
-for i, policy in enumerate(policies):
-    print(f'{policy} optimality gap: {oracle_r - np.median(data[policy]["r"].sum(axis=1).flatten())}')
+for policy in policies:
+    rewards = data[policy]["r"].sum(axis=1).flatten()
+    rewards = np.median(rewards)
+    print(policy,oracle_r, rewards)
+    normalized_gap = (oracle_r - rewards) / abs(oracle_r)
+
+    mad = np.median(np.abs( np.median(data[policy]["r"].sum(axis=1).flatten()) - data[policy]["r"].sum(axis=1).flatten()))
+    
+    print(f'{policy}:')
+    print(f'  Normalized Optimality Gap: {normalized_gap:.4f}')
+    print(f'  Median Absolute Deviation (MAD): {mad}')
 paper_plot(data)
 paper_r_distribution(data)
 # # Visualise the learning curves
