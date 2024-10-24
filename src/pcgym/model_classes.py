@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import jax.numpy as jnp
 import numpy as np
-
+import math
 
 # Store the model and its parameters as dataclasses
 # frozen: makes the objets immutable after creation
