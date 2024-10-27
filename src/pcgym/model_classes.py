@@ -1299,7 +1299,7 @@ class FOWM(BaseModel):
         else:
             return self._compute_casadi(x, u)
 
-    def _compute_jax(self, x, u):
+    def _compute_jax(self, x: jnp.ndarray, u: jnp.ndarray) -> jnp.ndarray:
         # Use JAX-compatible calculations
         # States
         m_Ga, m_Gt, m_Lt, m_Gb, m_Gr, m_Lr = x
@@ -1341,27 +1341,32 @@ class FOWM(BaseModel):
         dx5 = Wr * self.ALFAgw + Wiv - Wwhg
         dx6 = Wr * (1 - self.ALFAgw) - Wwhl
     
-        dxdt = np.array([dx1, dx2, dx3, dx4, dx5, dx6])
+        dxdt = jnp.array([dx1, dx2, dx3, dx4, dx5, dx6])
     
         return dxdt
 
-    def _compute_casadi(self, x, u):
-        # Use CASADI-compatible calculations
+    def _compute_casadi(self, x: MX, u: MX) -> MX:
         # States
-        m_Ga, m_Gt, m_Lt, m_Gb, m_Gr, m_Lr = x
+        m_Ga = x[0]
+        m_Gt = x[1]
+        m_Lt = x[2]
+        m_Gb = x[3]
+        m_Gr = x[4]
+        m_Lr = x[5]
     
         # Inputs
-        z, Wgc = u
+        z = u[0]
+        Wgc = u[1]
     
         Peb = m_Ga * self.R * self.T / (self.M * self.Veb)
         Prt = m_Gt * self.R * self.T / (self.M * (self.Vr - (m_Lt + self.mlstill) / self.Rol))
-        Prb = Prt + (m_Lt + self.mlstill) * self.g * math.sin(self.teta) / self.A
+        Prb = Prt + (m_Lt + self.mlstill) * self.g * casadi.sin(self.teta) / self.A
         ALFAg = m_Gt / (m_Gt + m_Lt)
         ALFAl = 1 - ALFAg
-        Wout = self.Cout * z * math.sqrt(self.Rol * ((Prt - self.Ps) + math.sqrt((Prt - self.Ps) ** 2 + self.epsi))) * (1 / 2)
+        Wout = self.Cout * z * sqrt(self.Rol * ((Prt - self.Ps) + sqrt((Prt - self.Ps)**2 + self.epsi))) * 0.5
         Wlout = ALFAl * Wout
         Wgout = ALFAg * Wout
-        Wg = self.Cg * ((Peb - Prb) + math.sqrt((Peb - Prb) ** 2 + self.epsi)) * (1 / 2)
+        Wg = self.Cg * ((Peb - Prb) + sqrt((Peb - Prb)**2 + self.epsi)) * 0.5
     
         Vgt = self.Vt - m_Lr / self.Rol
         ROgt = m_Gr / Vgt
@@ -1371,23 +1376,23 @@ class FOWM(BaseModel):
         Ppdg = Ptb + self.Romres * self.g * (self.Hpdg - self.Hvgl)
         Pbh = Ppdg + self.Romres * self.g * (self.Ht - self.Hpdg)
         ALFAgt = m_Gr / (m_Lr + m_Gr)
-        Wwh = self.Kw * math.sqrt(self.Rol * ((Ptt - Prb) + math.sqrt((Ptt - Prb) ** 2 + self.epsi))) * (1 / 2)
+        Wwh = self.Kw * sqrt(self.Rol * ((Ptt - Prb) + sqrt((Ptt - Prb)**2 + self.epsi))) * 0.5
         Wwhg = Wwh * ALFAgt
         Wwhl = Wwh * (1 - ALFAgt)
-        Wr = self.Kr * (1 - 0.2 * Pbh / self.Pr - 0.8 * (Pbh / self.Pr) ** 2)
+        Wr = self.Kr * (1 - 0.2 * Pbh / self.Pr - 0.8 * (Pbh / self.Pr)**2)
     
         Pai = ((self.R * self.T / (self.Va * self.M)) + (self.g * self.La / self.Va)) * m_Gb
         ROai = self.M * Pai / (self.R * self.T)
-        Wiv = self.Ka * math.sqrt(ROai * ((Pai - Ptb) + math.sqrt((Pai - Ptb) ** 2 + self.epsi))) * (1 / 2)
+        Wiv = self.Ka * sqrt(ROai * ((Pai - Ptb) + sqrt((Pai - Ptb)**2 + self.epsi))) * 0.5
     
-        dx1 = (1 - self.E) * (Wwhg) - Wg
-        dx2 = self.E * (Wwhg) + Wg - Wgout
+        dx1 = (1 - self.E) * Wwhg - Wg
+        dx2 = self.E * Wwhg + Wg - Wgout
         dx3 = Wwhl - Wlout
         dx4 = Wgc - Wiv
         dx5 = Wr * self.ALFAgw + Wiv - Wwhg
         dx6 = Wr * (1 - self.ALFAgw) - Wwhl
     
-        dxdt = np.array([dx1, dx2, dx3, dx4, dx5, dx6])
+        dxdt = [dx1, dx2, dx3, dx4, dx5, dx6]
     
         return dxdt
 
