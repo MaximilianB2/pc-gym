@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import jax.numpy as jnp
 import numpy as np
 from casadi import fmin, fmax
