@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import jax.numpy as jnp
 import numpy as np
 from casadi import fmin, fmax
+import math
 
 @dataclass(frozen=False, kw_only=True)
 class BaseModel:
