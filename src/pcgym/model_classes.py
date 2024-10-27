@@ -1223,7 +1223,7 @@ class FOWM(BaseModel):
     states: list = field(init=False)
     inputs: list = field(init=False)
     disturbances: list = field(init=False)
-
+    uncertainties: dict = None
     reference: str = "Rodrigues"
 
     def __post_init__(self):
