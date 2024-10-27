@@ -1224,6 +1224,8 @@ class FOWM(BaseModel):
     inputs: list = field(init=False)
     disturbances: list = field(init=False)
 
+    reference: str = "Rodrigues"
+
     def __post_init__(self):
         self.A = self.D * self.D * math.pi / 4
         self.Vt = self.Lt * self.Dt * self.Dt * math.pi / 4
