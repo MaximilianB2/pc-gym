@@ -1163,7 +1163,7 @@ class crystallization:
 
 
 @dataclass(frozen=False, kw_only=True)
-class FOWM:
+class FOWM(BaseModel):
     # Fast Offshore Wells Model (FOWM)
     # reservoir + production column + gas lift annular + ﬂowline + riser.
     # source: https://doi.org/10.1016/j.compchemeng.2017.01.036
@@ -1212,15 +1212,30 @@ class FOWM:
     Hpdg: float = 1117.0
     Ht: float = 1279.0
     epsi: float = 1e-10
-    A: float = D * D * math.pi / 4
-    Vt: float = Lt * Dt * Dt * math.pi / 4
-    Va: float = La * Da * Da * math.pi / 4
+    A: float = field(init=False)
+    Vt: float = field(init=False)
+    Va: float = field(init=False)
 
     # Initial Conditions
     x0 = [9347.5467727, 5347.53586993, 35014.1218045, 2395.94295262, 1788.01439135, 11725.3198923]
 
-    def __init__(self, reference="Rodrigues"):
-        self.reference = reference
+    # Dynamic attributes
+    states: list = field(init=False)
+    inputs: list = field(init=False)
+    disturbances: list = field(init=False)
+
+    def __post_init__(self):
+        self.A = self.D * self.D * math.pi / 4
+        self.Vt = self.Lt * self.Dt * self.Dt * math.pi / 4
+        self.Va = self.La * self.Da * self.Da * math.pi / 4
+        self.states = ["m_Ga", "m_Gt", "m_Lt", "m_Gb", "m_Gr", "m_Lr"]
+        self.inputs = ["z", "Wgc"]
+        self.disturbances = []  # No disturbances defined
+    
+        # Set reference-specific attributes
+        self.set_reference_parameters()
+    
+    def set_reference_parameters(self):
         if self.reference == 'Rodrigues':
             self.z = 0.84
             self.Wgc = 1.406
@@ -1274,7 +1289,7 @@ class FOWM:
             self.Kr = 1.269e2
             self.x0 = [9347.5467727, 5347.53586993, 35014.1218045, 2395.94295262, 1788.01439135, 11725.3198923]
 
-    def __call__(self, x, u):
+    def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         # States
         m_Ga, m_Gt, m_Lt, m_Gb, m_Gr, m_Lr = x
 
@@ -1318,13 +1333,3 @@ class FOWM:
         dxdt = np.array([dx1, dx2, dx3, dx4, dx5, dx6])
 
         return dxdt
-
-    def info(self):
-        # Return a dictionary with the model information
-        info = {
-            "parameters": self.__dict__.copy(),
-            "states": ["m_Ga", "m_Gt", "m_Lt", "m_Gb", "m_Gr", "m_Lr"],
-            "inputs": ["z", "Wgc"],
-            "disturbances": []
-        }
-        return info
