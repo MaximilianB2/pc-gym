@@ -1348,64 +1348,64 @@ class FOWM(BaseModel):
 
         else:
 
-        # Original states    m_Ga, m_Gt, m_Lt, m_Gb, m_Gr, m_Lr
-        x1, x2, x3, x4, x5, x6 = x[0], x[1], x[2], x[3], x[4], x[5]
-
-        # Observed states
-        Prt, Prb, Ppdg, Ptt, Ptb, Pbh, Wlout, Wgout = x[6], x[7], x[8], x[9], x[10], x[11], x[12], x[13]
+            # Original states    m_Ga, m_Gt, m_Lt, m_Gb, m_Gr, m_Lr
+            x1, x2, x3, x4, x5, x6 = x[0], x[1], x[2], x[3], x[4], x[5]
     
-        # Inputs
-        z = u[0]
-        Wgc = u[1]
+            # Observed states
+            Prt, Prb, Ppdg, Ptt, Ptb, Pbh, Wlout, Wgout = x[6], x[7], x[8], x[9], x[10], x[11], x[12], x[13]
+        
+            # Inputs
+            z = u[0]
+            Wgc = u[1]
+        
+            # Calculate algebraic variables as before
+            Peb = x1 * self.R * self.T / (self.M * self.Veb)
+            Prt_new = x2 * self.R * self.T / (self.M * (self.Vr - (x3 + self.mlstill) / self.Rol))
+            Prb_new = Prt_new + (x3 + self.mlstill) * self.g * np.sin(self.teta) / self.A
+            ALFAg = x2 / (x2 + x3)
+            ALFAl = 1 - ALFAg
+            Wout = self.Cout * z * np.sqrt(self.Rol * ((Prt_new - self.Ps) + np.sqrt((Prt_new - self.Ps) ** 2 + self.epsi))) * 0.5
+            Wlout_new = ALFAl * Wout
+            Wgout_new = ALFAg * Wout
+            Wg = self.Cg * ((Peb - Prb_new) + np.sqrt((Peb - Prb_new) ** 2 + self.epsi)) * 0.5
     
-        # Calculate algebraic variables as before
-        Peb = x1 * self.R * self.T / (self.M * self.Veb)
-        Prt_new = x2 * self.R * self.T / (self.M * (self.Vr - (x3 + self.mlstill) / self.Rol))
-        Prb_new = Prt_new + (x3 + self.mlstill) * self.g * np.sin(self.teta) / self.A
-        ALFAg = x2 / (x2 + x3)
-        ALFAl = 1 - ALFAg
-        Wout = self.Cout * z * np.sqrt(self.Rol * ((Prt_new - self.Ps) + np.sqrt((Prt_new - self.Ps) ** 2 + self.epsi))) * 0.5
-        Wlout_new = ALFAl * Wout
-        Wgout_new = ALFAg * Wout
-        Wg = self.Cg * ((Peb - Prb_new) + np.sqrt((Peb - Prb_new) ** 2 + self.epsi)) * 0.5
-
-        Vgt = self.Vt - x6 / self.Rol
-        ROgt = x5 / Vgt
-        ROmt = (x5 + x6) / self.Vt
-        Ptt_new = ROgt * self.R * self.T / self.M
-        Ptb_new = Ptt_new + ROmt * self.g * self.Hvgl
-        Ppdg_new = Ptb_new + self.Romres * self.g * (self.Hpdg - self.Hvgl)
-        Pbh_new = Ppdg_new + self.Romres * self.g * (self.Ht - self.Hpdg)
-        ALFAgt = x5 / (x6 + x5)
-        Wwh = self.Kw * np.sqrt(self.Rol * ((Ptt_new - Prb_new) + np.sqrt((Ptt_new - Prb_new) ** 2 + self.epsi))) * 0.5
-        Wwhg = Wwh * ALFAgt
-        Wwhl = Wwh * (1 - ALFAgt)
-        Wr = self.Kr * (1 - 0.2 * Pbh_new / self.Pr - 0.8 * (Pbh_new / self.Pr) ** 2)
-
-        Pai = ((self.R * self.T / (self.Va * self.M)) + (self.g * self.La / self.Va)) * x4
-        ROai = self.M * Pai / (self.R * self.T)
-        Wiv = self.Ka * np.sqrt(ROai * ((Pai - Ptb_new) + np.sqrt((Pai - Ptb_new) ** 2 + self.epsi))) * 0.5
-
-        # Original state derivatives
-        dx1 = (1 - self.E) * Wwhg - Wg
-        dx2 = self.E * Wwhg + Wg - Wgout_new
-        dx3 = Wwhl - Wlout_new
-        dx4 = Wgc - Wiv
-        dx5 = Wr * self.ALFAgw + Wiv - Wwhg
-        dx6 = Wr * (1 - self.ALFAgw) - Wwhl
-
-        # Finite difference approximation for the observed states
-        dPrt = Prt_new - Prt
-        dPrb = Prb_new - Prb
-        dPpdg = Ppdg_new - Ppdg
-        dPtt = Ptt_new - Ptt
-        dPtb = Ptb_new - Ptb
-        dPbh = Pbh_new - Pbh
-        dWlout = Wlout_new - Wlout
-        dWgout = Wgout_new - Wgout
-
-        # Concatenate all derivatives
-        dxdt = [dx1, dx2, dx3, dx4, dx5, dx6, dPrt, dPrb, dPpdg, dPtt, dPtb, dPbh, dWlout, dWgout]
-
-        return dxdt
+            Vgt = self.Vt - x6 / self.Rol
+            ROgt = x5 / Vgt
+            ROmt = (x5 + x6) / self.Vt
+            Ptt_new = ROgt * self.R * self.T / self.M
+            Ptb_new = Ptt_new + ROmt * self.g * self.Hvgl
+            Ppdg_new = Ptb_new + self.Romres * self.g * (self.Hpdg - self.Hvgl)
+            Pbh_new = Ppdg_new + self.Romres * self.g * (self.Ht - self.Hpdg)
+            ALFAgt = x5 / (x6 + x5)
+            Wwh = self.Kw * np.sqrt(self.Rol * ((Ptt_new - Prb_new) + np.sqrt((Ptt_new - Prb_new) ** 2 + self.epsi))) * 0.5
+            Wwhg = Wwh * ALFAgt
+            Wwhl = Wwh * (1 - ALFAgt)
+            Wr = self.Kr * (1 - 0.2 * Pbh_new / self.Pr - 0.8 * (Pbh_new / self.Pr) ** 2)
+    
+            Pai = ((self.R * self.T / (self.Va * self.M)) + (self.g * self.La / self.Va)) * x4
+            ROai = self.M * Pai / (self.R * self.T)
+            Wiv = self.Ka * np.sqrt(ROai * ((Pai - Ptb_new) + np.sqrt((Pai - Ptb_new) ** 2 + self.epsi))) * 0.5
+    
+            # Original state derivatives
+            dx1 = (1 - self.E) * Wwhg - Wg
+            dx2 = self.E * Wwhg + Wg - Wgout_new
+            dx3 = Wwhl - Wlout_new
+            dx4 = Wgc - Wiv
+            dx5 = Wr * self.ALFAgw + Wiv - Wwhg
+            dx6 = Wr * (1 - self.ALFAgw) - Wwhl
+    
+            # Finite difference approximation for the observed states
+            dPrt = Prt_new - Prt
+            dPrb = Prb_new - Prb
+            dPpdg = Ppdg_new - Ppdg
+            dPtt = Ptt_new - Ptt
+            dPtb = Ptb_new - Ptb
+            dPbh = Pbh_new - Pbh
+            dWlout = Wlout_new - Wlout
+            dWgout = Wgout_new - Wgout
+    
+            # Concatenate all derivatives
+            dxdt = [dx1, dx2, dx3, dx4, dx5, dx6, dPrt, dPrb, dPpdg, dPtt, dPtb, dPbh, dWlout, dWgout]
+    
+            return dxdt
 
