@@ -1360,13 +1360,13 @@ class FOWM(BaseModel):
     
         Peb = m_Ga * self.R * self.T / (self.M * self.Veb)
         Prt = m_Gt * self.R * self.T / (self.M * (self.Vr - (m_Lt + self.mlstill) / self.Rol))
-        Prb = Prt + (m_Lt + self.mlstill) * self.g * casadi.sin(self.teta) / self.A
+        Prb = Prt + (m_Lt + self.mlstill) * self.g * np.sin(self.teta) / self.A
         ALFAg = m_Gt / (m_Gt + m_Lt)
         ALFAl = 1 - ALFAg
-        Wout = self.Cout * z * sqrt(self.Rol * ((Prt - self.Ps) + sqrt((Prt - self.Ps)**2 + self.epsi))) * 0.5
+        Wout = self.Cout * z * np.sqrt(self.Rol * ((Prt - self.Ps) + np.sqrt((Prt - self.Ps)**2 + self.epsi))) * 0.5
         Wlout = ALFAl * Wout
         Wgout = ALFAg * Wout
-        Wg = self.Cg * ((Peb - Prb) + sqrt((Peb - Prb)**2 + self.epsi)) * 0.5
+        Wg = self.Cg * ((Peb - Prb) + np.sqrt((Peb - Prb)**2 + self.epsi)) * 0.5
     
         Vgt = self.Vt - m_Lr / self.Rol
         ROgt = m_Gr / Vgt
@@ -1376,14 +1376,14 @@ class FOWM(BaseModel):
         Ppdg = Ptb + self.Romres * self.g * (self.Hpdg - self.Hvgl)
         Pbh = Ppdg + self.Romres * self.g * (self.Ht - self.Hpdg)
         ALFAgt = m_Gr / (m_Lr + m_Gr)
-        Wwh = self.Kw * sqrt(self.Rol * ((Ptt - Prb) + sqrt((Ptt - Prb)**2 + self.epsi))) * 0.5
+        Wwh = self.Kw * np.sqrt(self.Rol * ((Ptt - Prb) + np.sqrt((Ptt - Prb)**2 + self.epsi))) * 0.5
         Wwhg = Wwh * ALFAgt
         Wwhl = Wwh * (1 - ALFAgt)
         Wr = self.Kr * (1 - 0.2 * Pbh / self.Pr - 0.8 * (Pbh / self.Pr)**2)
     
         Pai = ((self.R * self.T / (self.Va * self.M)) + (self.g * self.La / self.Va)) * m_Gb
         ROai = self.M * Pai / (self.R * self.T)
-        Wiv = self.Ka * sqrt(ROai * ((Pai - Ptb) + sqrt((Pai - Ptb)**2 + self.epsi))) * 0.5
+        Wiv = self.Ka * np.sqrt(ROai * ((Pai - Ptb) + np.sqrt((Pai - Ptb)**2 + self.epsi))) * 0.5
     
         dx1 = (1 - self.E) * Wwhg - Wg
         dx2 = self.E * Wwhg + Wg - Wgout
