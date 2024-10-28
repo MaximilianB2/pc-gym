@@ -1419,6 +1419,21 @@ class FOWM(BaseModel):
             
             # Calculate derivative of Pbh_new
             dPbh = dPpdg + (self.Romres * self.g * (self.Ht - self.Hpdg) * dx6) / 1e5
+
+            # Calculate derivatives of ALFAg and ALFAl
+            dALFAg = (dx2 / (x2 + x3)) - (x2 * (dx2 + dx3)) / ((x2 + x3) ** 2)
+            dALFAl = -dALFAg
+            
+            # Calculate derivative of Wout
+            dWout = (
+                self.Cout * z / 2 *
+                (self.Rol * (dPrt + ((Prt_new - self.Ps) * dPrt) / np.sqrt((Prt_new - self.Ps) ** 2 + self.epsi))) /
+                (2 * np.sqrt(self.Rol * (Prt_new - self.Ps + np.sqrt((Prt_new - self.Ps) ** 2 + self.epsi))))
+            )
+            
+            # Calculate derivatives of Wlout and Wgout
+            dWlout = dALFAl * Wout + ALFAl * dWout
+            dWgout = dALFAg * Wout + ALFAg * dWout
             
             # Concatenate all derivatives
             dxdt = [dx1, dx2, dx3, dx4, dx5, dx6, dPrt, dPrb, dPpdg, dPtt, dPtb, dPbh, dWlout, dWgout]
