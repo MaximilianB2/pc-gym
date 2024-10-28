@@ -1231,7 +1231,8 @@ class FOWM(BaseModel):
         self.A = self.D * self.D * math.pi / 4
         self.Vt = self.Lt * self.Dt * self.Dt * math.pi / 4
         self.Va = self.La * self.Da * self.Da * math.pi / 4
-        self.states = ["m_Ga", "m_Gt", "m_Lt", "m_Gb", "m_Gr", "m_Lr"]
+        # self.states = ["m_Ga", "m_Gt", "m_Lt", "m_Gb", "m_Gr", "m_Lr"]
+        self.states = ["Prt", "Prb", "Ppdg", "Ptt", "Ptb", "Pbh", "Wlout", "Wgout"]
         self.inputs = ["z", "Wgc"]
         self.disturbances = []  # No disturbances defined
     
@@ -1302,7 +1303,8 @@ class FOWM(BaseModel):
     def _compute_jax(self, x, u):
         # Use JAX-compatible calculations
         # States
-        m_Ga, m_Gt, m_Lt, m_Gb, m_Gr, m_Lr = x
+        # m_Ga, m_Gt, m_Lt, m_Gb, m_Gr, m_Lr = x
+        Prt, Prb, Ppdg, Ptt, Ptb, Pbh, Wlout, Wgout = x
     
         # Inputs
         z, Wgc = u
@@ -1347,12 +1349,13 @@ class FOWM(BaseModel):
 
     def _compute_casadi(self, x, u):
         # States
-        m_Ga = x[0]
-        m_Gt = x[1]
-        m_Lt = x[2]
-        m_Gb = x[3]
-        m_Gr = x[4]
-        m_Lr = x[5]
+        # m_Ga = x[0]
+        # m_Gt = x[1]
+        # m_Lt = x[2]
+        # m_Gb = x[3]
+        # m_Gr = x[4]
+        # m_Lr = x[5]
+        Prt, Prb, Ppdg, Ptt, Ptb, Pbh, Wlout, Wgout = x
     
         # Inputs
         z = u[0]
