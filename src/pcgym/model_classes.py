@@ -1394,18 +1394,35 @@ class FOWM(BaseModel):
             dx5 = Wr * self.ALFAgw + Wiv - Wwhg
             dx6 = Wr * (1 - self.ALFAgw) - Wwhl
             
-            # Observed state derivatives (changes over time)
-            dPrt = Prt_new - Prt / 1e5
-            dPrb = Prb_new - Prb / 1e5
-            dPpdg = Ppdg_new - Ppdg / 1e5
-            dPtt = Ptt_new - Ptt / 1e5
-            dPtb = Ptb_new - Ptb / 1e5
-            dPbh = Pbh_new - Pbh / 1e5
-            dWlout = Wlout_new - Wlout
-            dWgout = Wgout_new - Wgout
+            # Calculate derivative of Prt_new
+            dPrt = (
+                (self.R * self.T / self.M) * (
+                    dx2 / (self.Vr - (x3 + self.mlstill) / self.Rol) -
+                    (x2 * dx3) / (self.Rol * (self.Vr - (x3 + self.mlstill) / self.Rol) ** 2)
+                )
+            ) / 1e5
+            
+            # Calculate derivative of Prb_new
+            dPrb = dPrt + (self.g * np.sin(self.teta) / self.A) * dx3 / 1e5
+            
+            # Calculate derivative of Ptt_new
+            dPtt = (
+                (self.R * self.T / (self.M * Vgt)) * dx5 +
+                (x5 * self.R * self.T / self.M) * (dx6 / (self.Rol * Vgt ** 2))
+            ) / 1e5
+            
+            # Calculate derivative of Ptb_new
+            dPtb = dPtt + (self.g * self.Hvgl / self.Vt) * (dx5 + dx6) / 1e5
+            
+            # Calculate derivative of Ppdg_new
+            dPpdg = dPtb + (self.Romres * self.g * (self.Hpdg - self.Hvgl) * dx6) / 1e5
+            
+            # Calculate derivative of Pbh_new
+            dPbh = dPpdg + (self.Romres * self.g * (self.Ht - self.Hpdg) * dx6) / 1e5
             
             # Concatenate all derivatives
             dxdt = [dx1, dx2, dx3, dx4, dx5, dx6, dPrt, dPrb, dPpdg, dPtt, dPtb, dPbh, dWlout, dWgout]
-    
+            
             return dxdt
+
 
