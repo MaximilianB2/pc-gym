@@ -1394,18 +1394,18 @@ class FOWM(BaseModel):
             dx5 = Wr * self.ALFAgw + Wiv - Wwhg
             dx6 = Wr * (1 - self.ALFAgw) - Wwhl
     
-            # Finite difference approximation for the observed states
-            dPrt = Prt_new - Prt
-            dPrb = Prb_new - Prb
-            dPpdg = Ppdg_new - Ppdg
-            dPtt = Ptt_new - Ptt
-            dPtb = Ptb_new - Ptb
-            dPbh = Pbh_new - Pbh
-            dWlout = Wlout_new - Wlout
-            dWgout = Wgout_new - Wgout
+            # Observed states (convert pressures to bar)
+            Prt_obs = Prt_new / 1e5
+            Prb_obs = Prb_new / 1e5
+            Ppdg_obs = Ppdg_new / 1e5
+            Ptt_obs = Ptt_new / 1e5
+            Ptb_obs = Ptb_new / 1e5
+            Pbh_obs = Pbh_new / 1e5
+            Wlout_obs = Wlout_new
+            Wgout_obs = Wgout_new
     
             # Concatenate all derivatives
-            dxdt = [dx1, dx2, dx3, dx4, dx5, dx6, dPrt, dPrb, dPpdg, dPtt, dPtb, dPbh, dWlout, dWgout]
+            dxdt = [dx1, dx2, dx3, dx4, dx5, dx6, Prt_obs, Prb_obs, Ppdg_obs, Ptt_obs, Ptb_obs, Pbh_obs, Wlout_obs, Wgout_obs]
     
             return dxdt
 
