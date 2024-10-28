@@ -1358,7 +1358,7 @@ class FOWM(BaseModel):
             z = u[0]
             Wgc = u[1]
         
-            # Calculate algebraic variables as before
+            # Calculate algebraic variables
             Peb = x1 * self.R * self.T / (self.M * self.Veb)
             Prt_new = x2 * self.R * self.T / (self.M * (self.Vr - (x3 + self.mlstill) / self.Rol))
             Prb_new = Prt_new + (x3 + self.mlstill) * self.g * np.sin(self.teta) / self.A
@@ -1368,7 +1368,7 @@ class FOWM(BaseModel):
             Wlout_new = ALFAl * Wout
             Wgout_new = ALFAg * Wout
             Wg = self.Cg * ((Peb - Prb_new) + np.sqrt((Peb - Prb_new) ** 2 + self.epsi)) * 0.5
-    
+            
             Vgt = self.Vt - x6 / self.Rol
             ROgt = x5 / Vgt
             ROmt = (x5 + x6) / self.Vt
@@ -1381,11 +1381,11 @@ class FOWM(BaseModel):
             Wwhg = Wwh * ALFAgt
             Wwhl = Wwh * (1 - ALFAgt)
             Wr = self.Kr * (1 - 0.2 * Pbh_new / self.Pr - 0.8 * (Pbh_new / self.Pr) ** 2)
-    
+            
             Pai = ((self.R * self.T / (self.Va * self.M)) + (self.g * self.La / self.Va)) * x4
             ROai = self.M * Pai / (self.R * self.T)
             Wiv = self.Ka * np.sqrt(ROai * ((Pai - Ptb_new) + np.sqrt((Pai - Ptb_new) ** 2 + self.epsi))) * 0.5
-    
+            
             # Original state derivatives
             dx1 = (1 - self.E) * Wwhg - Wg
             dx2 = self.E * Wwhg + Wg - Wgout_new
@@ -1393,19 +1393,19 @@ class FOWM(BaseModel):
             dx4 = Wgc - Wiv
             dx5 = Wr * self.ALFAgw + Wiv - Wwhg
             dx6 = Wr * (1 - self.ALFAgw) - Wwhl
-    
-            # Observed states (convert pressures to bar)
-            Prt_obs = Prt_new / 1e5
-            Prb_obs = Prb_new / 1e5
-            Ppdg_obs = Ppdg_new / 1e5
-            Ptt_obs = Ptt_new / 1e5
-            Ptb_obs = Ptb_new / 1e5
-            Pbh_obs = Pbh_new / 1e5
-            Wlout_obs = Wlout_new
-            Wgout_obs = Wgout_new
-    
+            
+            # Observed state derivatives (changes over time)
+            dPrt = Prt_new - Prt / 1e5
+            dPrb = Prb_new - Prb / 1e5
+            dPpdg = Ppdg_new - Ppdg / 1e5
+            dPtt = Ptt_new - Ptt / 1e5
+            dPtb = Ptb_new - Ptb / 1e5
+            dPbh = Pbh_new - Pbh / 1e5
+            dWlout = Wlout_new - Wlout
+            dWgout = Wgout_new - Wgout
+            
             # Concatenate all derivatives
-            dxdt = [dx1, dx2, dx3, dx4, dx5, dx6, Prt_obs, Prb_obs, Ppdg_obs, Ptt_obs, Ptb_obs, Pbh_obs, Wlout_obs, Wgout_obs]
+            dxdt = [dx1, dx2, dx3, dx4, dx5, dx6, dPrt, dPrb, dPpdg, dPtt, dPtb, dPbh, dWlout, dWgout]
     
             return dxdt
 
