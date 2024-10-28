@@ -1219,13 +1219,13 @@ class FOWM(BaseModel):
     # Initial conditions ("m_Ga", "m_Gt", "m_Lt", "m_Gb", "m_Gr", "m_Lr"
     # "Prt", "Prb", "Ppdg", "Ptt", "Ptb", "Pbh", "Wlout", "Wgout" 
     # "Ppdg_Setpoint"):
-    x0 = [10.18673778, 15.39827282, 0.0, 1.4660834, 0.06974663, 0.0, \
-               9347.5467727, 5347.53586993, 35014.1218045, 2395.94295262, 1788.01439135, 11725.3198923, 210]
+    # x0 = [10.18673778, 15.39827282, 0.0, 1.4660834, 0.06974663, 0.0, \
+               # 9347.5467727, 5347.53586993, 35014.1218045, 2395.94295262, 1788.01439135, 11725.3198923, 210]
     
     # Dynamic attributes
-    states: list = field(init=False)
-    inputs: list = field(init=False)
-    disturbances: list = field(init=False)
+    states: list = None
+    inputs: list = None
+    disturbances: list = None
     uncertainties: dict = None
     reference: str = "Rodrigues"
     int_method: str = 'jax'
@@ -1296,67 +1296,63 @@ class FOWM(BaseModel):
             self.Kr = 1.269e2
             self.x0 = [9347.5467727, 5347.53586993, 35014.1218045, 2395.94295262, 1788.01439135, 11725.3198923]
 
-    def __call__(self, x, u):
+    def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         
         if self.int_method == "jax":
-            return self._compute_jax(x, u)
+
+            # Use JAX-compatible calculations
+            # States
+            # m_Ga, m_Gt, m_Lt, m_Gb, m_Gr, m_Lr = x
+            Prt, Prb, Ppdg, Ptt, Ptb, Pbh, Wlout, Wgout = x
+        
+            # Inputs
+            z, Wgc = u
+        
+            Peb = m_Ga * self.R * self.T / (self.M * self.Veb)
+            Prt = m_Gt * self.R * self.T / (self.M * (self.Vr - (m_Lt + self.mlstill) / self.Rol))
+            Prb = Prt + (m_Lt + self.mlstill) * self.g * math.sin(self.teta) / self.A
+            ALFAg = m_Gt / (m_Gt + m_Lt)
+            ALFAl = 1 - ALFAg
+            Wout = self.Cout * z * math.sqrt(self.Rol * ((Prt - self.Ps) + math.sqrt((Prt - self.Ps) ** 2 + self.epsi))) * (1 / 2)
+            Wlout = ALFAl * Wout
+            Wgout = ALFAg * Wout
+            Wg = self.Cg * ((Peb - Prb) + math.sqrt((Peb - Prb) ** 2 + self.epsi)) * (1 / 2)
+        
+            Vgt = self.Vt - m_Lr / self.Rol
+            ROgt = m_Gr / Vgt
+            ROmt = (m_Gr + m_Lr) / self.Vt
+            Ptt = ROgt * self.R * self.T / self.M
+            Ptb = Ptt + ROmt * self.g * self.Hvgl
+            Ppdg = Ptb + self.Romres * self.g * (self.Hpdg - self.Hvgl)
+            Pbh = Ppdg + self.Romres * self.g * (self.Ht - self.Hpdg)
+            ALFAgt = m_Gr / (m_Lr + m_Gr)
+            Wwh = self.Kw * math.sqrt(self.Rol * ((Ptt - Prb) + math.sqrt((Ptt - Prb) ** 2 + self.epsi))) * (1 / 2)
+            Wwhg = Wwh * ALFAgt
+            Wwhl = Wwh * (1 - ALFAgt)
+            Wr = self.Kr * (1 - 0.2 * Pbh / self.Pr - 0.8 * (Pbh / self.Pr) ** 2)
+        
+            Pai = ((self.R * self.T / (self.Va * self.M)) + (self.g * self.La / self.Va)) * m_Gb
+            ROai = self.M * Pai / (self.R * self.T)
+            Wiv = self.Ka * math.sqrt(ROai * ((Pai - Ptb) + math.sqrt((Pai - Ptb) ** 2 + self.epsi))) * (1 / 2)
+        
+            dx1 = (1 - self.E) * (Wwhg) - Wg
+            dx2 = self.E * (Wwhg) + Wg - Wgout
+            dx3 = Wwhl - Wlout
+            dx4 = Wgc - Wiv
+            dx5 = Wr * self.ALFAgw + Wiv - Wwhg
+            dx6 = Wr * (1 - self.ALFAgw) - Wwhl
+        
+            dxdt = jnp.array([dx1, dx2, dx3, dx4, dx5, dx6])
+        
+            return dxdt
+
         else:
-            return self._compute_casadi(x, u)
-
-    def _compute_jax(self, x, u):
-        # Use JAX-compatible calculations
-        # States
-        # m_Ga, m_Gt, m_Lt, m_Gb, m_Gr, m_Lr = x
-        Prt, Prb, Ppdg, Ptt, Ptb, Pbh, Wlout, Wgout = x
-    
-        # Inputs
-        z, Wgc = u
-    
-        Peb = m_Ga * self.R * self.T / (self.M * self.Veb)
-        Prt = m_Gt * self.R * self.T / (self.M * (self.Vr - (m_Lt + self.mlstill) / self.Rol))
-        Prb = Prt + (m_Lt + self.mlstill) * self.g * math.sin(self.teta) / self.A
-        ALFAg = m_Gt / (m_Gt + m_Lt)
-        ALFAl = 1 - ALFAg
-        Wout = self.Cout * z * math.sqrt(self.Rol * ((Prt - self.Ps) + math.sqrt((Prt - self.Ps) ** 2 + self.epsi))) * (1 / 2)
-        Wlout = ALFAl * Wout
-        Wgout = ALFAg * Wout
-        Wg = self.Cg * ((Peb - Prb) + math.sqrt((Peb - Prb) ** 2 + self.epsi)) * (1 / 2)
-    
-        Vgt = self.Vt - m_Lr / self.Rol
-        ROgt = m_Gr / Vgt
-        ROmt = (m_Gr + m_Lr) / self.Vt
-        Ptt = ROgt * self.R * self.T / self.M
-        Ptb = Ptt + ROmt * self.g * self.Hvgl
-        Ppdg = Ptb + self.Romres * self.g * (self.Hpdg - self.Hvgl)
-        Pbh = Ppdg + self.Romres * self.g * (self.Ht - self.Hpdg)
-        ALFAgt = m_Gr / (m_Lr + m_Gr)
-        Wwh = self.Kw * math.sqrt(self.Rol * ((Ptt - Prb) + math.sqrt((Ptt - Prb) ** 2 + self.epsi))) * (1 / 2)
-        Wwhg = Wwh * ALFAgt
-        Wwhl = Wwh * (1 - ALFAgt)
-        Wr = self.Kr * (1 - 0.2 * Pbh / self.Pr - 0.8 * (Pbh / self.Pr) ** 2)
-    
-        Pai = ((self.R * self.T / (self.Va * self.M)) + (self.g * self.La / self.Va)) * m_Gb
-        ROai = self.M * Pai / (self.R * self.T)
-        Wiv = self.Ka * math.sqrt(ROai * ((Pai - Ptb) + math.sqrt((Pai - Ptb) ** 2 + self.epsi))) * (1 / 2)
-    
-        dx1 = (1 - self.E) * (Wwhg) - Wg
-        dx2 = self.E * (Wwhg) + Wg - Wgout
-        dx3 = Wwhl - Wlout
-        dx4 = Wgc - Wiv
-        dx5 = Wr * self.ALFAgw + Wiv - Wwhg
-        dx6 = Wr * (1 - self.ALFAgw) - Wwhl
-    
-        dxdt = jnp.array([dx1, dx2, dx3, dx4, dx5, dx6])
-    
-        return dxdt
-
-    def _compute_casadi(self, x, u):
 
         # Original states    m_Ga, m_Gt, m_Lt, m_Gb, m_Gr, m_Lr
-        x1, x2, x3, x4, x5, x6 = x[:6]
+        x1, x2, x3, x4, x5, x6 = x[0], x[1], x[2], x[3], x[4], x[5]
 
         # Observed states
-        Prt, Prb, Ppdg, Ptt, Ptb, Pbh, Wlout, Wgout = x[6:]
+        Prt, Prb, Ppdg, Ptt, Ptb, Pbh, Wlout, Wgout = x[6], x[7], x[8], x[9], x[10], x[11], x[12], x[13]
     
         # Inputs
         z = u[0]
