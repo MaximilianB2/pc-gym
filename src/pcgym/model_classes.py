@@ -1292,14 +1292,14 @@ class FOWM(BaseModel):
             self.Kr = 1.269e2
             self.x0 = [9347.5467727, 5347.53586993, 35014.1218045, 2395.94295262, 1788.01439135, 11725.3198923]
 
-    def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
+    def __call__(self, x, u):
         
         if self.int_method == "jax":
             return self._compute_jax(x, u)
         else:
             return self._compute_casadi(x, u)
 
-    def _compute_jax(self, x: jnp.ndarray, u: jnp.ndarray) -> jnp.ndarray:
+    def _compute_jax(self, x, u):
         # Use JAX-compatible calculations
         # States
         m_Ga, m_Gt, m_Lt, m_Gb, m_Gr, m_Lr = x
@@ -1345,7 +1345,7 @@ class FOWM(BaseModel):
     
         return dxdt
 
-    def _compute_casadi(self, x: MX, u: MX) -> MX:
+    def _compute_casadi(self, x, u):
         # States
         m_Ga = x[0]
         m_Gt = x[1]
