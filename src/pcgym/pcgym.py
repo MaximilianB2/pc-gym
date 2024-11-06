@@ -14,12 +14,11 @@ from .model_classes import (
     biofilm_reactor,
     polymerisation_reactor,
     crystallization,
-    FOWM
 )
 from .policy_evaluation import policy_eval
 from .integrator import integration_engine
 import copy
-import typing
+
 
 class make_env(gym.Env):
     """
@@ -134,7 +133,6 @@ class make_env(gym.Env):
             "biofilm_reactor": biofilm_reactor,
             "polymerisation_reactor": polymerisation_reactor,
             "crystallization": crystallization,
-            "FOWM": FOWM,
         }
 
         # Load custom model if it is provided else load the selected standard model.
