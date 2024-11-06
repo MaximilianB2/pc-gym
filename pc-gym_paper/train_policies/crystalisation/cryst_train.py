@@ -8,7 +8,7 @@ import numpy as np
 from stable_baselines3 import PPO, DDPG, SAC
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-
+training_seed = 1
 # Define environment
 T = 30
 nsteps = 30
@@ -100,14 +100,14 @@ env_params_cryst = {
 env = make_env(env_params_cryst)
 
 # Global timesteps
-nsteps_train = 2.5e4
+nsteps_train = 5e4
 training_reps = 1
 for r_i in range(training_reps):
     print(f'Training repition: {r_i+1}')
     # Train SAC 
     print('Training using SAC...')
     log_file = f"learning_curves\SAC_cryst_LC_rep_{r_i}.csv"
-    SAC_cryst =  SAC("MlpPolicy", env, verbose=1, learning_rate=0.01)
+    SAC_cryst =  SAC("MlpPolicy", env, verbose=1, learning_rate=0.01, seed=training_seed)
     callback = LearningCurveCallback(log_file=log_file)
     
     SAC_cryst.learn(nsteps_train,callback=callback)
@@ -118,7 +118,7 @@ for r_i in range(training_reps):
     # Train PPO 
     print('Training using PPO...')
     log_file = f"learning_curves\PPO_cryst_LC_rep_{r_i}.csv"
-    PPO_cryst =  PPO("MlpPolicy", env, verbose=1, learning_rate=0.001)
+    PPO_cryst =  PPO("MlpPolicy", env, verbose=1, learning_rate=0.001, seed = training_seed)
     callback = LearningCurveCallback(log_file=log_file)
     PPO_cryst.learn(nsteps_train,callback=callback)
 
@@ -128,7 +128,7 @@ for r_i in range(training_reps):
     # Train DDPG
     print('Training using DDPG...')
     log_file = f'learning_curves\DDPG_cryst_LC_rep_{r_i}.csv'
-    DDPG_cryst =  DDPG("MlpPolicy", env, verbose=1, learning_rate=0.001)
+    DDPG_cryst =  DDPG("MlpPolicy", env, verbose=1, learning_rate=0.001, seed=training_seed)
     callback = LearningCurveCallback(log_file=log_file)
     DDPG_cryst.learn(nsteps_train,callback=callback)
 

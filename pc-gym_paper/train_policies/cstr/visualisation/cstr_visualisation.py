@@ -93,11 +93,11 @@ DDPG_cstr = DDPG.load('./policies/DDPG_CSTR')
 evaluator, data = env.get_rollouts({'SAC':SAC_cstr,'PPO':PPO_cstr,'DDPG':DDPG_cstr}, reps=50, oracle=True, MPC_params={'N':17})
 np.save('data.npy', data)
 data = np.load('data.npy', allow_pickle=True).item()
-oracle_r = np.mean(data['oracle']["r"].sum(axis=1).flatten())
+oracle_r = np.median(data['oracle']["r"].sum(axis=1).flatten())
 policies = ['SAC', 'PPO', 'DDPG']
 print(oracle_r)
 for i, policy in enumerate(policies):
-    print(f'{policy} optimality gap: {(abs(oracle_r - np.mean(data[policy]["r"].sum(axis=1).flatten()))) / abs(oracle_r)}')
+    print(f'{policy} optimality gap: {(oracle_r - np.median(data[policy]["r"].sum(axis=1).flatten()))}')
 
 def paper_plot(data):
     # Set up LaTeX rendering
@@ -169,7 +169,7 @@ def paper_plot(data):
             # Calculate normalized optimality gap for each policy (for statistics only)
             normalized_gaps = {}
             for policy in policies[1:]:  # Exclude oracle
-                gaps = (oracle_reward - data[policy]["r"].sum(axis=1)) / oracle_reward
+                gaps = (oracle_reward - data[policy]["r"].sum(axis=1)) 
                 normalized_gaps[policy] = gaps.flatten()
             
             # Calculate median absolute deviation and median normalized optimality gap

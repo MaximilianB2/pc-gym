@@ -1,7 +1,8 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import jax.numpy as jnp
 import numpy as np
 from casadi import fmin, fmax
+import math
 
 @dataclass(frozen=False, kw_only=True)
 class BaseModel:
@@ -1159,3 +1160,284 @@ class crystallization:
         }
         info["parameters"].pop("int_method", None)  # Remove 'int_method' since it's not a parameter of the model
         return info
+
+
+@dataclass(frozen=False, kw_only=True)
+class FOWM(BaseModel):
+    # Fast Offshore Wells Model (FOWM)
+    # reservoir + production column + gas lift annular + ﬂowline + riser.
+    # source: https://doi.org/10.1016/j.compchemeng.2017.01.036
+    # Parameters
+    Prt_max: float = 50.0
+    Prb_max: float = 270.0
+    Ppdg_max: float = 230.0
+    Ptt_max: float = 200.0
+    Ptb_max: float = 210.0
+    Pbh_max: float = 240.0
+    Wlout_max: float = 100.0
+    Wgout_max: float = 20.0
+
+    Prt_min: float = 10.0
+    Prb_min: float = 80.0
+    Ppdg_min: float = 180.0
+    Ptt_min: float = 120.0
+    Ptb_min: float = 160.0
+    Pbh_min: float = 190.0
+    Wlout_min: float = 0.0
+    Wgout_min: float = 0.0
+
+    z_min: float = 0.0
+    Wgc_min: float = 0.0
+    z_max: float = 1.0
+    Wgc_max: float = 2.49
+
+    # Constants
+    Rol: float = 900.0
+    R: float = 8314.0
+    T: float = 298.0
+    M: float = 18.0
+    g: float = 9.81
+    teta: float = math.pi / 4
+    Ps: float = 1013250.0
+    Pr: float = 2.25e7
+    ALFAgw: float = 0.0188
+    Romres: float = 891.9523
+    L: float = 4497.0
+    Lt: float = 1639.0
+    La: float = 1118.0
+    D: float = 0.152
+    Dt: float = 0.150
+    Da: float = 0.140
+    Hvgl: float = 916.0
+    Hpdg: float = 1117.0
+    Ht: float = 1279.0
+    epsi: float = 1e-10
+    A: float = field(init=False)
+    Vt: float = field(init=False)
+    Va: float = field(init=False)
+
+    # Initial conditions ("m_Ga", "m_Gt", "m_Lt", "m_Gb", "m_Gr", "m_Lr"
+    # "Prt", "Prb", "Ppdg", "Ptt", "Ptb", "Pbh", "Wlout", "Wgout" 
+    # "Ppdg_Setpoint"):
+    # x0 = [10.18673778, 15.39827282, 0.0, 1.4660834, 0.06974663, 0.0, \
+               # 9347.5467727, 5347.53586993, 35014.1218045, 2395.94295262, 1788.01439135, 11725.3198923, 210]
+    
+    # Dynamic attributes
+    states: list = None
+    inputs: list = None
+    disturbances: list = None
+    uncertainties: dict = None
+    reference: str = "Rodrigues"
+    int_method: str = 'jax'
+
+    def __post_init__(self):
+        self.A = self.D * self.D * math.pi / 4
+        self.Vt = self.Lt * self.Dt * self.Dt * math.pi / 4
+        self.Va = self.La * self.Da * self.Da * math.pi / 4
+        # self.states = ["m_Ga", "m_Gt", "m_Lt", "m_Gb", "m_Gr", "m_Lr"]
+        self.states = ["m_Ga", "m_Gt", "m_Lt", "m_Gb", "m_Gr", "m_Lr", "Prt", "Prb", "Ppdg", "Ptt", "Ptb", "Pbh", "Wlout", "Wgout"]
+        self.inputs = ["z", "Wgc"]
+        self.disturbances = []  # No disturbances defined
+    
+        # Set reference-specific attributes
+        self.set_reference_parameters()
+    
+    def set_reference_parameters(self):
+        if self.reference == 'Rodrigues':
+            self.z = 0.84
+            self.Wgc = 1.406
+            self.mlstill = 2.020e4
+            self.Cg = 1e-3
+            self.Cout = 1.626e-3
+            self.Veb = 1.5e2
+            self.E = 4.5e-1
+            self.Kw = 4.958e-4
+            self.Ka = 1e-3
+            self.Vr = 226.74
+            self.Kr = 1.2e2
+            self.x0 = [9347.5467727, 5347.53586993, 35014.1218045, 2395.94295262, 1788.01439135, 11725.3198923]
+        elif self.reference == 'Apio':
+            self.z = 0.84
+            self.Wgc = 1.406
+            self.mlstill = 7.183e1
+            self.Cg = 1.329e-3
+            self.Cout = 3.975e-3
+            self.Veb = 7.047e1
+            self.E = 2.095e-1
+            self.Kw = 5.936e-4
+            self.Ka = 4.236e-5
+            self.Vr = 620.364197531
+            self.Kr = 2.470e2
+            self.x0 = [9347.5467727, 5347.53586993, 35014.1218045, 2395.94295262, 1788.01439135, 11725.3198923]
+        elif self.reference == 'Huffner':
+            self.z = 0.18
+            self.Wgc = 0.6574074074
+            self.mlstill = 1957.031302138902
+            self.Cg = 0.000205390205
+            self.Cout = 0.019677777778
+            self.Veb = 83.5090666667
+            self.E = 0.571431327160
+            self.Kw = 0.000867943572
+            self.Ka = 0.000159061894
+            self.Vr = 620.364197531
+            self.Kr = 131.313519772
+            self.x0 = [8955, 5286, 33373, 2197, 1776, 11211]
+        elif self.reference == 'Diehl':
+            self.z = 0.18
+            self.Wgc = 0.6574074074
+            self.mlstill = 6.222e1
+            self.Cg = 1.137e-3
+            self.Cout = 2.039e-3
+            self.Veb = 6.098e1
+            self.E = 1.545e-1
+            self.Kw = 6.876e-4
+            self.Ka = 2.293e-5
+            self.Vr = 226.74
+            self.Kr = 1.269e2
+            self.x0 = [9347.5467727, 5347.53586993, 35014.1218045, 2395.94295262, 1788.01439135, 11725.3198923]
+
+    def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
+        
+        if self.int_method == "jax":
+
+            # Use JAX-compatible calculations
+            # States
+            # m_Ga, m_Gt, m_Lt, m_Gb, m_Gr, m_Lr = x
+            Prt, Prb, Ppdg, Ptt, Ptb, Pbh, Wlout, Wgout = x
+        
+            # Inputs
+            z, Wgc = u
+        
+            Peb = m_Ga * self.R * self.T / (self.M * self.Veb)
+            Prt = m_Gt * self.R * self.T / (self.M * (self.Vr - (m_Lt + self.mlstill) / self.Rol))
+            Prb = Prt + (m_Lt + self.mlstill) * self.g * math.sin(self.teta) / self.A
+            ALFAg = m_Gt / (m_Gt + m_Lt)
+            ALFAl = 1 - ALFAg
+            Wout = self.Cout * z * math.sqrt(self.Rol * ((Prt - self.Ps) + math.sqrt((Prt - self.Ps) ** 2 + self.epsi))) * (1 / 2)
+            Wlout = ALFAl * Wout
+            Wgout = ALFAg * Wout
+            Wg = self.Cg * ((Peb - Prb) + math.sqrt((Peb - Prb) ** 2 + self.epsi)) * (1 / 2)
+        
+            Vgt = self.Vt - m_Lr / self.Rol
+            ROgt = m_Gr / Vgt
+            ROmt = (m_Gr + m_Lr) / self.Vt
+            Ptt = ROgt * self.R * self.T / self.M
+            Ptb = Ptt + ROmt * self.g * self.Hvgl
+            Ppdg = Ptb + self.Romres * self.g * (self.Hpdg - self.Hvgl)
+            Pbh = Ppdg + self.Romres * self.g * (self.Ht - self.Hpdg)
+            ALFAgt = m_Gr / (m_Lr + m_Gr)
+            Wwh = self.Kw * math.sqrt(self.Rol * ((Ptt - Prb) + math.sqrt((Ptt - Prb) ** 2 + self.epsi))) * (1 / 2)
+            Wwhg = Wwh * ALFAgt
+            Wwhl = Wwh * (1 - ALFAgt)
+            Wr = self.Kr * (1 - 0.2 * Pbh / self.Pr - 0.8 * (Pbh / self.Pr) ** 2)
+        
+            Pai = ((self.R * self.T / (self.Va * self.M)) + (self.g * self.La / self.Va)) * m_Gb
+            ROai = self.M * Pai / (self.R * self.T)
+            Wiv = self.Ka * math.sqrt(ROai * ((Pai - Ptb) + math.sqrt((Pai - Ptb) ** 2 + self.epsi))) * (1 / 2)
+        
+            dx1 = (1 - self.E) * (Wwhg) - Wg
+            dx2 = self.E * (Wwhg) + Wg - Wgout
+            dx3 = Wwhl - Wlout
+            dx4 = Wgc - Wiv
+            dx5 = Wr * self.ALFAgw + Wiv - Wwhg
+            dx6 = Wr * (1 - self.ALFAgw) - Wwhl
+        
+            dxdt = jnp.array([dx1, dx2, dx3, dx4, dx5, dx6])
+        
+            return dxdt
+
+        else:
+
+            # Original states    m_Ga, m_Gt, m_Lt, m_Gb, m_Gr, m_Lr
+            x1, x2, x3, x4, x5, x6 = x[0], x[1], x[2], x[3], x[4], x[5]
+    
+            # Observed states
+            Prt, Prb, Ppdg, Ptt, Ptb, Pbh, Wlout, Wgout = x[6], x[7], x[8], x[9], x[10], x[11], x[12], x[13]
+        
+            # Inputs
+            z = u[0]
+            Wgc = u[1]
+        
+            # Calculate algebraic variables
+            Peb = x1 * self.R * self.T / (self.M * self.Veb)
+            Prt_new = x2 * self.R * self.T / (self.M * (self.Vr - (x3 + self.mlstill) / self.Rol))
+            Prb_new = Prt_new + (x3 + self.mlstill) * self.g * np.sin(self.teta) / self.A
+            ALFAg = x2 / (x2 + x3)
+            ALFAl = 1 - ALFAg
+            Wout = self.Cout * z * np.sqrt(self.Rol * ((Prt_new - self.Ps) + np.sqrt((Prt_new - self.Ps) ** 2 + self.epsi))) * 0.5
+            Wlout_new = ALFAl * Wout
+            Wgout_new = ALFAg * Wout
+            Wg = self.Cg * ((Peb - Prb_new) + np.sqrt((Peb - Prb_new) ** 2 + self.epsi)) * 0.5
+            
+            Vgt = self.Vt - x6 / self.Rol
+            ROgt = x5 / Vgt
+            ROmt = (x5 + x6) / self.Vt
+            Ptt_new = ROgt * self.R * self.T / self.M
+            Ptb_new = Ptt_new + ROmt * self.g * self.Hvgl
+            Ppdg_new = Ptb_new + self.Romres * self.g * (self.Hpdg - self.Hvgl)
+            Pbh_new = Ppdg_new + self.Romres * self.g * (self.Ht - self.Hpdg)
+            ALFAgt = x5 / (x6 + x5)
+            Wwh = self.Kw * np.sqrt(self.Rol * ((Ptt_new - Prb_new) + np.sqrt((Ptt_new - Prb_new) ** 2 + self.epsi))) * 0.5
+            Wwhg = Wwh * ALFAgt
+            Wwhl = Wwh * (1 - ALFAgt)
+            Wr = self.Kr * (1 - 0.2 * Pbh_new / self.Pr - 0.8 * (Pbh_new / self.Pr) ** 2)
+            
+            Pai = ((self.R * self.T / (self.Va * self.M)) + (self.g * self.La / self.Va)) * x4
+            ROai = self.M * Pai / (self.R * self.T)
+            Wiv = self.Ka * np.sqrt(ROai * ((Pai - Ptb_new) + np.sqrt((Pai - Ptb_new) ** 2 + self.epsi))) * 0.5
+            
+            # Original state derivatives
+            dx1 = (1 - self.E) * Wwhg - Wg
+            dx2 = self.E * Wwhg + Wg - Wgout_new
+            dx3 = Wwhl - Wlout_new
+            dx4 = Wgc - Wiv
+            dx5 = Wr * self.ALFAgw + Wiv - Wwhg
+            dx6 = Wr * (1 - self.ALFAgw) - Wwhl
+            
+            # Calculate derivative of Prt_new
+            dPrt = (
+                (self.R * self.T / self.M) * (
+                    dx2 / (self.Vr - (x3 + self.mlstill) / self.Rol) -
+                    (x2 * dx3) / (self.Rol * (self.Vr - (x3 + self.mlstill) / self.Rol) ** 2)
+                )
+            ) / 1e5
+            
+            # Calculate derivative of Prb_new
+            dPrb = dPrt + (self.g * np.sin(self.teta) / self.A) * dx3 / 1e5
+            
+            # Calculate derivative of Ptt_new
+            dPtt = (
+                (self.R * self.T / (self.M * Vgt)) * dx5 +
+                (x5 * self.R * self.T / self.M) * (dx6 / (self.Rol * Vgt ** 2))
+            ) / 1e5
+            
+            # Calculate derivative of Ptb_new
+            dPtb = dPtt + (self.g * self.Hvgl / self.Vt) * (dx5 + dx6) / 1e5
+            
+            # Calculate derivative of Ppdg_new
+            dPpdg = dPtb + (self.Romres * self.g * (self.Hpdg - self.Hvgl) * dx6) / 1e5
+            
+            # Calculate derivative of Pbh_new
+            dPbh = dPpdg + (self.Romres * self.g * (self.Ht - self.Hpdg) * dx6) / 1e5
+
+            # Calculate derivatives of ALFAg and ALFAl
+            dALFAg = (dx2 / (x2 + x3)) - (x2 * (dx2 + dx3)) / ((x2 + x3) ** 2)
+            dALFAl = -dALFAg
+            
+            # Calculate derivative of Wout
+            dWout = (
+                self.Cout * z / 2 *
+                (self.Rol * (dPrt + ((Prt_new - self.Ps) * dPrt) / np.sqrt((Prt_new - self.Ps) ** 2 + self.epsi))) /
+                (2 * np.sqrt(self.Rol * (Prt_new - self.Ps + np.sqrt((Prt_new - self.Ps) ** 2 + self.epsi))))
+            )
+            
+            # Calculate derivatives of Wlout and Wgout
+            dWlout = dALFAl * Wout + ALFAl * dWout
+            dWgout = dALFAg * Wout + ALFAg * dWout
+            
+            # Concatenate all derivatives
+            dxdt = [dx1, dx2, dx3, dx4, dx5, dx6, dPrt, dPrb, dPpdg, dPtt, dPtb, dPbh, dWlout, dWgout]
+            
+            return dxdt
+
+

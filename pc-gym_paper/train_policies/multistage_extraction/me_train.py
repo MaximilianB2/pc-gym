@@ -11,7 +11,7 @@ from stable_baselines3 import PPO, DDPG, SAC
 # Define environment
 T = 60
 nsteps = 60
-
+training_seed = 1
 
 # Define reward to be equal to the OCP (i.e the same as the oracle)
 def oracle_reward(self,x,u,con):
@@ -93,14 +93,14 @@ env = make_env(env_params_ms)
 
 
 # Global timesteps
-nsteps_train = 2.5e4
+nsteps_train = 5e4
 training_reps = 1
 for r_i in range(training_reps):
     print(f'Training repition: {r_i+1}')
     # Train SAC 
     print('Training using SAC...')
     log_file = f"learning_curves\SAC_ME_LC_rep_{r_i}.csv"
-    SAC_ME =  SAC("MlpPolicy", env, verbose=1, learning_rate=0.01)
+    SAC_ME =  SAC("MlpPolicy", env, verbose=1, learning_rate=0.01, seed=training_seed)
     callback = LearningCurveCallback(log_file=log_file)
     SAC_ME.learn(nsteps_train,callback=callback)
 
@@ -110,7 +110,7 @@ for r_i in range(training_reps):
     # Train PPO 
     print('Training using PPO...')
     log_file = f"learning_curves\PPO_ME_LC_rep_{r_i}.csv"
-    PPO_ME =  PPO("MlpPolicy", env, verbose=1, learning_rate=0.001)
+    PPO_ME =  PPO("MlpPolicy", env, verbose=1, learning_rate=0.001, seed=training_seed)
     callback = LearningCurveCallback(log_file=log_file)
     PPO_ME.learn(nsteps_train,callback=callback)
 
@@ -120,7 +120,7 @@ for r_i in range(training_reps):
     # Train DDPG
     print('Training using DDPG...')
     log_file = f'learning_curves\DDPG_ME_LC_rep_{r_i}.csv'
-    DDPG_ME =  DDPG("MlpPolicy", env, verbose=1, learning_rate=0.001)
+    DDPG_ME =  DDPG("MlpPolicy", env, verbose=1, learning_rate=0.001, seed=training_seed)
     callback = LearningCurveCallback(log_file=log_file)
     DDPG_ME.learn(nsteps_train,callback=callback)
 

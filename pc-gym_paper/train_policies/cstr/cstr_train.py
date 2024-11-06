@@ -10,8 +10,8 @@ from custom_reward import sp_track_reward
 
 # Define environment
 T = 26
-nsteps = 120
-
+nsteps = 60
+training_seed = 1
 SP = {
     'Ca': [0.85 for i in range(int(nsteps/3))] + [0.9 for i in range(int(nsteps/3))]+ [0.87 for i in range(int(nsteps/3))],
 }
@@ -49,13 +49,13 @@ env_params = {
 env = make_env(env_params)
 
 # Global timesteps
-nsteps_train = 2.5e4
+nsteps_train = 5e4
 training_reps = 1
 for r_i in range(training_reps):
     print(f'Training repition:{r_i+1}')
     # Train SAC 
     log_file = f"learning_curves\SAC_CSTR_LC_rep_{r_i}.csv"
-    SAC_CSTR =  SAC("MlpPolicy", env, verbose=1, learning_rate=0.01)
+    SAC_CSTR =  SAC("MlpPolicy", env, verbose=1, learning_rate=0.01, seed=training_seed)
     callback = LearningCurveCallback(log_file=log_file)
     SAC_CSTR.learn(nsteps_train,callback=callback)
 
@@ -64,7 +64,7 @@ for r_i in range(training_reps):
 
     # Train PPO 
     log_file = f"learning_curves\PPO_CSTR_LC_rep_{r_i}.csv"
-    PPO_CSTR =  PPO("MlpPolicy", env, verbose=1, learning_rate=0.001)
+    PPO_CSTR =  PPO("MlpPolicy", env, verbose=1, learning_rate=0.001, seed = training_seed)
     callback = LearningCurveCallback(log_file=log_file)
     PPO_CSTR.learn(nsteps_train,callback=callback)
 
@@ -73,7 +73,7 @@ for r_i in range(training_reps):
 
     # Train SAC 
     log_file = f'learning_curves\DDPG_CSTR_LC_rep_{r_i}.csv'
-    DDPG_CSTR =  DDPG("MlpPolicy", env, verbose=1, learning_rate=0.001)
+    DDPG_CSTR =  DDPG("MlpPolicy", env, verbose=1, learning_rate=0.001, seed=training_seed)
     callback = LearningCurveCallback(log_file=log_file)
     DDPG_CSTR.learn(nsteps_train,callback=callback)
 

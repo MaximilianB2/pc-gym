@@ -1,9 +1,0 @@
-Trial 6 finished with value: -0.01778627676631004 and parameters: {'ent_coef': 0.00555239617334544, 'min_lr': 0.004440832373469064, 'max_lr': 0.013251144096616041, 'n_steps': 94, 'pi_units_0': 5, 'pi_units_1': 3, 'vf_units_0': 3, 'vf_units_1': 4}. Best is trial 6 with value: -0.01778627676631004.
-
-Trial 10 finished with value: -0.01700895399626461 and parameters: {'ent_coef': 0.004058068258371162, 'min_lr': 0.0037306426854343115, 'max_lr': 0.016249830430575003, 'n_steps': 32, 'pi_units_0': 3, 'pi_units_1': 4, 'vf_units_0': 4, 'vf_units_1': 4}. Best is trial 10 with value: -0.01700895399626461.
-
-[I 2024-06-20 17:35:02,122] Trial 0 finished with value: -0.03294035988292308 and parameters: {'ent_coef': 0.005922029691781624, 'min_lr': 0.007620241452553698, 'max_lr': 0.010306824505440734, 'n_steps': 38, 'pi_units_0': 3, 'pi_units_1': 5, 'vf_units_0': 5, 'vf_units_1': 4}. Best is trial 0 with value: -0.03294035988292308.
-
-[I 2024-06-20 19:07:33,391] Trial 21 finished with value: -0.015239707146247384 and parameters: {'ent_coef': 0.0036266316124375563, 'min_lr': 0.0020730250745702753, 'max_lr': 0.01234870911241759, 'n_steps': 80, 'pi_units_0': 4, 'pi_units_1': 5, 'vf_units_0': 5, 'vf_units_1': 3}. Best is trial 21 with value: -0.015239707146247384.
-
-[I 2024-06-22 09:53:30,116] Trial 40 finished with value: -0.002227357673110908 and parameters: {'ent_coef': 0.004230354144729496, 'min_lr': 0.004262568221276856, 'max_lr': 0.01121513839979795, 'n_steps': 71, 'pi_units_0': 3, 'pi_units_1': 4, 'vf_units_0': 4, 'vf_units_1': 3}. Best is trial 40 with value: -0.002227357673110908.

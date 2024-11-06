@@ -32,7 +32,7 @@ def paper_plot(data_DDPG_square, data_DDPG_sparse, data_DDPG_abs):
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(a4_width_inches, height), sharex=True)
     plt.subplots_adjust(top=0.92, bottom=0.08, left=0.08, right=0.98, hspace=0.2)
 
-    alphas = np.linspace(0.1, 1, 30)
+    alphas = np.linspace(0.1, 1, int(301))
     colors = ['tab:blue', 'tab:red', 'tab:green']
     labels = ['Square error', 'Sparse reward', 'Absolute error']
     data_sets = [data_DDPG_square, data_DDPG_sparse, data_DDPG_abs]
@@ -51,10 +51,18 @@ def paper_plot(data_DDPG_square, data_DDPG_sparse, data_DDPG_abs):
                ncol=4, frameon=False, columnspacing=1)
 
     for i, alpha in enumerate(alphas):
-        iterations = (i + 1) * 500
-        if i % 2 == 0 or i == 29:
+        
+        if i % 5 == 0:
+            # Adjust alpha based on iteration number
+            if i <= 250:
+                # Scale from 0.2 to 0.8 for iterations 0-250
+                plot_alpha = 0.2 + (0.2 * i / 280)
+            else:
+                # Use alpha >= 0.8 for iterations > 250
+                plot_alpha = max(0.8, alpha)
+                
             for j, (data, ax) in enumerate(zip(data_sets, axes)):
-                ax.plot(t, data[i]['pol_i']['x'][0,:,0], color=colors[j], alpha=alpha)
+                ax.plot(t, data[i]['pol_i']['x'][0,:,0], color=colors[j], alpha=plot_alpha)
 
     for ax in axes:
         ax.step(t, data_DDPG_abs[0]['pol_i']['x'][2,:,0], '--', color='black')

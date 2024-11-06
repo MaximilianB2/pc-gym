@@ -6,7 +6,7 @@ from stable_baselines3 import PPO, DDPG, SAC
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-
+from brokenaxes import brokenaxes
 # Define environment
 T = 60
 nsteps = 60
@@ -103,7 +103,7 @@ for policy in policies:
     rewards = data[policy]["r"].sum(axis=1).flatten()
     rewards = np.median(rewards)
     print(policy,oracle_r, rewards)
-    normalized_gap = (oracle_r - rewards) / oracle_r
+    normalized_gap = (oracle_r - rewards)
 
     mad = np.median(np.abs( np.median(data[policy]["r"].sum(axis=1).flatten()) - data[policy]["r"].sum(axis=1).flatten()))
     
@@ -157,7 +157,8 @@ def paper_plot(data):
         for i, policy in enumerate(policies):
             ax.plot(t, np.median(data[policy]['x'][idx,:,:], axis=1), color=cols[i], linewidth=1.25)
             if policy == 'SAC' and idx == 8:
-                    ax.step(t, np.median(data[policy]['x'][10,:,:], axis=1), color='black', linestyle = '--') 
+                    print('REFERENCE')
+                    ax.step(t, np.median(data[policy]['x'][10,:,:], axis=1), color='black', linestyle='--', zorder=10)
             
             ax.fill_between(t, np.max(data[policy]['x'][idx,:,:], axis=1), 
                             np.min(data[policy]['x'][idx,:,:], axis=1), 
@@ -219,32 +220,33 @@ def paper_r_distribution(data):
     rcParams['xtick.labelsize'] = 10
     rcParams['ytick.labelsize'] = 10
     rcParams['legend.fontsize'] = 10
-
+    
     # A4 width in inches
-    a4_width_inches = 8.27*0.5
+    a4_width_inches = 8.27 * 0.5
+    height = a4_width_inches
     
-    # Calculate height to maintain aspect ratio
-    height = a4_width_inches   # Adjust this factor as needed
+    # Create figure with broken x-axis
+    fig = plt.figure(figsize=(a4_width_inches, height))
+    bax = brokenaxes(xlims=((-0.6, -0.45), (-0.25, 0)), hspace=0.05, d = 0.01, despine = False)
     
-    fig, ax = plt.subplots(1, 1, figsize=(a4_width_inches, height))
-    plt.subplots_adjust(wspace=0.3, top=0.85, bottom=0.15, left=0.12, right=0.98)
     policies = ['SAC', 'PPO', 'DDPG']
     cols = ['tab:red', 'tab:blue', 'tab:green']
     labels = ['SAC', 'PPO', 'DDPG']
-
+    
     # Calculate the global min and max across all datasets
     all_rewards = np.concatenate([data[policy]["r"].sum(axis=1).flatten() for policy in policies])
     global_min, global_max = np.min(all_rewards), np.max(all_rewards)
-
-    # Create a single set of bins for all datasets
-    num_bins = 50 # Increase this for more granularity
-    bins = np.linspace(global_min, global_max, num_bins)
-
+    
+    # Create bins for each section separately
+    num_bins = 50
+    bins_left = np.linspace(-0.6, -0.45, num_bins//2)
+    bins_right = np.linspace(-0.25, 0, num_bins//2)
+    bins = np.concatenate([bins_left, bins_right])
+    
+    # Plot histograms
     for i, policy in enumerate(policies):
         rewards = data[policy]["r"].sum(axis=1).flatten()
-        
-        # Plot histogram
-        n, _, patches = ax.hist(
+        bax.hist(
             rewards,
             bins=bins,
             color=cols[i],
@@ -252,16 +254,17 @@ def paper_r_distribution(data):
             label=labels[i],
             edgecolor='None',
         )
-
+    
     # Add vertical line for oracle
     oracle_reward = np.median(data['oracle']["r"].sum(axis=1).flatten())
-    ax.axvline(x=oracle_reward, color='tab:orange', linestyle='--', linewidth=2, label='Oracle')
-
-    ax.set_ylabel('Density')
-    ax.set_xlabel('Cumulative Reward')
-    ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.18), ncol=2, frameon=False)
-    ax.set_box_aspect(1)
-
+    bax.axvline(x=oracle_reward, color='tab:orange', linestyle='--', linewidth=2, label='Oracle')
+    
+    # Set labels and legend
+    bax.set_ylabel('Frequency')
+    bax.set_xlabel('Cumulative Reward')
+    bax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.18), ncol=2, frameon=False)
+ 
+    # Adjust layout and save
     plt.savefig('ME_vis_r_dist.pdf', bbox_inches='tight', pad_inches=0.1)
     plt.show()
 

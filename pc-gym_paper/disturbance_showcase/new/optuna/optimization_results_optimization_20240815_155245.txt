@@ -1,6 +1,0 @@
-Study name: optimization_20240815_155245
-Best parameters:
-N = 29
-R = 7.915389217e-03
-Q = 9.042129181e-01
-Best performance: -0.000434133

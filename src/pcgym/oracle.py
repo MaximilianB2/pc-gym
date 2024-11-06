@@ -82,8 +82,8 @@ class oracle:
         for i, sp_key in enumerate(self.env_params["SP"]):
             state_index = self.model_info["states"].index(sp_key)
             lterm += self.Q[state_index, state_index] * (x[state_index] - SP[i])**2
-        lterm += u_full.T @ self.R_sym @ u_full
-    
+        lterm += u.T @ self.R_sym @ u
+        
         mterm = 0
         for i, sp_key in enumerate(self.env_params["SP"]):
             state_index = self.model_info["states"].index(sp_key)

@@ -244,7 +244,7 @@ for policy in policies:
     rewards = data[policy]["r"].sum(axis=1).flatten()
     rewards = np.median(rewards)
     print(policy,oracle_r, rewards)
-    normalized_gap = (oracle_r - rewards) / abs(oracle_r)
+    normalized_gap = (oracle_r - rewards)
 
     mad = np.median(np.abs( np.median(data[policy]["r"].sum(axis=1).flatten()) - data[policy]["r"].sum(axis=1).flatten()))
     

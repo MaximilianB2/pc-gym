@@ -13,7 +13,8 @@ from .model_classes import (
     heat_exchanger,
     biofilm_reactor,
     polymerisation_reactor,
-    crystallization
+    crystallization,
+    FOWM
 )
 from .policy_evaluation import policy_eval
 from .integrator import integration_engine
@@ -132,7 +133,8 @@ class make_env(gym.Env):
             "heat_exchanger": heat_exchanger,
             "biofilm_reactor": biofilm_reactor,
             "polymerisation_reactor": polymerisation_reactor,
-            "crystallization": crystallization 
+            "crystallization": crystallization,
+            "FOWM": FOWM,
         }
 
         # Load custom model if it is provided else load the selected standard model.
