@@ -2,7 +2,7 @@
 name = "pcgym"
 version = "0.1.6"
 description = "Reinforcement learning suite of process control problems."
-requires-python = "~=3.10"
+requires-python = "~=3.11"
 license = { file = "LICENSE" }
 readme = "README.md"
 authors = [{ name = "Max Bloor", email = "max.bloor@gmail.com" }]

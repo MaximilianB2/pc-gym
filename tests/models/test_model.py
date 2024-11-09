@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 from pcgym import make_env
-
+import copy
 # Helper function to create environment parameters
 def create_base_params(model_name, action_space, observation_space, setpoint, x0):
     return {
@@ -214,14 +214,15 @@ def test_disturbances(model_name):
     
     state, _ = env.reset()
     assert state.shape[-1] == params["o_space"]["low"].shape[0] + len(disturbances)
-    
+    print(state)
     for _ in range(10):
         action = env.action_space.sample()
         next_state, _, _, _, _ = env.step(action)
         assert next_state.shape == state.shape
-        
+        print(state, next_state)
+
         assert not np.allclose(state[-len(disturbances):], next_state[-len(disturbances):])  # Disturbances should change
-        state = next_state
+        state = copy.deepcopy(next_state)
 
 # Run the tests
 if __name__ == "__main__":
