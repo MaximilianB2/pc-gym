@@ -77,20 +77,19 @@ Example notebooks with training walkthroughs, implementing constraints, disturba
 | Multistage Extraction Column  |  [Ingham et al, 2007 (pg 471)](https://onlinelibrary.wiley.com/doi/book/10.1002/9783527614219)         | [Source](https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py)        |               |
 | Nonsmooth Control|[Lim,1969](https://pubs.acs.org/doi/epdf/10.1021/i260031a007)|[Source](https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py) ||
 
-
- 
-## Citing `pc-gym`
-If you use `pc-gym` in your research, please cite using the following 
+## Paper 📚
+The associated pre-print paper can be found [here](https://arxiv.org/abs/2410.22093). If you use our software in your work please cite the following:
 ```
-@software{pcgym2024,
-  author = {Max Bloor and  Jose Neto and Ilya Sandoval and Max Mowbray and Akhil Ahmed and Mehmet Mercangoz and Calvin Tsay and Antonio Del Rio-Chanona},
-  title = {{pc-gym}: Reinforcement Learning Environments for Process Control},
-  url = {https://github.com/MaximilianB2/pc-gym},
-  version = {0.1.6},
-  year = {2024},
+@article{bloor2024pcgymbenchmarkenvironmentsprocess,
+      title={PC-Gym: Benchmark Environments For Process Control Problems}, 
+      author={Maximilian Bloor and José Torraca and Ilya Orson Sandoval and Akhil Ahmed and Martha White and Mehmet Mercangöz and Calvin Tsay and Ehecatl Antonio Del Rio Chanona and Max Mowbray},
+      year={2024},
+      eprint={2410.22093},
+      archivePrefix={arXiv},
+      primaryClass={eess.SY},
+      url={https://arxiv.org/abs/2410.22093}, 
 }
 ```
-
 ## Other Great Gyms 🔍
 - ✨[safe-control-gym](https://github.com/utiasDSL/safe-control-gym) 
 - ✨[safety-gymnasium](https://github.com/PKU-Alignment/safety-gymnasium)
