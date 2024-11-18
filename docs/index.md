@@ -121,6 +121,20 @@ Currently there are three implemented process control environments, this will be
     <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py">Code</a></td>
     <td><a href="https://maximilianb2.github.io/pc-gym/env/nonsmooth_control/">Documentation</a></td>
   </tr>
+  </tr>
+    <tr>
+    <td>Crystallisation Reactor</td>
+    <td>Reactor</td> 
+    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py">Code</a></td>
+    <td><a href="https://maximilianb2.github.io/pc-gym/env/crystallisation/">Documentation</a></td>
+  </tr>
+   </tr>
+    <tr>
+    <td>Four Tank System</td>
+    <td>Level Control</td> 
+    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py">Code</a></td>
+    <td><a href="https://maximilianb2.github.io/pc-gym/env/four_tank/">Documentation</a></td>
+  </tr>
 </table>
 </div>
 
