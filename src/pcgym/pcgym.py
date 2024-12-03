@@ -55,7 +55,6 @@ class make_env(gym.Env):
         if env_params.get("a_delta") is not None:
             self.a_delta = env_params["a_delta"]
             self.a_0 = env_params["a_0"]
-            
         try:
             self.normalise_a = env_params["normalise_a"]
             self.normalise_o = env_params["normalise_o"]
@@ -279,8 +278,9 @@ class make_env(gym.Env):
         
         if self.a_delta:
             self.a_save = self.a_0
-        self.state = state
         
+        self.state = state
+        self.obs = copy.deepcopy(self.state)
         if self.custom_reward:
             r_init = 0
         elif not self.custom_reward:
@@ -289,15 +289,15 @@ class make_env(gym.Env):
         
         if self.normalise_o is True:
         
-            self.normstate = (
+            self.normobs = (
                 2
-                * (self.state - self.observation_space_base.low)
+                * (self.obs - self.observation_space_base.low)
                 / (self.observation_space_base.high - self.observation_space_base.low)
                 - 1
             )
-            return self.normstate, {"r_init": r_init}
+            return self.normobs, {"r_init": r_init}
         else:
-            return self.state, {"r_init": r_init}
+            return self.obs, {"r_init": r_init}
 
     def step(self, action: np.array) -> tuple[np.array, float, bool, bool, dict]:
         """
@@ -318,6 +318,7 @@ class make_env(gym.Env):
                 - dict: Additional information about the step.
         """
 
+        
         # Create control vector
         uk = np.zeros(self.Nu)
         if self.normalise_a is True:
@@ -336,7 +337,6 @@ class make_env(gym.Env):
         
         # Add disturbance to control vector
         if self.disturbance_active:
-            
             uk[: self.Nu - len(self.model.info()["disturbances"])] = (
                 action  # Add action to control vector
             )
@@ -353,19 +353,17 @@ class make_env(gym.Env):
                     default_value = self.model.info()["parameters"][str(k)]
                     uk[self.Nu - self.Nd_model + i] = self.model.info()["parameters"][
                         str(k)
-                    ]  # if there is no disturbance at this timestep, use the default value
-
+                    ]  
+                    # if there is no disturbance at this timestep, use the default value
                     disturbance_values.append(default_value)
                     
 
             # Update the state vector with current disturbance values
-            
             self.state[self.Nx_oracle + len(self.SP) :] = disturbance_values_state
         else:
             uk = action  # Add action to control vector
         # Simulate one timestep
         if self.integration_method == "casadi":
-            
                 Fk = self.int_eng.casadi_step(self.state, uk)
                 self.state[: self.Nx_oracle] = np.array(Fk["xf"].full()).reshape(
                     self.Nx_oracle
@@ -378,10 +376,7 @@ class make_env(gym.Env):
             constraint_violated = self.constraint_check(self.state, uk)
 
         # Compute reward
-        if self.custom_reward:
-            rew = self.custom_reward_f(self, self.state, uk, constraint_violated) 
-        elif not self.custom_reward:
-            rew = self.reward_fn(self.state, constraint_violated)
+
 
         # For each set point, if it exists, append its value at the current time step to the list
         SP_t = []
@@ -396,24 +391,30 @@ class make_env(gym.Env):
         if self.t == self.N-1:
             self.done = True
 
-        # add noise to state
+
+        # Copy the obs from the state and add noise if the user requests this
+        self.obs = copy.deepcopy(self.state)
         if self.env_params.get("noise", False):
             noise_percentage = self.env_params.get("noise_percentage", 0)
-            self.state[: self.Nx_oracle] += (
+            self.obs[: self.Nx_oracle] += (
                 np.random.normal(0, 1, self.Nx_oracle)
-                * self.state[: self.Nx_oracle]
-                * noise_percentage
-            )
+                * self.state[: self.Nx_oracle] * noise_percentage )
+        
+        if self.custom_reward:
+            rew = self.custom_reward_f(self, self.obs, uk, constraint_violated) 
+        elif not self.custom_reward:
+            rew = self.reward_fn(self.state, constraint_violated)
+        
         if self.normalise_o is True:
-            self.normstate = (
+            self.normobs = (
                 2
-                * (self.state - self.observation_space_base.low)
+                * (self.obs - self.observation_space_base.low)
                 / (self.observation_space_base.high - self.observation_space_base.low)
                 - 1
             )
-            return self.normstate, rew, self.done, False, self.info
+            return self.normobs, rew, self.done, False, self.info
         else:
-            return self.state, rew, self.done, False, self.info
+            return self.obs, rew, self.done, False, self.info
 
     def reward_fn(self, state:np.array, c_violated:bool) -> float:
         """

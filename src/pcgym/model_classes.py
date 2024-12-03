@@ -673,19 +673,34 @@ class four_tank:
         Returns:
             np.ndarray: State derivatives
         """
-        # States
-        h1, h2, h3, h4 = x[0], x[1], x[2], x[3]
+        if self.int_method == 'jax':
+            # States
+            h1, h2, h3, h4 = x[0], x[1], x[2], x[3]
 
-        # Inputs
-        v1, v2 = u[0], u[1]
+            # Inputs
+            v1, v2 = u[0], u[1]
 
-        dxdt = [
-            (-self.a1 / self.A1) * np.sqrt(2 * self.g * h1) + (self.a3 / self.A1) * np.sqrt(2 * self.g * h3) + ((self.gamma_1 * self.k1) / (self.A1)) * v1,
-            (-self.a2 / self.A2) * np.sqrt(2 * self.g * h2) + (self.a4 / self.A2) * np.sqrt(2 * self.g * h4) + ((self.gamma_2 * self.k2) / (self.A2)) * v2,
-            (-self.a3 / self.A3) * np.sqrt(2 * self.g * h3) + (((1 - self.gamma_2) * self.k2) / (self.A3)) * v2,
-            (-self.a4 / self.A4) * np.sqrt(2 * self.g * h4) + (((1 - self.gamma_1) * self.k1) / (self.A4)) * v1,
-        ]
-        return dxdt
+            dxdt = [
+                (-self.a1 / self.A1) * jnp.sqrt(2 * self.g * h1) + (self.a3 / self.A1) * jnp.sqrt(2 * self.g * h3) + ((self.gamma_1 * self.k1) / (self.A1)) * v1,
+                (-self.a2 / self.A2) * jnp.sqrt(2 * self.g * h2) + (self.a4 / self.A2) * jnp.sqrt(2 * self.g * h4) + ((self.gamma_2 * self.k2) / (self.A2)) * v2,
+                (-self.a3 / self.A3) * jnp.sqrt(2 * self.g * h3) + (((1 - self.gamma_2) * self.k2) / (self.A3)) * v2,
+                (-self.a4 / self.A4) * jnp.sqrt(2 * self.g * h4) + (((1 - self.gamma_1) * self.k1) / (self.A4)) * v1,
+            ]
+            return dxdt
+        else:
+            # States
+            h1, h2, h3, h4 = x[0], x[1], x[2], x[3]
+
+            # Inputs
+            v1, v2 = u[0], u[1]
+
+            dxdt = [
+                (-self.a1 / self.A1) * np.sqrt(2 * self.g * h1) + (self.a3 / self.A1) * np.sqrt(2 * self.g * h3) + ((self.gamma_1 * self.k1) / (self.A1)) * v1,
+                (-self.a2 / self.A2) * np.sqrt(2 * self.g * h2) + (self.a4 / self.A2) * np.sqrt(2 * self.g * h4) + ((self.gamma_2 * self.k2) / (self.A2)) * v2,
+                (-self.a3 / self.A3) * np.sqrt(2 * self.g * h3) + (((1 - self.gamma_2) * self.k2) / (self.A3)) * v2,
+                (-self.a4 / self.A4) * np.sqrt(2 * self.g * h4) + (((1 - self.gamma_1) * self.k1) / (self.A4)) * v1,
+            ]
+            return dxdt
 
     def info(self):
         """
@@ -1080,8 +1095,8 @@ class crystallization:
         T = u[0]
         # T = fmin(fmax(T, 0), 40)
         if self.int_method == "jax":
-            Ceq = -686.2686 + 3.579165 * jnp((T+273.15)) - 0.00292874 * jnp((T+273.15)) ** 2  # g/L
-            S = jnp(conc) * 1e3 - Ceq  # g/L
+            Ceq = -686.2686 + 3.579165 * (T+273.15) - 0.00292874 * (T+273.15) ** 2  # g/L
+            S = conc * 1e3 - Ceq  # g/L
             B0 = self.ka * jnp.exp(self.kb / (T+273.15)) * (S ** 2) ** (self.kc / 2) * ((mu3 ** 2) ** (self.kd / 2))  # /(cm³*min)
             Ginf = self.kg * jnp.exp(self.k1 / (T+273.15)) * (S ** 2) ** (self.k2 / 2)  # [G] = [Ginf] = cm/min
 
@@ -1097,10 +1112,13 @@ class crystallization:
             
             # Calculate algebraic variables
             CV = jnp.sqrt(mu2 * mu0 / (mu1**2) - 1)
-            ln = mu1 / (mu0 + 1e-6)
             
             # Append algebraic variables to dxdt, but with zero derivatives
-            dxdt = jnp.concatenate([dxdt, jnp.array([0.0, 0.0])])
+            dCVdt = 1 / (2 * CV + 1e-10) * ((dmi2dt * mu0 + mu2 * dmi0dt) * mu1**2 - mu2 * mu0 * 2 * mu1 * dmi1dt) / (mu1**4 + 1e-10)
+
+            # Calculate dLndt
+            dLndt = (dmi1dt * mu0 - mu1 * dmi0dt) / (mu0**2 + 1e-10)
+            dxdt = [dmi0dt, dmi1dt, dmi2dt, dmi3dt, dcdt, dCVdt, dLndt]
         else:
             Ceq = -686.2686 + 3.579165 * (T+273.15) - 0.00292874 * (T+273.15) ** 2  # g/L
             S = conc * 1e3 - Ceq  # g/L
@@ -1112,15 +1130,8 @@ class crystallization:
             dmi2dt = 2 * Ginf * (self.a * mu1 * 1e-4 + self.b * mu2 * 1e-8) * 1e8
             dmi3dt = 3 * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12) * 1e12
             dcdt = -0.5 * self.ro * self.alfa * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12)
-            # dTdt = self.UA * (Tc - temp) / (self.V * self.ro_t * self.Cp_t)
-            # dCVdt = (mu2*mu0/(mu1**2) - 1)**0.5 # Coefficient of variation 
-            # dLndt = mu1/(mu0+1e-6) # average crystal siz
-
-            # Calculate dCVdt
                     
-        
             CV = np.sqrt(mu2 * mu0 / (mu1**2) - 1)
-            ln = mu1 / (mu0 + 1e-6)
             dCVdt = 1 / (2 * CV + 1e-10) * ((dmi2dt * mu0 + mu2 * dmi0dt) * mu1**2 - mu2 * mu0 * 2 * mu1 * dmi1dt) / (mu1**4 + 1e-10)
 
             # Calculate dLndt

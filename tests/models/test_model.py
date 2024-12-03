@@ -223,6 +223,52 @@ def test_disturbances(model_name):
 
         assert not np.allclose(state[-len(disturbances):], next_state[-len(disturbances):])  # Disturbances should change
         state = copy.deepcopy(next_state)
+@pytest.mark.parametrize("model_name", ["cstr", "multistage_extraction", "four_tank","crystallization"])   
+def test_JAX_int(model_name):
+    config = model_configs[model_name]
+    params = create_base_params(model_name, 
+                                config["action_space"], 
+                                config["observation_space"], 
+                                config["setpoint"], 
+                                config["x0"])
+    params.update({
+        "integration_method":"jax"
+        })
+    
+    env = make_env(params)
+    try:
+        state, _ = env.reset()
+    except Exception as e:
+        pytest.fail(f"env.reset() raised an exception: {e}")
+    
+    try:
+        action = env.action_space.sample()
+        env.step(action)
+    except Exception as e:
+        pytest.fail(f"env.step() raised an exception: {e}")
+
+@pytest.mark.parametrize("model_name", ["cstr", "multistage_extraction", "four_tank","crystallization"])   
+def test_state_and_obs_noise(model_name):
+    """
+    Test if with measurement noise the state and observation are different.
+    """
+    config = model_configs[model_name]
+    params = create_base_params(model_name, 
+                                config["action_space"], 
+                                config["observation_space"], 
+                                config["setpoint"], 
+                                config["x0"])
+    params.update({
+        "noise": True,
+        "noise_percentage":0.001,
+        })
+    
+    env = make_env(params)
+    state, _ = env.reset()
+    
+    action = env.action_space.sample()
+    env.step(action)
+    assert not np.allclose(env.state[:env.Nx_oracle], env.obs[:env.Nx_oracle])
 
 # Run the tests
 if __name__ == "__main__":
