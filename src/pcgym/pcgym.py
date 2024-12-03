@@ -83,7 +83,7 @@ class make_env(gym.Env):
         self.observation_space_base = spaces.Box(low=base_obs_low, high=base_obs_high)
 
         if self.normalise_o: 
-            self.observation_space = spaces.Box(low=np.array([-1]*base_obs_low.shape[0]), high=np.array([1]*base_obs_high.shape[0]))
+            self.observation_space = spaces.Box(low=np.array([-1]*base_obs_low.shape[0]), high=np.array([1]*base_obs_high.shape[0],dtype=np.float32))
         else:
             self.observation_space = spaces.Box(low=base_obs_low, high=base_obs_high)
         
@@ -177,13 +177,13 @@ class make_env(gym.Env):
             extended_obs_high = np.concatenate((base_obs_high, disturbance_high))
             # Define the extended observation space
             self.observation_space_base = spaces.Box(
-                low=extended_obs_low, high=extended_obs_high, dtype=np.float32
+                low=extended_obs_low, high=extended_obs_high
             )
             if self.normalise_o:
                 self.observation_space = spaces.Box(low=np.array([-1]*extended_obs_low.shape[0]), high=np.array([1]*extended_obs_high.shape[0]))
             else:
                 self.observation_space = spaces.Box(
-                low=extended_obs_low, high=extended_obs_high, dtype=np.float32
+                low=extended_obs_low, high=extended_obs_high
             )
                 
         # Custom reward function
@@ -214,14 +214,14 @@ class make_env(gym.Env):
 
             # Define the extended observation space
             self.observation_space_base = spaces.Box(
-                low=extended_obs_low, high=extended_obs_high, dtype=np.float32
+                low=extended_obs_low, high=extended_obs_high
             )
             
             if self.normalise_o:
                 self.observation_space = spaces.Box(low=np.array([-1]*extended_obs_low.shape[0]), high=np.array([1]*extended_obs_high.shape[0]))
             else:
                 self.observation_space = spaces.Box(
-                low=extended_obs_low, high=extended_obs_high, dtype=np.float32)
+                low=extended_obs_low, high=extended_obs_high)
         
 
     def apply_uncertainties(self, value, percentage):
