@@ -88,7 +88,7 @@ pip install git+https://github.com/MaximilianB2/pc-gym
 Example notebooks with training walkthroughs, implementing constraints, disturbances and the policy evaluation tool can be found [here](https://github.com/MaximilianB2/pc-gym/tree/main/example_notebooks).
 
 ## Environments 
-Currently there are three implemented process control environments, this will be expanded to 10 prior to full release.
+Currently there are six implemented process control environments, this will be expanded over time.
 <div style="display: flex; justify-content: center;">
 <table style="width:100%">
   <tr>
