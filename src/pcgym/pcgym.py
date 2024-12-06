@@ -117,6 +117,7 @@ class make_env(gym.Env):
             self.done_on_constraint = env_params["done_on_cons_vio"]
             self.r_penalty = env_params["r_penalty"]
             self.custom_constraint_active = True
+            self.info["cons_info"] = np.zeros((1, self.N, 1))
         
         # Select model
         model_mapping = {
@@ -458,17 +459,10 @@ class make_env(gym.Env):
                 cons_type = self.cons_type[state]  # List of cons type
                 for j in range(len(constraint)):
                     curr_state_i = curr_state[i]
-                    is_greater_violated = (
-                        cons_type[j] == ">=" and curr_state_i <= constraint[j]
-                    )
-                    is_less_violated = (
-                        cons_type[j] == "<=" and curr_state_i >= constraint[j]
-                    )
-
-                    if is_greater_violated or is_less_violated:
-                        self.info["cons_info"][self.con_i, self.t, :] = abs(
-                            curr_state_i - constraint[j]
-                        )
+                    # Convert to standard form of g(x) <= 0
+                    constraint_violation = ((constraint[j] - curr_state_i) if cons_type[j] == ">=" else (curr_state_i - constraint[j])) #
+                    self.info["cons_info"][self.con_i, self.t, :] = constraint_violation
+                    if constraint_violation > 0:  # g(x) > 0 means constraint is violated
                         return True
                     self.con_i += 1
         return False
@@ -494,15 +488,16 @@ class make_env(gym.Env):
         inputs = self.model.info()["inputs"]
         if self.env_params.get("custom_con") is not None:
             custom_con_vio_f = self.env_params["custom_con"]
-            custom_con_vio = custom_con_vio_f(
+            custom_con = custom_con_vio_f(
                 state, input
             )  # User defined constraint return True if violated
-            assert isinstance(
-                custom_con_vio, bool
-            ), "Custom constraint must return a boolean (True == Violated)"
+            self.info['cons_info'][0, self.t,:] = custom_con
+            if custom_con > 0:
+                custom_con_vio = True
+            else:
+                custom_con_vio = False
         else:
             custom_con_vio = False
-
         if self.constraint_active and self.custom_constraint_active:
             constraint_violated = (
                 self.con_checker(states, state)
@@ -517,8 +512,9 @@ class make_env(gym.Env):
             )  # Check both inputs and states
         elif self.custom_constraint_active:
             constraint_violated = custom_con_vio
-
-        self.done = self.done_on_constraint
+        
+        if constraint_violated and self.done_on_constraint:
+            self.done = True
         return constraint_violated
 
     def get_rollouts(
