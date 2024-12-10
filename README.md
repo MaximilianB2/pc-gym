@@ -38,7 +38,7 @@ env_params = {
     'o_space' : observation_space, 
     'a_space' : action_space, 
     'x0': np.array([0.8, 330, 0.8]), # Initial conditions [Ca, T, Ca_SP]
-    'model': 'cstr_ode', # Select the model
+    'model': 'cstr', # Select the model
 }
 
 # Create environment
