@@ -17,13 +17,12 @@
   });
 </script>
 <div style="display: flex; justify-content: center;">
-  <img src="..\..\img\multistage_extractor.png" alt="Image title" style="width:40%">
+  <img src="..\..\img\Multistage_Extractor.png" alt="Image title" style="width:40%">
 </div>
  
 
 ## Description & Equations
-The continuously stirred tank reactor (CSTR) is a system which converts species A to species B via the reaction: A  →  B. The reactor's temperature is controlled by a cooling jacket. The following system of equations describes the system:
-
+The multistage extraction column is a key unit operation in chemical engineering that enables mass transfer between liquid and gas phases across multiple theoretical stages, described by coupled differential equations representing the dynamic concentration changes in each phase:
 
 \begin{align}
   \nonumber\frac{\mathrm{d}X_i}{\mathrm{d}t} &= \frac{L}{V_L}(X_{i-1}-X_i) - K_{La}\left(X_i - \frac{Y_i}{m}\right)\\
