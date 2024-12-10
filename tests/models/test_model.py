@@ -194,6 +194,51 @@ def test_constraints(model_name):
             assert reward < 0  # Check if penalty was applied
             break
     assert constraint_violated, "Constraint should have been violated"
+
+@pytest.mark.parametrize("model_name", ["cstr_ode"])
+def test_model_naming(model_name):
+    # Enter required setpoints for each state.
+    T = 26
+    nsteps = 100
+    SP = {
+        'Ca': [0.85 for i in range(int(nsteps/2))] + [0.9 for i in range(int(nsteps/2))],
+    }
+    action_space = {
+        'low': np.array([295.], dtype=np.float32),
+        'high':np.array([302.], dtype=np.float32) 
+    }
+
+    # Continuous box observation space
+    observation_space = {
+        'low' : np.array([0.7, 300., 0.8], dtype=np.float32),
+        'high' : np.array([1., 350., 0.9], dtype=np.float32)  
+    }
+
+    r_scale ={
+        'Ca': 1e3 #Reward scale for each state
+    }
+    env_params = {
+        'N': nsteps, # Number of time steps
+        'tsim':T, # Simulation Time
+        'SP':SP, # Setpoint
+        'o_space' : observation_space, # Observation space
+        'a_space' : action_space, # Action space
+        'x0': np.array([0.8,330,0.8]), # Initial conditions 
+        'model': model_name, # Select the model
+        'r_scale': r_scale, # Scale the L1 norm used for reward (|x-x_sp|*r_scale)
+        'normalise_a': True, # Normalise the actions
+        'normalise_o':True, # Normalise the states,
+        'noise':True, # Add noise to the states
+        'integration_method': 'casadi', # Select the integration method
+        'noise_percentage':0.1 # Noise percentage
+    }
+    try:
+        env = make_env(env_params=env_params)
+        env.reset()
+        assert False, "Expected ValueError was not raised"
+    except ValueError:
+        assert True
+
 @pytest.mark.parametrize("model_name", ["cstr", "multistage_extraction"])   
 def test_disturbances(model_name):
     config = model_configs[model_name]
