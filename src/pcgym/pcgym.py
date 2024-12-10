@@ -140,16 +140,17 @@ class make_env(gym.Env):
             m.int_method  = self.integration_method
             self.model = m
         else:
-            m = model_mapping.get(env_params["model"], None)
-            self.model = m(
-                int_method=self.integration_method
-            )  # Initialise the model with the selected integration method
-
-        # Handle the case where the model is not found (do this for all)
-        if self.model is None:
-            raise ValueError(
+            if self.env_params.get("model") not in model_mapping: 
+                            raise ValueError(
                 f"Model '{env_params['model']}' not found in model_mapping."
             )
+            else: 
+                m = model_mapping.get(env_params["model"], None)
+                self.model = m(
+                    int_method=self.integration_method
+                )  # Initialise the model with the selected integration method
+
+
 
         # Import states and controls from model info
         self.Nx = len(self.model.info()["states"]) + len(self.SP)
