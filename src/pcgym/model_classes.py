@@ -260,6 +260,102 @@ class multistage_extraction:
         info["parameters"].pop("int_method", None)
         return info
 
+@dataclass(frozen = False, kw_only = True)
+class photo_production:
+    """
+    Photo Production of Phycocyanin from 
+    Cyanobacteria Arthrospira platensis
+    
+    Attributes:
+    u_m (float):
+    u_d (float):
+    Y_NX (float):
+    k_m (float):
+    k_d (float):
+    k_sq (float):
+    K_Nq (float):
+    k_iq (float):
+    int_method (str): Integration method ('jax' or other)
+    
+    Uncertain Parameters:
+    k_s, k_i, k_N: floats with normal mean and 10% std dev
+    
+    """
+    
+    u_m: float = 0.0572
+    u_d: float = 0.0
+    Y_NX: float = 504.5
+    k_m: float = 0.00016
+    k_d: float = 0.281
+    k_sq: float = 23.51
+    K_Nq: float = 16.89
+    k_iq: float = 800.0
+    k_s: float = 178.9 # Normal(178.9, 17.89)
+    k_i: float = 447.1 # Normal(447.1, 44.71)
+    k_N: float = 393.1 # Normal(393.1, 39.31)
+    int_method: str = 'jax'
+    
+    def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
+        """
+        Calculates the state derivatives for the photo production model
+
+        Args:
+            x (np.ndarray): Current State [c_x, c_N, c_q]; concentrations of biomass, nitrate and product
+            u (np.ndarray): Input [I, F_N]; light intensity and nitrate feed rate
+
+        Returns:
+            np.ndarray: State derivatives [dc_x, dc_N, dc_q]
+        """
+        if self.int_method == "jax":
+            I, F_N = u[0], u[1]
+            
+            c_x, c_N, c_q = x[0], x[1], x[2]
+            
+            dxdt = jnp.array(
+                [
+                    self.u_m * I / (I + self.k_s + (I**2 / self.k_i)) * c_x * c_N / (c_N+ self.K_N) - self.u_d * c_x,
+                    self.Y_NX * self.u_m * I / (I + self.k_s + (I**2 / self.k_i)) * c_x * c_N / (c_N+ self.K_N) + F_N,
+                    self.k_m * I / (I + self.k_sq + (I**2 / self.k_iq)) * c_x - (self.k_d * c_q)/(c_N + self.K_Nq),
+                    
+                ]
+            )
+            return dxdt
+        
+        else: 
+            I, F_N = u[0], u[1]
+            
+            c_x, c_N, c_q = (
+                x[0], 
+                x[1], 
+                x[2],
+            )
+            
+            dxdt = [
+                    self.u_m * I / (I + self.k_s + (I**2 / self.k_i)) * c_x * c_N / (c_N+ self.K_N) - self.u_d * c_x,
+                    self.Y_NX * self.u_m * I / (I + self.k_s + (I**2 / self.k_i)) * c_x * c_N / (c_N+ self.K_N) + F_N,
+                    self.k_m * I / (I + self.k_sq + (I**2 / self.k_iq)) * c_x - (self.k_d * c_q)/(c_N + self.K_Nq),
+                    
+                ]
+            
+            return dxdt
+        
+    def info(self) -> dict:
+        """
+        Get Model information
+        
+        Returns:
+            dict: Model information containing model parameters, states, inputs and disturbances
+        """
+        
+        info = {
+            "parameters": self.__dict__.copy(),
+            "states": ["c_x", "c_N", "c_q"],
+            "inputs": ["I", "F_N"],
+            "disturbances": []
+        }
+        info["parameters"].pop("int_method")
+        return info
+
 @dataclass(frozen=False, kw_only=True)
 class nonsmooth_control:
     """
