@@ -177,8 +177,7 @@ def test_constraints(model_name):
                                 config["setpoint"], 
                                 config["x0"])
     params.update({
-        "constraints": {"Ca": [0.8, 0.9]},
-        "cons_type": {"Ca": ["<=", ">="]},
+        "constraints": lambda x, u: np.array([x[0] - 0.8, 0.9 - x[0]]).reshape(-1,),
         "done_on_cons_vio": False,
         "r_penalty": True,
     })
@@ -198,36 +197,7 @@ def test_constraints(model_name):
 
         print(constraint_violated)
     assert constraint_violated_1 and constraint_violated_0, "Constraint should have been violated"
-@pytest.mark.parametrize("model_name", ['cstr'])
-def test_custom_constraints(model_name):
-    def con_f(x,u):
-        g = 0.8 - x[0] 
-        return g
-    config = model_configs[model_name]
-    params = create_base_params(model_name, 
-                                config["action_space"], 
-                                config["observation_space"], 
-                                config["setpoint"], 
-                                config["x0"])
-    params.update({
-        "custom_con": con_f,
-        "done_on_cons_vio": False,
-        "r_penalty": True
-    })
-    env = make_env(params)
     
-    env.reset()
-    constraint_violated = False
-    for i in range(100):
-        action = env.action_space.high  # Use max action to potentially violate constraint
-        _, reward, done, _, info = env.step(action)
-        if info['cons_info'][0, i, :] > 0:
-            constraint_violated = True
-        if done: 
-            break
-
-        print(constraint_violated)
-    assert constraint_violated, "Constraint should have been violated"
 @pytest.mark.parametrize("model_name", ["cstr", "multistage_extraction"])   
 def test_disturbances(model_name):
     config = model_configs[model_name]
