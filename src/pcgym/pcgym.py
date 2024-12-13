@@ -103,21 +103,13 @@ class make_env(gym.Env):
         self.custom_constraint_active = False  # Initialize to False by default
 
         if env_params.get("constraints") is not None:
-            self.constraints = env_params["constraints"]
+            self.constraints = env_params["constraints"] # g:X \times U -> R^(n_con) with <= 0 indicating feasibility
             self.done_on_constraint = env_params["done_on_cons_vio"]
             self.r_penalty = env_params["r_penalty"]
-            self.cons_type = env_params["cons_type"]
             self.constraint_active = True
-            self.n_con = 0
-            for _, con_list in self.constraints.items():
-                self.n_con += len(con_list)
+            self.n_con = self.constraints(self.x0, self.action_space.sample()).shape[0]
             self.info["cons_info"] = np.zeros((self.n_con, self.N, 1))
 
-        if env_params.get("custom_con") is not None:
-            self.done_on_constraint = env_params["done_on_cons_vio"]
-            self.r_penalty = env_params["r_penalty"]
-            self.custom_constraint_active = True
-        
         # Select model
         model_mapping = {
             "cstr": cstr,
@@ -334,7 +326,6 @@ class make_env(gym.Env):
             self.a_save = action
             
             self.a_save = np.clip(self.a_save,self.env_params['a_space_act']['low'],self.env_params['a_space_act']['high'])
-
         
         # Add disturbance to control vector
         if self.disturbance_active:
@@ -363,6 +354,13 @@ class make_env(gym.Env):
             self.state[self.Nx_oracle + len(self.SP) :] = disturbance_values_state
         else:
             uk = action  # Add action to control vector
+
+        if self.t == 0: 
+            # Check if constraints are violated
+            constraint_violated = False
+            if self.constraint_active:
+                constraint_violated = self.constraint_check(self.state, uk)
+        
         # Simulate one timestep
         if self.integration_method == "casadi":
                 Fk = self.int_eng.casadi_step(self.state, uk)
@@ -371,13 +369,6 @@ class make_env(gym.Env):
                 )
         elif self.integration_method == "jax":
             self.state[: self.Nx_oracle] = self.int_eng.jax_step(self.state, uk)
-        # Check if constraints are violated
-        constraint_violated = False
-        if self.constraint_active or self.custom_constraint_active:
-            constraint_violated = self.constraint_check(self.state, uk)
-
-        # Compute reward
-
 
         # For each set point, if it exists, append its value at the current time step to the list
         SP_t = []
@@ -388,6 +379,11 @@ class make_env(gym.Env):
         self.state[self.Nx_oracle:self.Nx_oracle+len(self.SP)] = np.array(SP_t)
         # Update timestep
         self.t += 1
+
+        # Check if constraints are violated
+        constraint_violated = False
+        if self.constraint_active:
+            constraint_violated = self.constraint_check(self.state, uk)
 
         if self.t == self.N-1:
             self.done = True
@@ -442,7 +438,7 @@ class make_env(gym.Env):
                 r -= 1000
         return r
 
-    def con_checker(self, model_states:list, curr_state:np.array) -> bool:
+    def con_checker(self, curr_state:np.array, inputs:np.array) -> bool:
         """
         Check if any constraints are violated for the given states.
 
@@ -453,26 +449,14 @@ class make_env(gym.Env):
         Returns:
             bool: True if any constraint is violated, False otherwise.
         """
-        for i, state in enumerate(model_states):
-            if state in self.constraints:
-                constraint = self.constraints[state]  # List of constraints
-                cons_type = self.cons_type[state]  # List of cons type
-                for j in range(len(constraint)):
-                    curr_state_i = curr_state[i]
-                    is_greater_violated = (
-                        cons_type[j] == ">=" and curr_state_i <= constraint[j]
-                    )
-                    is_less_violated = (
-                        cons_type[j] == "<=" and curr_state_i >= constraint[j]
-                    )
-
-                    if is_greater_violated or is_less_violated:
-                        self.info["cons_info"][self.con_i, self.t, :] = abs(
-                            curr_state_i - constraint[j]
-                        )
-                        return True
-                    self.con_i += 1
-        return False
+        constraint = self.constraints
+        g = constraint(curr_state, inputs)
+        self.info['cons_info'][:,self.t,:] = g.reshape(g.shape[0],1)
+        if np.any(self.info["cons_info"][:,self.t,:] > 0):
+            return True
+        else:
+            return False
+        
 
     def constraint_check(self, state: np.array, input:np.array) -> bool:
         """
@@ -490,36 +474,12 @@ class make_env(gym.Env):
         """
 
         self.con_i = 0
-        constraint_violated = False
-        states = self.model.info()["states"]
-        inputs = self.model.info()["inputs"]
-        if self.env_params.get("custom_con") is not None:
-            custom_con_vio_f = self.env_params["custom_con"]
-            custom_con_vio = custom_con_vio_f(
-                state, input
-            )  # User defined constraint return True if violated
-            assert isinstance(
-                custom_con_vio, bool
-            ), "Custom constraint must return a boolean (True == Violated)"
-        else:
-            custom_con_vio = False
-
-        if self.constraint_active and self.custom_constraint_active:
-            constraint_violated = (
-                self.con_checker(states, state)
-                or self.con_checker(inputs, input)
-                or False
-            )  # Check both inputs and states
-        elif self.constraint_active:
-            constraint_violated = (
-                self.con_checker(states, state)
-                or self.con_checker(inputs, input)
-                or False
-            )  # Check both inputs and states
-        elif self.custom_constraint_active:
-            constraint_violated = custom_con_vio
-
-        self.done = self.done_on_constraint
+        constraint_violated = (
+            self.con_checker(state,  input)
+        )  # Check both inputs and states
+        
+        if constraint_violated and self.done_on_constraint:
+            self.done = True
         return constraint_violated
 
     def get_rollouts(

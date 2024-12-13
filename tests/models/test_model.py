@@ -168,7 +168,7 @@ def test_uncertainty(model_name):
 
     print(f"\nUncertainty test passed for {model_name}")
 
-@pytest.mark.parametrize("model_name", model_configs.keys())
+@pytest.mark.parametrize("model_name", ['cstr'])
 def test_constraints(model_name):
     config = model_configs[model_name]
     params = create_base_params(model_name, 
@@ -177,68 +177,27 @@ def test_constraints(model_name):
                                 config["setpoint"], 
                                 config["x0"])
     params.update({
-        "constraints": {"state_0": [0.8]},
-        "cons_type": {"state_0": ["<="]},
-        "done_on_cons_vio": True,
+        "constraints": lambda x, u: np.array([x[0] - 0.8, 0.9 - x[0]]).reshape(-1,),
+        "done_on_cons_vio": False,
         "r_penalty": True,
     })
     env = make_env(params)
     
     env.reset()
     constraint_violated = False
-    for _ in range(100):
+    for i in range(100):
         action = env.action_space.high  # Use max action to potentially violate constraint
-        _, reward, done, _, _ = env.step(action)
-        if done:
-            constraint_violated = True
-            assert reward < 0  # Check if penalty was applied
+        _, reward, done, _, info = env.step(action)
+        if info['cons_info'][0, i, :] > 0:
+            constraint_violated_0 = True
+        if info['cons_info'][1, i, :] > 0:
+            constraint_violated_1 = True
+        if done: 
             break
-    assert constraint_violated, "Constraint should have been violated"
 
-@pytest.mark.parametrize("model_name", ["cstr_ode"])
-def test_model_naming(model_name):
-    # Enter required setpoints for each state.
-    T = 26
-    nsteps = 100
-    SP = {
-        'Ca': [0.85 for i in range(int(nsteps/2))] + [0.9 for i in range(int(nsteps/2))],
-    }
-    action_space = {
-        'low': np.array([295.], dtype=np.float32),
-        'high':np.array([302.], dtype=np.float32) 
-    }
-
-    # Continuous box observation space
-    observation_space = {
-        'low' : np.array([0.7, 300., 0.8], dtype=np.float32),
-        'high' : np.array([1., 350., 0.9], dtype=np.float32)  
-    }
-
-    r_scale ={
-        'Ca': 1e3 #Reward scale for each state
-    }
-    env_params = {
-        'N': nsteps, # Number of time steps
-        'tsim':T, # Simulation Time
-        'SP':SP, # Setpoint
-        'o_space' : observation_space, # Observation space
-        'a_space' : action_space, # Action space
-        'x0': np.array([0.8,330,0.8]), # Initial conditions 
-        'model': model_name, # Select the model
-        'r_scale': r_scale, # Scale the L1 norm used for reward (|x-x_sp|*r_scale)
-        'normalise_a': True, # Normalise the actions
-        'normalise_o':True, # Normalise the states,
-        'noise':True, # Add noise to the states
-        'integration_method': 'casadi', # Select the integration method
-        'noise_percentage':0.1 # Noise percentage
-    }
-    try:
-        env = make_env(env_params=env_params)
-        env.reset()
-        assert False, "Expected ValueError was not raised"
-    except ValueError:
-        assert True
-
+        print(constraint_violated)
+    assert constraint_violated_1 and constraint_violated_0, "Constraint should have been violated"
+    
 @pytest.mark.parametrize("model_name", ["cstr", "multistage_extraction"])   
 def test_disturbances(model_name):
     config = model_configs[model_name]

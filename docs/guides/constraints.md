@@ -16,37 +16,59 @@
     }
   });
 </script>
+# Adding Constraints in PC-Gym
 
-This is a user guide for the constraint function in pc-gym which will walkthrough an example of how to add a constraint to an environment.
+This guide explains how to add and work with constraints in the PC-Gym environment using a practical example.
 
-### Constraint Definition
-Firstly, a dictionary named constraints is defined. The keys in the dictionary represent the state, and the values represent the constraints on that state. 
+## Understanding Constraints
 
-\begin{align}
-\nonumber T \geq 319 \\\
-\nonumber T \leq 331
-\end{align}
+In PC-Gym, constraints are used to enforce limits on system states. For example, we may want to ensure a temperature stays within certain bounds during operation.
 
-Then the environment parameters are updated with these dictionaries and two addtional boolean variables: `done_on_cons_vio` which allows the episode to end if the constraint is violated and `r_penalty` which adds a penalty to the reward function for violating the constraint. 
+Constraints are defined using two key components:
+- A dictionary mapping states to their constraint values 
+- A dictionary specifying the types of constraints (e.g. greater than, less than)
 
-```py
-# Constraint definition
-cons = {
-    'T': [319,331]
+## Step-by-Step Implementation
+
+### 1. Define the Constraints
+
+First, we define constraints on the temperature T to stay between 319K and 331K. In pc-gym, we use a lambda function to define constraints and always define constraints as $$g(x,u) \leq 0$$.
+
+```python
+cons = lambda x, u: np.array([319 - x[1], x[1] - 331]).reshape(-1,)
+```
+
+### 2. Configure Environment Parameters 
+
+Next, we update the environment parameters with the constraint settings:
+
+```python
+env_params = {
+    # ... other parameters ...
+    'done_on_cons_vio': False,  # Episode continues even if constraint violated
+    'constraints': cons,        # Our defined constraints
+    'r_penalty': True          # Add reward penalty for constraint violations
 }
 
-# Constraint type 
-cons_type = {
-    'T':['>=','<=']
-}
+# Create environment with constraints
+env = make_env(env_params)
+```
 
-# Update the environment parameters
-env_params.update({
-'done_on_cons_vio':False, # Done on constraint violation
-'constraints': constraints, 
-'cons_type': cons_type,
-'r_penalty': True  # Add a penalty for constraint violation to the reward function
-})
+The key parameters are:
+- `done_on_cons_vio`: Controls whether episodes end when constraints are violated
+- `constraints`: The constraint function we defined
+- `r_penalty`: Enables reward penalties for constraint violations 
+
+### 3. Training with Constraints
+
+We can now train a policy that respects these constraints using reinforcement learning. Here's an example using PPO:
+
+```python
+# Train constrained policy
+PPO_policy = PPO('MlpPolicy', env, verbose=1, learning_rate=0.001).learn(nsteps_learning)
+
+# Visualize results
+evaluator, data = env.plot_rollout({'PPO': PPO_policy}, reps=10, cons_viol=False)
 ```
 
 ### Training with a Constraint Example 
@@ -57,7 +79,6 @@ constraint_policy = PPO('MlpPolicy', env, verbose=1,learning_rate=0.01).learn(to
 evaluator, data = env.plot_rollout(constraint_policy, reps = 10, cons_viol = False)   
 ```
 <figure>
+  <img src="../../img/Constraint_state_trajectories.png" alt="Image title" style="width:100%">
   <img src="../../img/Constraint Policy.png" alt="Image title" style="width:100%">
 </figure>
-
-
