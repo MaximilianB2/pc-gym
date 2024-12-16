@@ -1,0 +1,76 @@
+:root {
+  --md-primary-fg-color: #003E74;
+}
+
+.md-header__button .md-logo {
+  margin: 0;
+  padding: 0;
+}
+
+.md-source__facts {
+
+    margin: -.4rem 0 0;
+
+}
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 2.4rem;
+  width: 2.4rem;
+}
+
+@font-face {
+  font-family: "pcgym";
+  src: url("computer-says-no.ttf");
+}
+
+.md-header__topic:first-child {
+  font-weight: 200;
+  font-family: "pcgym";
+}
+
+.md-header__title {
+  font-size: 2rem;
+  height: 3rem;
+}
+
+[dir=ltr] .md-header__title {
+  margin-left: 0rem;
+  margin-right: .4rem;
+}
+
+[dir=ltr] .md-source__icon+.md-source__repository {
+  margin-left: -1.8rem;
+  height: -1.5rem;
+  font-family: "pcgym";
+  font-size: 1.5rem;
+}
+
+[dir=ltr] .md-tabs__list {
+  font-family: "pcgym";
+  font-weight: 200;
+}
+
+.md-tabs__link {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  display: flex;
+  font-size: 1.5rem;
+  margin-top: 0rem;
+  opacity: .7;
+  outline-color: var(--md-accent-fg-color);
+  outline-offset: .2rem;
+  transition: transform .4s cubic-bezier(.1, .7, .1, 1), opacity .25s;
+}
+
+.md-ellipsis {
+  font-family: "pcgym";
+  font-size: larger;
+}
+
+
+.md-nav {
+  margin-bottom: 0.5rem;
+  /* Adjust the value to reduce the space */
+  font-size: 1.4rem;
+  line-height: normal;
+}

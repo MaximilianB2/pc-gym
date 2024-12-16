@@ -1,0 +1,16 @@
+DDPG:
+
+Best trial parameters: {'min_lr': 0.0005334897747162678, 'max_lr': 0.0003132010556972375, 'pi_layer_0_units': 3, 'pi_layer_1_units': 4, 'qf_layer_0_units': 3, 'qf_layer_1_units': 6, 'activation_fn': 'LeakyReLU', 'buffer_size': 200000, 'batch_size': 512, 'gamma': 0.9194039413768046, 'tau': 0.012320756403750887, 'learning_starts': 2082, 'train_freq': 1, 'action_noise_sigma': 0.34670933515233754, 'total_timesteps': 500000}
+Best trial reward: -0.000786
+
+TD3:
+
+Best trial parameters: {'min_lr': 0.00018403491064024569, 'max_lr': 0.010973014265292564, 'pi_layer_0_units': 4, 'pi_layer_1_units': 2, 'qf_layer_0_units': 3, 'qf_layer_1_units': 5, 'activation_fn': 'Tanh', 'batch_size': 128, 'gamma': 0.9956207257236654, 'tau': 0.0056253135337730655, 'policy_delay': 1, 'target_policy_noise': 0.35068845260531034, 'target_noise_clip': 0.1473635179573484, 'action_noise_sigma': 0.493620735951859, 'buffer_size': 100000, 'total_timesteps': 300000}
+Best trial reward: -0.0014984
+
+PPO:
+Best trial parameters: {'min_lr': 1.790271571814614e-05, 'max_lr': 0.021830951495112202, 'pi_layer_0_units': 5, 'pi_layer_1_units': 3, 'qf_layer_0_units': 6, 'qf_layer_1_units': 2, 'activation_fn': 'ReLU', 'n_steps': 2048, 'batch_size': 128, 'n_epochs': 11, 'ent_coef': 2.847818037607558e-06, 'clip_range': 0.23324165337690744, 'gamma': 0.9095905120763823, 'gae_lambda': 0.8795346055547795, 'vf_coef': 0.17896972094727606, 'max_grad_norm': 0.49101636537830917, 'total_timesteps': 500000}
+Best trial reward: -0.0006312
+
+SAC:
+[I 2024-09-18 22:37:52,104] Trial 61 finished with value: -0.0004600999999999999 and parameters: {'min_lr': 6.298973459520807e-05, 'max_lr': 0.010222529480333347, 'pi_layer_0_units': 2, 'pi_layer_1_units': 3, 'qf_layer_0_units': 4, 'qf_layer_1_units': 6, 'activation_fn': 'ReLU', 'buffer_size': 500000, 'batch_size': 256, 'gamma': 0.9795136621593099, 'tau': 0.019991455145873808, 'learning_starts': 613, 'train_freq': 16, 'gradient_steps': -1, 'ent_coef': 'auto', 'total_timesteps': 200000}. Best is trial 61 with value: -0.0004600999999999999.

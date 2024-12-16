@@ -1,0 +1,43 @@
+[project]
+name = "pcgym"
+version = "0.1.8"
+description = "Reinforcement learning suite of process control problems."
+requires-python = "~=3.11"
+license = { file = "LICENSE" }
+readme = "README.md"
+authors = [{ name = "Max Bloor", email = "max.bloor@gmail.com" }]
+keywords = [
+  "reinforcement-learning",
+  "process-control",
+  "jax",
+  "casadi",
+  "control",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Information Technology",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Natural Language :: English",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+  "Topic :: Scientific/Engineering :: Mathematics",
+]
+
+dynamic = ["dependencies"]
+[project.urls]
+Documentation = "https://maximilianb2.github.io/pc-gym/"
+Repository = "https://github.com/MaximilianB2/pc-gym"
+
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[project.optional-dependencies]
+optional = ["jupyterlab", "torch", "stable-baselines3", "mkdocs-material"]

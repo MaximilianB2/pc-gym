@@ -1,0 +1,12 @@
+ruff
+numpy
+tqdm
+cloudpickle
+matplotlib
+gymnasium
+casadi
+jax[cpu]
+equinox
+diffrax
+do-mpc[full]
+
