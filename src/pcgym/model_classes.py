@@ -314,7 +314,7 @@ class photo_production:
             dxdt = jnp.array(
                 [
                     self.u_m * I / (I + self.k_s + (I**2 / self.k_i)) * c_x * c_N / (c_N+ self.K_N) - self.u_d * c_x,
-                    self.Y_NX * self.u_m * I / (I + self.k_s + (I**2 / self.k_i)) * c_x * c_N / (c_N+ self.K_N) + F_N,
+                    -self.Y_NX * self.u_m * I / (I + self.k_s + (I**2 / self.k_i)) * c_x * c_N / (c_N+ self.K_N) + F_N,
                     self.k_m * I / (I + self.k_sq + (I**2 / self.k_iq)) * c_x - (self.k_d * c_q)/(c_N + self.K_Nq),
                     
                 ]
@@ -332,7 +332,7 @@ class photo_production:
             
             dxdt = [
                     self.u_m * I / (I + self.k_s + (I**2 / self.k_i)) * c_x * c_N / (c_N+ self.K_N) - self.u_d * c_x,
-                    self.Y_NX * self.u_m * I / (I + self.k_s + (I**2 / self.k_i)) * c_x * c_N / (c_N+ self.K_N) + F_N,
+                    -self.Y_NX * self.u_m * I / (I + self.k_s + (I**2 / self.k_i)) * c_x * c_N / (c_N+ self.K_N) + F_N,
                     self.k_m * I / (I + self.k_sq + (I**2 / self.k_iq)) * c_x - (self.k_d * c_q)/(c_N + self.K_Nq),
                     
                 ]
