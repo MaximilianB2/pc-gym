@@ -292,7 +292,7 @@ class photo_production:
     k_iq: float = 800.0
     k_s: float = 178.9 # Normal(178.9, 17.89)
     k_i: float = 447.1 # Normal(447.1, 44.71)
-    k_N: float = 393.1 # Normal(393.1, 39.31)
+    K_N: float = 393.1 # Normal(393.1, 39.31)
     int_method: str = 'jax'
     
     def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:

@@ -1,7 +1,7 @@
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-from .model_classes import (
+from model_classes import (
     cstr,
     first_order_system,
     multistage_extraction,
@@ -16,8 +16,8 @@ from .model_classes import (
     polymerisation_reactor,
     crystallization,
 )
-from .policy_evaluation import policy_eval
-from .integrator import integration_engine
+from policy_evaluation import policy_eval
+from integrator import integration_engine
 import copy
 
 
@@ -73,8 +73,26 @@ class make_env(gym.Env):
             self.action_space = spaces.Box(
                 low=env_params["a_space"]["low"], high=env_params["a_space"]["high"]
             )
-
-        self.SP = env_params["SP"]
+            
+        # If the user has defined a setpoint, use the setpoint tracking function
+        # If they havent, then the reward function is the batch reward function
+        
+        self.maximise_reward = True
+        self.SP = env_params.get("SP")
+        
+        if env_params.get("SP") is not None and env_params.get("custom_reward") is None:
+            self.SP = env_params["SP"]
+            self.reward = "SP_reward_fn"
+        
+        elif env_params.get("SP") is None and env_params.get("custom_reward") is None:
+            
+            self.reward = "batch_reward_fn"
+            self.reward_states = env_params["reward_states"]
+            self.maximise_reward = env_params["maximise_reward"]
+            print(self.maximise_reward)
+            
+            
+        
         self.N = env_params["N"]
         self.tsim = env_params["tsim"]
         self.x0 = env_params["x0"]
@@ -147,7 +165,12 @@ class make_env(gym.Env):
 
 
         # Import states and controls from model info
-        self.Nx = len(self.model.info()["states"]) + len(self.SP)
+        if self.SP is not None:
+            self.Nx = len(self.model.info()["states"]) + len(self.SP)
+            
+        else:
+            self.Nx = len(self.model.info()["states"])
+            
         self.Nx_oracle = len(self.model.info()["states"])
         self.Nu = len(self.model.info()["inputs"])
 
@@ -373,12 +396,14 @@ class make_env(gym.Env):
             self.state[: self.Nx_oracle] = self.int_eng.jax_step(self.state, uk)
 
         # For each set point, if it exists, append its value at the current time step to the list
-        SP_t = []
-        for k in self.SP.keys():
-            if k in self.SP:
-                SP_t.append(self.SP[k][self.t])
-        
-        self.state[self.Nx_oracle:self.Nx_oracle+len(self.SP)] = np.array(SP_t)
+        if self.SP is not None:
+            SP_t = []
+            for k in self.SP.keys():
+                if k in self.SP:
+                    SP_t.append(self.SP[k][self.t])
+            
+            self.state[self.Nx_oracle:self.Nx_oracle+len(self.SP)] = np.array(SP_t)
+            
         # Update timestep
         self.t += 1
 
@@ -399,10 +424,23 @@ class make_env(gym.Env):
                 np.random.normal(0, 1, self.Nx_oracle)
                 * self.state[: self.Nx_oracle] * noise_percentage )
         
+        
         if self.custom_reward:
             rew = self.custom_reward_f(self, self.obs, uk, constraint_violated) 
-        elif not self.custom_reward:
-            rew = self.reward_fn(self.state, constraint_violated)
+            
+        elif not self.custom_reward and self.reward == "SP_reward_fn":
+            rew = self.SP_reward_fn(self.state, constraint_violated)
+            
+        elif not self.custom_reward and self.reward != "SP_reward_fn":
+            rew = self.batch_reward_fn(self.state, constraint_violated)
+            
+        else:
+            raise ValueError(
+                "Reward not valid function"
+            )
+        
+
+
         
         if self.normalise_o is True:
             self.normobs = (
@@ -415,7 +453,44 @@ class make_env(gym.Env):
         else:
             return self.obs, rew, self.done, False, self.info
 
-    def reward_fn(self, state:np.array, c_violated:bool) -> float:
+    def batch_reward_fn(self, state: np.array, c_violated: bool) -> float:
+        """
+        Compute the reward function for a batch 
+
+        Args:
+            states (np.array): Current State of the system
+            c_violated (bool): Whether any constraints were violated
+
+        Returns:
+            float: the computed reward
+        """
+        
+        r = 0.0
+        # if self.done == False:
+        #     r += 0.00
+        #     print(f"t={self.t}")
+        #     print(f"N={self.N}")
+        if self.t == self.N-1:
+            # Get the full list of states from the model
+            all_states = self.model.info()["states"]
+            # Find indices of reward states that actually exist in the model
+            reward_state_indices = [all_states.index(state_name) for state_name in self.reward_states if str(state_name) in all_states]
+            # Calculate reward based on those indices
+            r_scale = self.env_params.get("r_scale", {})
+            for state_index in reward_state_indices:
+                state_name = all_states[state_index]
+                if self.maximise_reward == True:
+                    r += state[state_index] * r_scale.get(state_name, 1)
+                elif self.maximise_reward == False:
+                    r -= state[state_index] * r_scale.get(state_name, 1)
+            
+            if self.r_penalty and c_violated:
+                r -= 1000
+                    
+        return r
+        
+        
+    def SP_reward_fn(self, state:np.array, c_violated:bool) -> float:
         """
         Compute the reward for the current state and action.
 
