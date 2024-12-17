@@ -89,7 +89,6 @@ class make_env(gym.Env):
             self.reward = "batch_reward_fn"
             self.reward_states = env_params["reward_states"]
             self.maximise_reward = env_params["maximise_reward"]
-            print(self.maximise_reward)
             
             
         
@@ -466,10 +465,6 @@ class make_env(gym.Env):
         """
         
         r = 0.0
-        # if self.done == False:
-        #     r += 0.00
-        #     print(f"t={self.t}")
-        #     print(f"N={self.N}")
         if self.t == self.N-1:
             # Get the full list of states from the model
             all_states = self.model.info()["states"]
