@@ -37,6 +37,15 @@ where $C_A$, the concentration of species A in the reactor, and $T$, the tempera
 The observation of the `CSTR` environment provides information on the state variables and their associated setpoints (if they exist) at the current timestep. The observation is an array of shape `(1, 2 + N_SP)` where `N_SP` is the number of setpoints. Therefore, the observation when there exist a setpoint for both states is
 ``[CA, T, CA_Setpoint, T_Setpoint]``.
 
+The observation space is defined by the following bounds corresponding to the ordered state variables:
+```
+[[0.7,1],[300,350],[0.8,0.9]]
+```
+An example, tested set of initial conditions are as follows:
+```
+[0.8,330,0.8]
+```
+
 ## Action
 The action space is a `ContinuousBox` of `[290,302]` which corresponds to a jacket temperature between 290 K and 302 K.
 

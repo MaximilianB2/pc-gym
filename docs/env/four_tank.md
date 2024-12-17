@@ -30,6 +30,15 @@ The four-tank system is a multivariable process consisting of four interconnecte
 The observation of the `four_tank` environment provides information on the state variables and their associated setpoints (if they exist) at the current timestep. The observation is an array of shape `(1, 4 + N_SP)` where `N_SP` is the number of setpoints. Therefore, the observation when there a setpoint exists for $h3_SP$ and $h4_SP$ is
 ``[h1, h2, h3, h4, h3_SP, h4_SP]``.
 
+The observation space is defined by the following bounds corresponding to the ordered state variables: 
+```
+[[0,0.6],[0,0.6],[0,0.6],[0,0.6],[0,0.6],[0,0.6]]
+```
+An example, tested set of initial conditions are as follows:
+```
+[0.141, 0.112, 0.072, 0.42, 0.5, 0.2]
+```
+
 ## Action Space
 The action space consists of two variables (v_1 & v_2) which represent the voltages to the respective pumps. The space is defined as a `continuous box` of `[[0,0],[10,10]]`.
 
