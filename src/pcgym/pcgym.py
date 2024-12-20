@@ -239,11 +239,30 @@ class make_env(gym.Env):
             else:
                 self.observation_space = spaces.Box(
                 low=extended_obs_low, high=extended_obs_high)
-        
+                
+            
+
+    
 
     def apply_uncertainties(self, value, percentage):
         noise = np.random.uniform(-percentage, percentage)
         return value * (1 + noise)
+    
+    def parametric_uncertainty(self, value, percentage):
+        """
+        Generates noisy value of a sample with a percentage of the
+        mean value being given as the standard deviation 
+
+        Args:
+            value (float): Uncertain Parameter
+            percentage (float): Percentage of the mean that is the standard deviation of the parameter
+
+        Returns:
+            float: Noisy value of the parameter
+        """
+        
+        noisy_value = np.random.normal(value, percentage * value)
+        return noisy_value
 
     def reset(self, seed:int=0, **kwargs) -> tuple[np.array, dict]:  
         """
