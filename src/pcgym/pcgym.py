@@ -241,8 +241,32 @@ class make_env(gym.Env):
                 low=extended_obs_low, high=extended_obs_high)
                 
             
+        if env_params.get('normal_uncertainty') is not None:
+            self.uncertainty = True
+            self.normal_uncertainty = env_params['normal_uncertainty']
+            for param in self.normal_uncertainty:
+                if param != "x0":
+                    self.original_param_values[param] = getattr(self.model, param)
+                    
+                    
+            # User has defined uncertainty bounds within env_params
+            uncertainty_low = env_params["uncertainty_bounds"]["low"]
+            uncertainty_high = env_params["uncertainty_bounds"]["high"]
 
-    
+            # Extend the observation space bounds to include uncertainties
+            extended_obs_low = np.concatenate((base_obs_low, uncertainty_low))
+            extended_obs_high = np.concatenate((base_obs_high, uncertainty_high))
+
+            # Define the extended observation space
+            self.observation_space_base = spaces.Box(
+                low=extended_obs_low, high=extended_obs_high
+            )
+            
+            if self.normalise_o:
+                self.observation_space = spaces.Box(low=np.array([-1]*extended_obs_low.shape[0]), high=np.array([1]*extended_obs_high.shape[0]))
+            else:
+                self.observation_space = spaces.Box(
+                low=extended_obs_low, high=extended_obs_high)
 
     def apply_uncertainties(self, value, percentage):
         noise = np.random.uniform(-percentage, percentage)
@@ -304,13 +328,22 @@ class make_env(gym.Env):
         # Handle initial uncertainties
         if self.uncertainty:
             uncertain_params = []
-            for param, percentage in self.uncertainty_percentages.items():
-                if param != "x0":  # x0 handled separately
-                    original_value = self.original_param_values[param]
-                    new_value = self.apply_uncertainties(original_value, percentage)
-                    setattr(self.model, param, new_value)
-                    uncertain_params.append(new_value)
-            state = np.concatenate((state, uncertain_params))
+            if self.uncertainty_percentages is not None:
+                for param, percentage in self.uncertainty_percentages.items():
+                    if param != "x0":  # x0 handled separately
+                        original_value = self.original_param_values[param]
+                        new_value = self.apply_uncertainties(original_value, percentage)
+                        setattr(self.model, param, new_value)
+                        uncertain_params.append(new_value)
+                state = np.concatenate((state, uncertain_params))
+            elif self.normal_uncertainty is not None:
+                for param, percentage in self.normal_uncertainty.items():
+                    if param != "x0":
+                        original_value = self.original_param_values[param]
+                        new_value = self.parametric_uncertainty(original_value, percentage)
+                        setattr(self.model, param, new_value)
+                        uncertain_params.append(new_value)
+                state = np.concatenate((state, uncertain_params))
         
         if self.a_delta:
             self.a_save = self.a_0
