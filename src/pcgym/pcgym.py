@@ -383,7 +383,6 @@ class make_env(gym.Env):
         self.done = False
         
         if self.normalise_o is True:
-            print(self.obs)
             self.normobs = (
                 2
                 * (self.obs - self.observation_space_base.low)
