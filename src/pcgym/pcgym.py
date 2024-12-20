@@ -191,7 +191,9 @@ class make_env(gym.Env):
             disturbance_high = env_params["disturbance_bounds"]["high"]
             # Extend the observation space bounds to include disturbances
             extended_obs_low = np.concatenate((base_obs_low, disturbance_low))
+            base_obs_low = extended_obs_low
             extended_obs_high = np.concatenate((base_obs_high, disturbance_high))
+            base_obs_high = extended_obs_high
             # Define the extended observation space
             self.observation_space_base = spaces.Box(
                 low=extended_obs_low, high=extended_obs_high
@@ -212,11 +214,19 @@ class make_env(gym.Env):
         
         # Initial state and/or parametric uncertainty
         self.uncertainty = False 
+        self.NUn = 0
+        self.uncertainty_percentages = None
+        self.normal_uncertainty = None
         if env_params.get('uncertainty_percentages') is not None:
             self.uncertainty = True
             self.uncertainty_percentages = env_params['uncertainty_percentages']
             self.original_param_values = {}
 
+            self.NUn = len(self.uncertainty_percentages)
+            self.Nu += len(self.model.info()['uncertainties'])
+            
+            self.Nx += self.NUn
+            
             for param in self.uncertainty_percentages:
                 if param != "x0":
                     self.original_param_values[param] = getattr(self.model, param)
@@ -224,11 +234,11 @@ class make_env(gym.Env):
             # User has defined uncertainty bounds within env_params
             uncertainty_low = env_params["uncertainty_bounds"]["low"]
             uncertainty_high = env_params["uncertainty_bounds"]["high"]
-
             # Extend the observation space bounds to include uncertainties
             extended_obs_low = np.concatenate((base_obs_low, uncertainty_low))
+            base_obs_low = extended_obs_low
             extended_obs_high = np.concatenate((base_obs_high, uncertainty_high))
-
+            base_obs_high = extended_obs_high
             # Define the extended observation space
             self.observation_space_base = spaces.Box(
                 low=extended_obs_low, high=extended_obs_high
@@ -240,10 +250,19 @@ class make_env(gym.Env):
                 self.observation_space = spaces.Box(
                 low=extended_obs_low, high=extended_obs_high)
                 
-            
+        # Uncertainty defined by a normal distribution
         if env_params.get('normal_uncertainty') is not None:
             self.uncertainty = True
             self.normal_uncertainty = env_params['normal_uncertainty']
+            self.original_param_values = {}
+            
+            self.NUn = len(self.normal_uncertainty)
+            
+            self.Nu += len(self.model.info()["uncertainties"])
+            
+            self.Nx += self.NUn
+            
+            
             for param in self.normal_uncertainty:
                 if param != "x0":
                     self.original_param_values[param] = getattr(self.model, param)
@@ -255,8 +274,9 @@ class make_env(gym.Env):
 
             # Extend the observation space bounds to include uncertainties
             extended_obs_low = np.concatenate((base_obs_low, uncertainty_low))
+            base_obs_low = extended_obs_low
             extended_obs_high = np.concatenate((base_obs_high, uncertainty_high))
-
+            base_obs_high = extended_obs_high
             # Define the extended observation space
             self.observation_space_base = spaces.Box(
                 low=extended_obs_low, high=extended_obs_high
@@ -310,11 +330,16 @@ class make_env(gym.Env):
         
         # Initialize state with potential random uncertainties in x0
         state = copy.deepcopy(self.env_params["x0"])
-        if self.uncertainty and "x0" in self.uncertainty_percentages:
+        if self.uncertainty and self.uncertainty_percentages is not None and "x0" in self.uncertainty_percentages:
             x0_uncertainty = self.uncertainty_percentages["x0"]
             for idx, percentage in x0_uncertainty.items():
                 state[idx] = self.apply_uncertainties(state[idx], percentage)
 
+        if self.uncertainty and self.normal_uncertainty is not None and "x0" in self.normal_uncertainty:
+            x0_uncertainty = self.normal_uncertainty["x0"]
+            for idx, percentage in x0_uncertainty.items():
+                state[idx] = self.parametric_uncertainty(state[idx], percentage)
+        
         # If disturbances are active, expand the initial state with disturbances
         if self.disturbance_active:
             initial_disturbances = []
@@ -336,6 +361,7 @@ class make_env(gym.Env):
                         setattr(self.model, param, new_value)
                         uncertain_params.append(new_value)
                 state = np.concatenate((state, uncertain_params))
+                
             elif self.normal_uncertainty is not None:
                 for param, percentage in self.normal_uncertainty.items():
                     if param != "x0":
@@ -357,7 +383,7 @@ class make_env(gym.Env):
         self.done = False
         
         if self.normalise_o is True:
-        
+            print(self.obs)
             self.normobs = (
                 2
                 * (self.obs - self.observation_space_base.low)
@@ -427,7 +453,12 @@ class make_env(gym.Env):
                     
 
             # Update the state vector with current disturbance values
-            self.state[self.Nx_oracle + len(self.SP) :] = disturbance_values_state
+            if self.normal_uncertainty is not None:
+                self.state[self.Nx_oracle + len(self.SP) + len(self.normal_uncertainty):] = disturbance_values_state
+            elif self.uncertainty_percentages is not None:
+                self.state[self.Nx_oracle + len(self.SP) + len(self.uncertainty_percentages):] = disturbance_values_state
+            else:
+                self.state[self.Nx_oracle + len(self.SP) :] = disturbance_values_state
         else:
             uk = action  # Add action to control vector
 
