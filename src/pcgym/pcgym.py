@@ -1,7 +1,7 @@
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-from .model_classes import (
+from model_classes import (
     cstr,
     first_order_system,
     multistage_extraction,
@@ -10,13 +10,14 @@ from .model_classes import (
     distillation_column,
     multistage_extraction_reactive,
     four_tank,
+    photo_production,
     heat_exchanger,
     biofilm_reactor,
     polymerisation_reactor,
     crystallization,
 )
-from .policy_evaluation import policy_eval
-from .integrator import integration_engine
+from policy_evaluation import policy_eval
+from integrator import integration_engine
 import copy
 
 
@@ -72,8 +73,25 @@ class make_env(gym.Env):
             self.action_space = spaces.Box(
                 low=env_params["a_space"]["low"], high=env_params["a_space"]["high"]
             )
-
-        self.SP = env_params["SP"]
+            
+        # If the user has defined a setpoint, use the setpoint tracking function
+        # If they havent, then the reward function is the batch reward function
+        
+        self.maximise_reward = True
+        self.SP = env_params.get("SP")
+        
+        if env_params.get("SP") is not None and env_params.get("custom_reward") is None:
+            self.SP = env_params["SP"]
+            self.reward = "SP_reward_fn"
+        
+        elif env_params.get("SP") is None and env_params.get("custom_reward") is None:
+            
+            self.reward = "batch_reward_fn"
+            self.reward_states = env_params["reward_states"]
+            self.maximise_reward = env_params["maximise_reward"]
+            
+            
+        
         self.N = env_params["N"]
         self.tsim = env_params["tsim"]
         self.x0 = env_params["x0"]
@@ -120,6 +138,7 @@ class make_env(gym.Env):
             "distillation_column": distillation_column,
             "multistage_extraction_reactive": multistage_extraction_reactive,
             "four_tank": four_tank,
+            "photo_production": photo_production,
             "heat_exchanger": heat_exchanger,
             "biofilm_reactor": biofilm_reactor,
             "polymerisation_reactor": polymerisation_reactor,
@@ -145,7 +164,12 @@ class make_env(gym.Env):
 
 
         # Import states and controls from model info
-        self.Nx = len(self.model.info()["states"]) + len(self.SP)
+        if self.SP is not None:
+            self.Nx = len(self.model.info()["states"]) + len(self.SP)
+            
+        else:
+            self.Nx = len(self.model.info()["states"])
+            
         self.Nx_oracle = len(self.model.info()["states"])
         self.Nu = len(self.model.info()["inputs"])
 
@@ -167,7 +191,9 @@ class make_env(gym.Env):
             disturbance_high = env_params["disturbance_bounds"]["high"]
             # Extend the observation space bounds to include disturbances
             extended_obs_low = np.concatenate((base_obs_low, disturbance_low))
+            base_obs_low = extended_obs_low
             extended_obs_high = np.concatenate((base_obs_high, disturbance_high))
+            base_obs_high = extended_obs_high
             # Define the extended observation space
             self.observation_space_base = spaces.Box(
                 low=extended_obs_low, high=extended_obs_high
@@ -188,11 +214,19 @@ class make_env(gym.Env):
         
         # Initial state and/or parametric uncertainty
         self.uncertainty = False 
+        self.NUn = 0
+        self.uncertainty_percentages = None
+        self.normal_uncertainty = None
         if env_params.get('uncertainty_percentages') is not None:
             self.uncertainty = True
             self.uncertainty_percentages = env_params['uncertainty_percentages']
             self.original_param_values = {}
 
+            self.NUn = len(self.uncertainty_percentages)
+            self.Nu += len(self.model.info()['uncertainties'])
+            
+            self.Nx += self.NUn
+            
             for param in self.uncertainty_percentages:
                 if param != "x0":
                     self.original_param_values[param] = getattr(self.model, param)
@@ -200,11 +234,11 @@ class make_env(gym.Env):
             # User has defined uncertainty bounds within env_params
             uncertainty_low = env_params["uncertainty_bounds"]["low"]
             uncertainty_high = env_params["uncertainty_bounds"]["high"]
-
             # Extend the observation space bounds to include uncertainties
             extended_obs_low = np.concatenate((base_obs_low, uncertainty_low))
+            base_obs_low = extended_obs_low
             extended_obs_high = np.concatenate((base_obs_high, uncertainty_high))
-
+            base_obs_high = extended_obs_high
             # Define the extended observation space
             self.observation_space_base = spaces.Box(
                 low=extended_obs_low, high=extended_obs_high
@@ -215,11 +249,64 @@ class make_env(gym.Env):
             else:
                 self.observation_space = spaces.Box(
                 low=extended_obs_low, high=extended_obs_high)
-        
+                
+        # Uncertainty defined by a normal distribution
+        if env_params.get('normal_uncertainty') is not None:
+            self.uncertainty = True
+            self.normal_uncertainty = env_params['normal_uncertainty']
+            self.original_param_values = {}
+            
+            self.NUn = len(self.normal_uncertainty)
+            
+            self.Nu += len(self.model.info()["uncertainties"])
+            
+            self.Nx += self.NUn
+            
+            
+            for param in self.normal_uncertainty:
+                if param != "x0":
+                    self.original_param_values[param] = getattr(self.model, param)
+                    
+                    
+            # User has defined uncertainty bounds within env_params
+            uncertainty_low = env_params["uncertainty_bounds"]["low"]
+            uncertainty_high = env_params["uncertainty_bounds"]["high"]
+
+            # Extend the observation space bounds to include uncertainties
+            extended_obs_low = np.concatenate((base_obs_low, uncertainty_low))
+            base_obs_low = extended_obs_low
+            extended_obs_high = np.concatenate((base_obs_high, uncertainty_high))
+            base_obs_high = extended_obs_high
+            # Define the extended observation space
+            self.observation_space_base = spaces.Box(
+                low=extended_obs_low, high=extended_obs_high
+            )
+            
+            if self.normalise_o:
+                self.observation_space = spaces.Box(low=np.array([-1]*extended_obs_low.shape[0]), high=np.array([1]*extended_obs_high.shape[0]))
+            else:
+                self.observation_space = spaces.Box(
+                low=extended_obs_low, high=extended_obs_high)
 
     def apply_uncertainties(self, value, percentage):
         noise = np.random.uniform(-percentage, percentage)
         return value * (1 + noise)
+    
+    def parametric_uncertainty(self, value, percentage):
+        """
+        Generates noisy value of a sample with a percentage of the
+        mean value being given as the standard deviation 
+
+        Args:
+            value (float): Uncertain Parameter
+            percentage (float): Percentage of the mean that is the standard deviation of the parameter
+
+        Returns:
+            float: Noisy value of the parameter
+        """
+        
+        noisy_value = np.random.normal(value, percentage * value)
+        return noisy_value
 
     def reset(self, seed:int=0, **kwargs) -> tuple[np.array, dict]:  
         """
@@ -243,11 +330,16 @@ class make_env(gym.Env):
         
         # Initialize state with potential random uncertainties in x0
         state = copy.deepcopy(self.env_params["x0"])
-        if self.uncertainty and "x0" in self.uncertainty_percentages:
+        if self.uncertainty and self.uncertainty_percentages is not None and "x0" in self.uncertainty_percentages:
             x0_uncertainty = self.uncertainty_percentages["x0"]
-            for idx, percentage in x0_uncertainty.items():
-                state[idx] = self.apply_uncertainties(state[idx], percentage)
+            for idx, uncertainty in enumerate(x0_uncertainty):
+                state[idx] = self.apply_uncertainties(state[idx], uncertainty)
 
+        if self.uncertainty and self.normal_uncertainty is not None and "x0" in self.normal_uncertainty:
+            x0_uncertainty = self.normal_uncertainty["x0"]
+            for idx, uncertainty in enumerate(x0_uncertainty):
+                state[idx] = self.parametric_uncertainty(state[idx], uncertainty)
+        
         # If disturbances are active, expand the initial state with disturbances
         if self.disturbance_active:
             initial_disturbances = []
@@ -261,13 +353,23 @@ class make_env(gym.Env):
         # Handle initial uncertainties
         if self.uncertainty:
             uncertain_params = []
-            for param, percentage in self.uncertainty_percentages.items():
-                if param != "x0":  # x0 handled separately
-                    original_value = self.original_param_values[param]
-                    new_value = self.apply_uncertainties(original_value, percentage)
-                    setattr(self.model, param, new_value)
-                    uncertain_params.append(new_value)
-            state = np.concatenate((state, uncertain_params))
+            if self.uncertainty_percentages is not None:
+                for param, percentage in self.uncertainty_percentages.items():
+                    if param != "x0":  # x0 handled separately
+                        original_value = self.original_param_values[param]
+                        new_value = self.apply_uncertainties(original_value, percentage)
+                        setattr(self.model, param, new_value)
+                        uncertain_params.append(new_value)
+                state = np.concatenate((state, uncertain_params))
+                
+            elif self.normal_uncertainty is not None:
+                for param, percentage in self.normal_uncertainty.items():
+                    if param != "x0":
+                        original_value = self.original_param_values[param]
+                        new_value = self.parametric_uncertainty(original_value, percentage)
+                        setattr(self.model, param, new_value)
+                        uncertain_params.append(new_value)
+                state = np.concatenate((state, uncertain_params))
         
         if self.a_delta:
             self.a_save = self.a_0
@@ -281,7 +383,6 @@ class make_env(gym.Env):
         self.done = False
         
         if self.normalise_o is True:
-        
             self.normobs = (
                 2
                 * (self.obs - self.observation_space_base.low)
@@ -351,7 +452,12 @@ class make_env(gym.Env):
                     
 
             # Update the state vector with current disturbance values
-            self.state[self.Nx_oracle + len(self.SP) :] = disturbance_values_state
+            if self.normal_uncertainty is not None:
+                self.state[self.Nx_oracle + len(self.SP) + len(self.normal_uncertainty):] = disturbance_values_state
+            elif self.uncertainty_percentages is not None:
+                self.state[self.Nx_oracle + len(self.SP) + len(self.uncertainty_percentages):] = disturbance_values_state
+            else:
+                self.state[self.Nx_oracle + len(self.SP) :] = disturbance_values_state
         else:
             uk = action  # Add action to control vector
 
@@ -371,12 +477,14 @@ class make_env(gym.Env):
             self.state[: self.Nx_oracle] = self.int_eng.jax_step(self.state, uk)
 
         # For each set point, if it exists, append its value at the current time step to the list
-        SP_t = []
-        for k in self.SP.keys():
-            if k in self.SP:
-                SP_t.append(self.SP[k][self.t])
-        
-        self.state[self.Nx_oracle:self.Nx_oracle+len(self.SP)] = np.array(SP_t)
+        if self.SP is not None:
+            SP_t = []
+            for k in self.SP.keys():
+                if k in self.SP:
+                    SP_t.append(self.SP[k][self.t])
+            
+            self.state[self.Nx_oracle:self.Nx_oracle+len(self.SP)] = np.array(SP_t)
+            
         # Update timestep
         self.t += 1
 
@@ -397,10 +505,23 @@ class make_env(gym.Env):
                 np.random.normal(0, 1, self.Nx_oracle)
                 * self.state[: self.Nx_oracle] * noise_percentage )
         
+        
         if self.custom_reward:
             rew = self.custom_reward_f(self, self.obs, uk, constraint_violated) 
-        elif not self.custom_reward:
-            rew = self.reward_fn(self.state, constraint_violated)
+            
+        elif not self.custom_reward and self.reward == "SP_reward_fn":
+            rew = self.SP_reward_fn(self.state, constraint_violated)
+            
+        elif not self.custom_reward and self.reward != "SP_reward_fn":
+            rew = self.batch_reward_fn(self.state, constraint_violated)
+            
+        else:
+            raise ValueError(
+                "Reward not valid function"
+            )
+        
+
+
         
         if self.normalise_o is True:
             self.normobs = (
@@ -413,7 +534,40 @@ class make_env(gym.Env):
         else:
             return self.obs, rew, self.done, False, self.info
 
-    def reward_fn(self, state:np.array, c_violated:bool) -> float:
+    def batch_reward_fn(self, state: np.array, c_violated: bool) -> float:
+        """
+        Compute the reward function for a batch 
+
+        Args:
+            states (np.array): Current State of the system
+            c_violated (bool): Whether any constraints were violated
+
+        Returns:
+            float: the computed reward
+        """
+        
+        r = 0.0
+        if self.t == self.N-1:
+            # Get the full list of states from the model
+            all_states = self.model.info()["states"]
+            # Find indices of reward states that actually exist in the model
+            reward_state_indices = [all_states.index(state_name) for state_name in self.reward_states if str(state_name) in all_states]
+            # Calculate reward based on those indices
+            r_scale = self.env_params.get("r_scale", {})
+            for state_index in reward_state_indices:
+                state_name = all_states[state_index]
+                if self.maximise_reward == True:
+                    r += state[state_index] * r_scale.get(state_name, 1)
+                elif self.maximise_reward == False:
+                    r -= state[state_index] * r_scale.get(state_name, 1)
+            
+            if self.r_penalty and c_violated:
+                r -= 1000
+                    
+        return r
+        
+        
+    def SP_reward_fn(self, state:np.array, c_violated:bool) -> float:
         """
         Compute the reward for the current state and action.
 
