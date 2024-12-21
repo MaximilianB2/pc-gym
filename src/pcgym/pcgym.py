@@ -332,13 +332,13 @@ class make_env(gym.Env):
         state = copy.deepcopy(self.env_params["x0"])
         if self.uncertainty and self.uncertainty_percentages is not None and "x0" in self.uncertainty_percentages:
             x0_uncertainty = self.uncertainty_percentages["x0"]
-            for idx, percentage in x0_uncertainty.items():
-                state[idx] = self.apply_uncertainties(state[idx], percentage)
+            for idx, uncertainty in enumerate(x0_uncertainty):
+                state[idx] = self.apply_uncertainties(state[idx], uncertainty)
 
         if self.uncertainty and self.normal_uncertainty is not None and "x0" in self.normal_uncertainty:
             x0_uncertainty = self.normal_uncertainty["x0"]
-            for idx, percentage in x0_uncertainty.items():
-                state[idx] = self.parametric_uncertainty(state[idx], percentage)
+            for idx, uncertainty in enumerate(x0_uncertainty):
+                state[idx] = self.parametric_uncertainty(state[idx], uncertainty)
         
         # If disturbances are active, expand the initial state with disturbances
         if self.disturbance_active:
