@@ -135,6 +135,13 @@ Currently there are six implemented process control environments, this will be e
     <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py">Code</a></td>
     <td><a href="https://maximilianb2.github.io/pc-gym/env/four_tank/">Documentation</a></td>
   </tr>
+     </tr>
+    <tr>
+    <td>Photoproduction</td>
+    <td>Bioreactor</td> 
+    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py">Code</a></td>
+    <td><a href="https://maximilianb2.github.io/pc-gym/env/photoproduction/">Documentation</a></td>
+  </tr>
 </table>
 </div>
 
@@ -142,10 +149,8 @@ All environments use the following observation representation for $i$ states and
 \begin{align}
 \nonumber o = [x_i,..., x_{i,sp}..., d_j,...] 
 \end{align}
-*Note: observation masking is a feature to be added prior to final release as this will allow the user to investigate partial observability problems.*
 ## Future Features
 The following features are being worked on to be added in the near future:
- - Optimality gap visualisation
  - Observability Mask 
  - More case studies
  - Custom reward functions

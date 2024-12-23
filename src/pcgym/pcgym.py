@@ -1,7 +1,7 @@
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-from .model_classes import (
+from pcgym.model_classes import (
     cstr,
     first_order_system,
     multistage_extraction,
@@ -10,107 +10,107 @@ from .model_classes import (
     distillation_column,
     multistage_extraction_reactive,
     four_tank,
+    photo_production,
     heat_exchanger,
     biofilm_reactor,
     polymerisation_reactor,
     crystallization,
 )
-from .policy_evaluation import policy_eval
-from .integrator import integration_engine
+from pcgym.policy_evaluation import policy_eval
+from pcgym.integrator import integration_engine
 import copy
 
 
 class make_env(gym.Env):
-    """
-    Class for RL-Gym Environment.
-
-    This class creates a customizable environment for reinforcement learning tasks,
-    compatible with the OpenAI Gym interface. It supports various chemical engineering
-    models, custom constraints, disturbances, and reward functions.
-
-    Attributes:
-        env_params (dict): Parameters for environment configuration.
-        action_space (gym.spaces.Box): The action space of the environment.
-        observation_space (gym.spaces.Box): The observation space of the environment.
-        model: The selected chemical engineering model.
-        integration_method (str): Method used for numerical integration.
-        constraint_active (bool): Whether constraints are active.
-        disturbance_active (bool): Whether disturbances are active.
-        uncertainty_active (bool): Whether uncertainties are active.
-        custom_reward (bool): Whether a custom reward function is used.
-    """
-
     def __init__(self, env_params: dict) -> None:
-        """
-        Initialize the environment with given parameters.
+        """Initialize the environment with given parameters.
 
         Args:
-            env_params (dict): Dictionary containing environment parameters including
-                model selection, action and observation space definitions, simulation
-                parameters, constraints, disturbances, and custom functions.
+            env_params (dict): Environment configuration parameters including model selection,
+                                spaces, simulation parameters, constraints, and custom functions.
+
         """
-
+        if not isinstance(env_params, dict):
+            raise ValueError("env_params must be a dictionary")
         self.env_params = copy.deepcopy(env_params)
-        self.a_delta = False
-        if env_params.get("a_delta") is not None:
-            self.a_delta = env_params["a_delta"]
-            self.a_0 = env_params["a_0"]
-        try:
-            self.normalise_a = env_params["normalise_a"]
-            self.normalise_o = env_params["normalise_o"]
-        except Exception:
-            self.normalise_a = True
-            self.normalise_o = True
+        self._initialize_action_config()
+        self._setup_spaces()
+        self._configure_reward()
+        self._setup_simulation_params()
+        self._setup_constraints()
+        self._initialize_model()
+        self._setup_state_dimensions()
+        self._setup_disturbances()
+        self._setup_custom_reward()
+        self._setup_uncertainty()
 
-        # Define action and observation space
-        if self.normalise_a is True:
+    def _initialize_action_config(self):
+        self.a_delta = self.env_params.get("a_delta", False)
+        if self.a_delta:
+            self.a_0 = self.env_params["a_0"]
+        self.normalise_a = self.env_params.get("normalise_a", True)
+        self.normalise_o = self.env_params.get("normalise_o", True)
+
+    def _setup_spaces(self):
+        if self.normalise_a:
+            dim = self.env_params["a_space"]["low"].shape[0]
             self.action_space = spaces.Box(
-                low=np.array([-1] * env_params["a_space"]["low"].shape[0]),
-                high=np.array([1] * env_params["a_space"]["high"].shape[0]),
+                low=np.array([-1] * dim),
+                high=np.array([1] * dim)
             )
         else:
             self.action_space = spaces.Box(
-                low=env_params["a_space"]["low"], high=env_params["a_space"]["high"]
+                low=self.env_params["a_space"]["low"],
+                high=self.env_params["a_space"]["high"]
             )
-
-        self.SP = env_params["SP"]
-        self.N = env_params["N"]
-        self.tsim = env_params["tsim"]
-        self.x0 = env_params["x0"]
-        # Initial setup for observation space based on user-defined bounds
-        base_obs_low = env_params["o_space"]["low"]
-        base_obs_high = env_params["o_space"]["high"]
-        self.observation_space_base = spaces.Box(low=base_obs_low, high=base_obs_high)
-
-        if self.normalise_o: 
-            self.observation_space = spaces.Box(low=np.array([-1]*base_obs_low.shape[0]), high=np.array([1]*base_obs_high.shape[0],dtype=np.float32))
-        else:
-            self.observation_space = spaces.Box(low=base_obs_low, high=base_obs_high)
         
-        try:
-            self.integration_method = env_params["integration_method"]
-        except Exception:
-            self.integration_method = "casadi"
+        base_obs_low = self.env_params["o_space"]["low"]
+        base_obs_high = self.env_params["o_space"]["high"]
+        self.observation_space_base = spaces.Box(low=base_obs_low, high=base_obs_high)
+        
+        if self.normalise_o:
+            dim = base_obs_low.shape[0]
+            self.observation_space = spaces.Box(
+                low=np.array([-1] * dim),
+                high=np.array([1] * dim, dtype=np.float32)
+            )
+        else:
+            self.observation_space = self.observation_space_base
 
+    def _configure_reward(self):
+        self.maximise_reward = True
+        self.SP = self.env_params.get("SP")
+        
+        if self.SP is not None and self.env_params.get("custom_reward") is None:
+            self.reward = "SP_reward_fn"
+        elif self.SP is None and self.env_params.get("custom_reward") is None:
+            self.reward = "batch_reward_fn"
+            self.reward_states = self.env_params["reward_states"]
+            self.maximise_reward = self.env_params["maximise_reward"]
+
+    def _setup_simulation_params(self):
+        self.N = self.env_params["N"]
+        self.tsim = self.env_params["tsim"]
+        self.x0 = self.env_params["x0"]
+        self.integration_method = self.env_params.get("integration_method", "casadi")
         self.dt = self.tsim / self.N
         self.done = False
 
-        # Constraints
+    def _setup_constraints(self):
         self.constraint_active = False
         self.r_penalty = False
+        self.custom_constraint_active = False
         self.info = {}
 
-        self.custom_constraint_active = False  # Initialize to False by default
-
-        if env_params.get("constraints") is not None:
-            self.constraints = env_params["constraints"] # g:X \times U -> R^(n_con) with <= 0 indicating feasibility
-            self.done_on_constraint = env_params["done_on_cons_vio"]
-            self.r_penalty = env_params["r_penalty"]
+        if self.env_params.get("constraints") is not None:
+            self.constraints = self.env_params["constraints"]
+            self.done_on_constraint = self.env_params["done_on_cons_vio"]
+            self.r_penalty = self.env_params["r_penalty"]
             self.constraint_active = True
             self.n_con = self.constraints(self.x0, self.action_space.sample()).shape[0]
             self.info["cons_info"] = np.zeros((self.n_con, self.N, 1))
 
-        # Select model
+    def _initialize_model(self):
         model_mapping = {
             "cstr": cstr,
             "first_order_system": first_order_system,
@@ -120,107 +120,91 @@ class make_env(gym.Env):
             "distillation_column": distillation_column,
             "multistage_extraction_reactive": multistage_extraction_reactive,
             "four_tank": four_tank,
+            "photo_production": photo_production,
             "heat_exchanger": heat_exchanger,
             "biofilm_reactor": biofilm_reactor,
             "polymerisation_reactor": polymerisation_reactor,
             "crystallization": crystallization,
         }
 
-        # Load custom model if it is provided else load the selected standard model.
         if self.env_params.get("custom_model") is not None:
-            m = self.env_params.get("custom_model")
-            m.int_method  = self.integration_method
+            m = self.env_params["custom_model"]
+            m.int_method = self.integration_method
             self.model = m
         else:
-            if self.env_params.get("model") not in model_mapping: 
-                            raise ValueError(
-                f"Model '{env_params['model']}' not found in model_mapping."
-            )
-            else: 
-                m = model_mapping.get(env_params["model"], None)
-                self.model = m(
-                    int_method=self.integration_method
-                )  # Initialise the model with the selected integration method
+            model_name = self.env_params.get("model")
+            if model_name not in model_mapping:
+                raise ValueError(f"Model '{model_name}' not found in model_mapping.")
+            self.model = model_mapping[model_name](int_method=self.integration_method)
 
-
-
-        # Import states and controls from model info
-        self.Nx = len(self.model.info()["states"]) + len(self.SP)
+    def _setup_state_dimensions(self):
+        self.Nx = len(self.model.info()["states"])
+        if self.SP is not None:
+            self.Nx += len(self.SP)
         self.Nx_oracle = len(self.model.info()["states"])
         self.Nu = len(self.model.info()["inputs"])
 
-        # Disturbances
+    def _setup_disturbances(self):
         self.disturbance_active = False
-        self.Nd = 0
-        self.Nd_model = 0
-        if env_params.get("disturbances") is not None:
+        self.Nd = self.Nd_model = 0
+        
+        if self.env_params.get("disturbances") is not None:
             self.disturbance_active = True
-            self.disturbances = env_params["disturbances"]
+            self.disturbances = self.env_params["disturbances"]
             self.Nd = len(self.disturbances)
             self.Nd_model = len(self.model.info()["disturbances"])
-            self.Nu += len(self.model.info()["disturbances"])
-
-            # Extend the state size by the number of disturbances
+            self.Nu += self.Nd_model
             self.Nx += self.Nd
-            # user has defined disturbance_bounds within env_params
-            disturbance_low = env_params["disturbance_bounds"]["low"]
-            disturbance_high = env_params["disturbance_bounds"]["high"]
-            # Extend the observation space bounds to include disturbances
-            extended_obs_low = np.concatenate((base_obs_low, disturbance_low))
-            extended_obs_high = np.concatenate((base_obs_high, disturbance_high))
-            # Define the extended observation space
+            
+            dist_low = self.env_params["disturbance_bounds"]["low"]
+            dist_high = self.env_params["disturbance_bounds"]["high"]
+            extended_obs_low = np.concatenate((self.observation_space_base.low, dist_low))
+            extended_obs_high = np.concatenate((self.observation_space_base.high, dist_high))
+            
             self.observation_space_base = spaces.Box(
-                low=extended_obs_low, high=extended_obs_high
-            )
-            if self.normalise_o:
-                self.observation_space = spaces.Box(low=np.array([-1]*extended_obs_low.shape[0]), high=np.array([1]*extended_obs_high.shape[0]))
-            else:
-                self.observation_space = spaces.Box(
-                low=extended_obs_low, high=extended_obs_high
-            )
-                
-        # Custom reward function
-        self.custom_reward = False # Set custom_reward to False by default
-        if env_params.get("custom_reward") is not None:
-            self.custom_reward = True
-            self.custom_reward_f = env_params["custom_reward"]
-        pass
-        
-        # Initial state and/or parametric uncertainty
-        self.uncertainty = False 
-        if env_params.get('uncertainty_percentages') is not None:
-            self.uncertainty = True
-            self.uncertainty_percentages = env_params['uncertainty_percentages']
-            self.original_param_values = {}
-
-            for param in self.uncertainty_percentages:
-                if param != "x0":
-                    self.original_param_values[param] = getattr(self.model, param)
-
-            # User has defined uncertainty bounds within env_params
-            uncertainty_low = env_params["uncertainty_bounds"]["low"]
-            uncertainty_high = env_params["uncertainty_bounds"]["high"]
-
-            # Extend the observation space bounds to include uncertainties
-            extended_obs_low = np.concatenate((base_obs_low, uncertainty_low))
-            extended_obs_high = np.concatenate((base_obs_high, uncertainty_high))
-
-            # Define the extended observation space
-            self.observation_space_base = spaces.Box(
-                low=extended_obs_low, high=extended_obs_high
+                low=extended_obs_low,
+                high=extended_obs_high,
+                dtype=np.float32
             )
             
             if self.normalise_o:
-                self.observation_space = spaces.Box(low=np.array([-1]*extended_obs_low.shape[0]), high=np.array([1]*extended_obs_high.shape[0]))
-            else:
                 self.observation_space = spaces.Box(
-                low=extended_obs_low, high=extended_obs_high)
-        
+                    low=np.array([-1] * extended_obs_low.shape[0]),
+                    high=np.array([1] * extended_obs_high.shape[0]),
+                    dtype=np.float32
+                )
+            else:
+                self.observation_space = self.observation_space_base
 
-    def apply_uncertainties(self, value, percentage):
-        noise = np.random.uniform(-percentage, percentage)
-        return value * (1 + noise)
+    def _setup_custom_reward(self):
+        self.custom_reward = False
+        if self.env_params.get("custom_reward") is not None:
+            self.custom_reward = True
+            self.custom_reward_f = self.env_params["custom_reward"]
 
+    def _setup_uncertainty(self):
+        self.uncertainty = False
+        self.NUn = 0
+        self.uncertainty_percentages = None
+
+        if self.env_params.get('uncertainty_percentages') is not None:
+            self.uncertainty = True
+            self.uncertainty_percentages = self.env_params['uncertainty_percentages']
+            self.original_param_values = {
+                param: getattr(self.model, param)
+                for param in self.uncertainty_percentages
+                if param != "x0"
+            }
+            self.distribution = self.env_params.get("distribution")
+
+    def apply_uncertainties(self, value, percentage, distribution):
+        if distribution == "uniform":
+            noise = np.random.uniform(-percentage, percentage)
+            noisy_value = value * (1 + noise)
+        elif distribution == "normal":
+            noisy_value = np.random.normal(value, percentage * value)
+        return noisy_value
+    
     def reset(self, seed:int=0, **kwargs) -> tuple[np.array, dict]:  
         """
         Reset the environment to its initial state.
@@ -243,11 +227,11 @@ class make_env(gym.Env):
         
         # Initialize state with potential random uncertainties in x0
         state = copy.deepcopy(self.env_params["x0"])
-        if self.uncertainty and "x0" in self.uncertainty_percentages:
+        if self.uncertainty_percentages is not None and "x0" in self.uncertainty_percentages:
             x0_uncertainty = self.uncertainty_percentages["x0"]
-            for idx, percentage in x0_uncertainty.items():
-                state[idx] = self.apply_uncertainties(state[idx], percentage)
-
+            for idx, uncertainty in enumerate(x0_uncertainty):
+                state[idx] = self.apply_uncertainties(state[idx], uncertainty, self.distribution)
+        
         # If disturbances are active, expand the initial state with disturbances
         if self.disturbance_active:
             initial_disturbances = []
@@ -261,13 +245,13 @@ class make_env(gym.Env):
         # Handle initial uncertainties
         if self.uncertainty:
             uncertain_params = []
-            for param, percentage in self.uncertainty_percentages.items():
-                if param != "x0":  # x0 handled separately
-                    original_value = self.original_param_values[param]
-                    new_value = self.apply_uncertainties(original_value, percentage)
-                    setattr(self.model, param, new_value)
-                    uncertain_params.append(new_value)
-            state = np.concatenate((state, uncertain_params))
+            if self.uncertainty_percentages is not None:
+                for param, percentage in self.uncertainty_percentages.items():
+                    if param != "x0":  # x0 handled separately
+                        original_value = self.original_param_values[param]
+                        new_value = self.apply_uncertainties(original_value, percentage, self.distribution)
+                        setattr(self.model, param, new_value)
+                        uncertain_params.append(new_value)
         
         if self.a_delta:
             self.a_save = self.a_0
@@ -281,7 +265,6 @@ class make_env(gym.Env):
         self.done = False
         
         if self.normalise_o is True:
-        
             self.normobs = (
                 2
                 * (self.obs - self.observation_space_base.low)
@@ -351,7 +334,10 @@ class make_env(gym.Env):
                     
 
             # Update the state vector with current disturbance values
-            self.state[self.Nx_oracle + len(self.SP) :] = disturbance_values_state
+            if self.uncertainty_percentages is not None:
+                self.state[self.Nx_oracle + len(self.SP) + len(self.uncertainty_percentages):] = disturbance_values_state
+            else:
+                self.state[self.Nx_oracle + len(self.SP) :] = disturbance_values_state
         else:
             uk = action  # Add action to control vector
 
@@ -371,12 +357,14 @@ class make_env(gym.Env):
             self.state[: self.Nx_oracle] = self.int_eng.jax_step(self.state, uk)
 
         # For each set point, if it exists, append its value at the current time step to the list
-        SP_t = []
-        for k in self.SP.keys():
-            if k in self.SP:
-                SP_t.append(self.SP[k][self.t])
-        
-        self.state[self.Nx_oracle:self.Nx_oracle+len(self.SP)] = np.array(SP_t)
+        if self.SP is not None:
+            SP_t = []
+            for k in self.SP.keys():
+                if k in self.SP:
+                    SP_t.append(self.SP[k][self.t])
+            
+            self.state[self.Nx_oracle:self.Nx_oracle+len(self.SP)] = np.array(SP_t)
+            
         # Update timestep
         self.t += 1
 
@@ -397,10 +385,23 @@ class make_env(gym.Env):
                 np.random.normal(0, 1, self.Nx_oracle)
                 * self.state[: self.Nx_oracle] * noise_percentage )
         
+        
         if self.custom_reward:
             rew = self.custom_reward_f(self, self.obs, uk, constraint_violated) 
-        elif not self.custom_reward:
-            rew = self.reward_fn(self.state, constraint_violated)
+            
+        elif not self.custom_reward and self.reward == "SP_reward_fn":
+            rew = self.SP_reward_fn(self.state, constraint_violated)
+            
+        elif not self.custom_reward and self.reward != "SP_reward_fn":
+            rew = self.batch_reward_fn(self.state, constraint_violated)
+            
+        else:
+            raise ValueError(
+                "Reward not valid function"
+            )
+        
+
+
         
         if self.normalise_o is True:
             self.normobs = (
@@ -413,7 +414,40 @@ class make_env(gym.Env):
         else:
             return self.obs, rew, self.done, False, self.info
 
-    def reward_fn(self, state:np.array, c_violated:bool) -> float:
+    def batch_reward_fn(self, state: np.array, c_violated: bool) -> float:
+        """
+        Compute the reward function for a batch 
+
+        Args:
+            states (np.array): Current State of the system
+            c_violated (bool): Whether any constraints were violated
+
+        Returns:
+            float: the computed reward
+        """
+        
+        r = 0.0
+        if self.t == self.N-1:
+            # Get the full list of states from the model
+            all_states = self.model.info()["states"]
+            # Find indices of reward states that actually exist in the model
+            reward_state_indices = [all_states.index(state_name) for state_name in self.reward_states if str(state_name) in all_states]
+            # Calculate reward based on those indices
+            r_scale = self.env_params.get("r_scale", {})
+            for state_index in reward_state_indices:
+                state_name = all_states[state_index]
+                if self.maximise_reward == True:
+                    r += state[state_index] * r_scale.get(state_name, 1)
+                elif self.maximise_reward == False:
+                    r -= state[state_index] * r_scale.get(state_name, 1)
+            
+            if self.r_penalty and c_violated:
+                r -= 1000
+                    
+        return r
+        
+        
+    def SP_reward_fn(self, state:np.array, c_violated:bool) -> float:
         """
         Compute the reward for the current state and action.
 
