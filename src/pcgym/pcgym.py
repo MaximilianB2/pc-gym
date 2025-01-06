@@ -159,7 +159,9 @@ class make_env(gym.Env):
             dist_low = self.env_params["disturbance_bounds"]["low"]
             dist_high = self.env_params["disturbance_bounds"]["high"]
             extended_obs_low = np.concatenate((self.observation_space_base.low, dist_low))
+            self.observation_space_base.low = extended_obs_low
             extended_obs_high = np.concatenate((self.observation_space_base.high, dist_high))
+            self.observation_space_base.high = extended_obs_high
             
             self.observation_space_base = spaces.Box(
                 low=extended_obs_low,
@@ -196,6 +198,26 @@ class make_env(gym.Env):
                 if param != "x0"
             }
             self.distribution = self.env_params.get("distribution")
+            
+            uncertainty_low = self.env_params["uncertainty_bounds"]["low"]
+            uncertainty_high = self.env_params["uncertainty_bounds"]["high"]
+            
+            # Extend the observation space bounds to include uncertainties
+            extended_obs_low = np.concatenate((self.observation_space_base.low, uncertainty_low))
+            self.observation_space_base.low = extended_obs_low
+            extended_obs_high = np.concatenate((self.observation_space_base.high, uncertainty_high))
+            self.observation_space_base.high = extended_obs_high
+            # Define the extended observation space
+            self.observation_space_base = spaces.Box(
+                low=extended_obs_low, high=extended_obs_high
+            )
+            
+            if self.normalise_o:
+                self.observation_space = spaces.Box(low=np.array([-1]*extended_obs_low.shape[0]), high=np.array([1]*extended_obs_high.shape[0]))
+            else:
+                self.observation_space = spaces.Box(
+                low=extended_obs_low, high=extended_obs_high)
+            
 
     def apply_uncertainties(self, value, percentage, distribution):
         if distribution == "uniform":
@@ -252,6 +274,7 @@ class make_env(gym.Env):
                         new_value = self.apply_uncertainties(original_value, percentage, self.distribution)
                         setattr(self.model, param, new_value)
                         uncertain_params.append(new_value)
+                state = np.concatenate((state, uncertain_params))
         
         if self.a_delta:
             self.a_save = self.a_0
@@ -508,6 +531,19 @@ class make_env(gym.Env):
         """
 
         self.con_i = 0
+        
+        if self.normalise_a is True:
+            input = (input + 1) * (
+                self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
+            ) / 2 + self.env_params["a_space"]["low"]
+        
+        if self.normalise_o is True:
+            state = (
+                (state + 1)
+                * (self.observation_space_base.high - self.observation_space_base.low)
+                / 2
+                + self.observation_space_base.low
+            )
         constraint_violated = (
             self.con_checker(state,  input)
         )  # Check both inputs and states
