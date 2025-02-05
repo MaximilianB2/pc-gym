@@ -29,10 +29,8 @@ r_scale = {'Ca':1}
 # Define reward to be equal to the OCP (i.e the same as the oracle)
 
 
+cons = lambda x, u: np.array([x[1] - 321, 327 - x[1]])
 
-cons = {'T':[327,321]}
-
-cons_type = {'T':['<=','>=']}
 
 env_params_con = {
     'N': nsteps, 
@@ -52,7 +50,6 @@ env_params_con = {
     'done_on_cons_vio': False,
     'constraints': cons, 
     'r_penalty': False,
-    'cons_type': cons_type,
 }
 env_con = make_env(env_params_con)
 
@@ -61,7 +58,6 @@ env_params = env_params_con
 env_params.pop('done_on_cons_vio')
 env_params.pop('constraints')
 env_params.pop('r_penalty')
-env_params.pop('cons_type')
 
 env = make_env(env_params)
 
