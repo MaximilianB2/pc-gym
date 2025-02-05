@@ -153,10 +153,17 @@ class make_env(gym.Env):
         self.disturbance_active = False
         self.Nd = 0
         self.Nd_model = 0
-        if env_params.get("disturbances") is not None:
+        if env_params.get("disturbances") is not None or env_params.get("disturbance_distribution") is not None:
             self.disturbance_active = True
-            self.disturbances = env_params["disturbances"]
-            self.Nd = len(self.disturbances)
+            if env_params.get("disturbance_distribution") is None:
+                self.disturbances = env_params["disturbances"]
+            else:
+                self.disturbances_distribution = env_params.get("disturbance_distribution") 
+            
+            try:
+                self.Nd = len(self.disturbances)
+            except Exception:
+                self.Nd = len(self.disturbances_distribution)
             self.Nd_model = len(self.model.info()["disturbances"])
             self.Nu += len(self.model.info()["disturbances"])
 
@@ -248,15 +255,6 @@ class make_env(gym.Env):
             for idx, percentage in x0_uncertainty.items():
                 state[idx] = self.apply_uncertainties(state[idx], percentage)
 
-        # If disturbances are active, expand the initial state with disturbances
-        if self.disturbance_active:
-            initial_disturbances = []
-            for k in self.model.info()["disturbances"]:
-                if k in self.disturbances:
-                    initial_disturbances.append(self.disturbances[k][0])
-
-            # Append initial disturbances to the state
-            state = np.concatenate((state, initial_disturbances))
 
         # Handle initial uncertainties
         if self.uncertainty:
@@ -272,16 +270,35 @@ class make_env(gym.Env):
         if self.a_delta:
             self.a_save = self.a_0
         
-        self.state = state
-        self.obs = copy.deepcopy(self.state)
+        
         if self.custom_reward:
             r_init = 0
         elif not self.custom_reward:
             r_init = 0
         self.done = False
         
+        if self.env_params.get('disturbance_distribution') is not None:
+            # Sample T disturbances from a joint distribution
+            initial_disturbances = []
+            self.disturbances = {k: np.zeros(self.N) for k in self.disturbances_distribution.keys()}
+            for i, k in enumerate(self.model.info()["disturbances"]):
+                if k in self.disturbances:
+                    self.disturbances[k][:] = self.env_params["disturbance_distribution"][k](1)
+                    initial_disturbances.append(self.disturbances[k][0])
+                    print(initial_disturbances)
+            state = np.concatenate((state, initial_disturbances))
+        elif self.disturbance_active:
+            initial_disturbances = []
+            for k in self.model.info()["disturbances"]:
+                if k in self.disturbances:
+                    initial_disturbances.append(self.disturbances[k][0])
+
+            # Append initial disturbances to the state
+            state = np.concatenate((state, initial_disturbances))
+
+        self.state = state
+        self.obs = copy.deepcopy(self.state)
         if self.normalise_o is True:
-        
             self.normobs = (
                 2
                 * (self.obs - self.observation_space_base.low)
