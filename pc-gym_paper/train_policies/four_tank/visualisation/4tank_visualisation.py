@@ -134,7 +134,7 @@ def paper_plot(data):
                 ncol=5, frameon=False, columnspacing=1)
 
     y_labels = [r'$h_1$ [m]', r'$h_2$ [m]', r'$h_3$ [m]', r'$h_4$ [m]']
-    u_labels = [r'$V_1$ [V]', r'$V_2$ [V]']
+    u_labels = [r'$v_1$ [V]', r'$v_2$ [V]']
     
     for idx in range(2):  # Loop for 4 states
 
@@ -244,7 +244,8 @@ for policy in policies:
     rewards = data[policy]["r"].sum(axis=1).flatten()
     rewards = np.median(rewards)
     print(policy,oracle_r, rewards)
-    normalized_gap = (oracle_r - rewards)
+    normalized_gap = (oracle_r/ nsteps*2 - rewards/ nsteps*2) 
+
 
     mad = np.median(np.abs( np.median(data[policy]["r"].sum(axis=1).flatten()) - data[policy]["r"].sum(axis=1).flatten()))
     

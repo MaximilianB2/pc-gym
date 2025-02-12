@@ -86,12 +86,17 @@ class policy_eval:
         s_rollout = np.zeros((self.env.Nx, self.env.N))
         actions = np.zeros((self.env.env_params["a_space"]["low"].shape[0], self.env.N))
 
-        o, r = self.env.reset()
+        o, info = self.env.reset()
         
-        total_reward.append(r["r_init"])
+        total_reward.append(info["r_init"])
         s_rollout[:, 0] = (o + 1) * (
             self.env.observation_space_base.high - self.env.observation_space_base.low
         ) / 2 + self.env.observation_space_base.low
+        if hasattr(self.env, 'partial_observation') and self.env.partial_observation:
+            s_rollout[:, 0] = (info["obs"] + 1) * (
+                self.env.observation_space_base.high - self.env.observation_space_base.low
+            ) / 2 + self.env.observation_space_base.low
+
         for i in range(self.env.N - 1):
             a, _s = policy_i.predict(o, deterministic=True)
             o, r, term, trunc, info = self.env.step(a)
@@ -102,6 +107,11 @@ class policy_eval:
             s_rollout[:, i + 1] = (o + 1) * (
                 self.env.observation_space_base.high - self.env.observation_space_base.low
             ) / 2 + self.env.observation_space_base.low
+
+            if hasattr(self.env, 'partial_observation') and self.env.partial_observation:
+                s_rollout[:, i+1] = (info["obs"] + 1) * (
+                    self.env.observation_space_base.high - self.env.observation_space_base.low
+                ) / 2 + self.env.observation_space_base.low
             try:
                 total_reward.append(r[0])
             except Exception:
@@ -136,10 +146,10 @@ class policy_eval:
             if i == 0:
                 r_opt.append(0)
             else:
-                if self.env.custom_reward:
+                if hasattr(self.env, 'custom_reward') and self.env.custom_reward:
                     r_opt.append(self.env.custom_reward_f(self.env, x[:,i], u[:,i], 0))
                 else:
-                    r_opt.append(self.env.reward_fn(x[:,i], False)) 
+                    r_opt.append(self.env.SP_reward_fn(x[:,i], False)) 
         return r_opt
 
     def get_rollouts(self) -> dict:

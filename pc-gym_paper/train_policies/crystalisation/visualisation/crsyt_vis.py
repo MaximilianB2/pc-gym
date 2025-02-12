@@ -79,6 +79,7 @@ observation_space = {
 }
 CV_0 = np.sqrt(1800863.24079725 * 1478.00986666666/ (22995.8230590611**2) - 1)
 Ln_0 =  22995.8230590611 / ( 1478.00986666666 + 1e-6)
+print(CV_0, Ln_0)
 env_params_cryst = {
     'N': nsteps,
     'tsim':T,
@@ -102,9 +103,9 @@ env = make_env(env_params_cryst)
 SAC_cryst = SAC.load('./policies/SAC_cryst_rep_0')
 PPO_cryst = PPO.load('./policies/PPO_cryst_rep_0')
 DDPG_cryst = DDPG.load('./policies/DDPG_cryst_rep_0')
-# evaluator, data = env.get_rollouts({'SAC':SAC_cryst, 'PPO':PPO_cryst,'DDPG':DDPG_cryst}, reps=50, oracle=True, MPC_params={'N':2,})
+evaluator, data = env.get_rollouts({'SAC':SAC_cryst, 'PPO':PPO_cryst,'DDPG':DDPG_cryst}, reps=50, oracle=True, MPC_params={'N':10,})
 # np.save('data.npy', data)
-data = np.load('data.npy', allow_pickle=True).item()
+# data = np.load('data.npy', allow_pickle=True).item()
 def paper_plot(data):
     # Set up LaTeX rendering
     rcParams['text.usetex'] = True
@@ -122,7 +123,7 @@ def paper_plot(data):
     # Calculate height to maintain aspect ratio
     height = a4_width_inches * 0.4  # Adjusted for more subplots
     
-    fig, axs = plt.subplots(1, 4, figsize=(a4_width_inches, height))
+    fig, axs = plt.subplots(1, 4, figsize=(a4_width_inches+0.4, height))
     plt.subplots_adjust(wspace=0.35, hspace=0.4, top=0.85, bottom=0.1, left=0.08, right=0.98)
     policies = ['oracle','SAC' , 'PPO', 'DDPG']
     cols = ['tab:orange', 'tab:red', 'tab:blue', 'tab:green', ]
@@ -218,7 +219,7 @@ def paper_plot(data):
     for ax in axs.flatten():
         ax.set_box_aspect(1)
     
-    plt.savefig('cryst_vis.pdf', bbox_inches='tight', pad_inches=0.1)
+    plt.savefig('cryst_vis.pdf', bbox_inches='tight', pad_inches=0.2)
     plt.show()
 data = np.load('data.npy', allow_pickle=True).item()
 oracle_r = np.median(data['oracle']["r"].sum(axis=1).flatten())
@@ -227,7 +228,7 @@ for policy in policies:
     rewards = data[policy]["r"].sum(axis=1).flatten()
     rewards = np.median(rewards)
     print(policy,oracle_r, rewards)
-    normalized_gap = (oracle_r - rewards)
+    normalized_gap = (oracle_r - rewards) / nsteps*2
 
     mad = np.median(np.abs( np.median(data[policy]["r"].sum(axis=1).flatten()) - data[policy]["r"].sum(axis=1).flatten()))
     

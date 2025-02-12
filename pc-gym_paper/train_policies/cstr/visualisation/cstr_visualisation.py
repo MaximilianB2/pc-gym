@@ -97,7 +97,7 @@ oracle_r = np.median(data['oracle']["r"].sum(axis=1).flatten())
 policies = ['SAC', 'PPO', 'DDPG']
 print(oracle_r)
 for i, policy in enumerate(policies):
-    print(f'{policy} optimality gap: {(oracle_r - np.median(data[policy]["r"].sum(axis=1).flatten()))}')
+    print(f'{policy} optimality gap: {(oracle_r - np.median(data[policy]["r"].sum(axis=1).flatten()))/ nsteps}')
 
 def paper_plot(data):
     # Set up LaTeX rendering

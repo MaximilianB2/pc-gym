@@ -206,7 +206,32 @@ class oracle:
         x_log = np.zeros((self.env.Nx_oracle, self.env.N))
         delta_u_log = np.zeros((self.env.Nu, self.env.N)) if self.use_delta_u else None
         
-        for i in range(self.env.N):
+        # Store initial state as first entry
+        x_log[:, 0] = x0.flatten()
+        
+        # Calculate first control input
+        if self.use_delta_u:
+            mpc.u0 = u_prev
+            simulator.u0 = u_prev
+            delta_u0 = mpc.make_step(x0)
+            u0 = u_prev + delta_u0
+            delta_u_log[:, 0] = delta_u0.flatten()
+        else:
+            u0 = mpc.make_step(x0)
+
+        if self.has_disturbances:
+            d = mpc.p_fun(0 * self.env.dt)['_p', 0, 'd']
+            u_full = np.vstack([u0, d])
+            u_log[:, 0] = u_full.flatten()
+        else:
+            u_log[:, 0] = u0.flatten()
+        
+        # Get next state
+        y_next = simulator.make_step(u0)
+        x0 = y_next
+        
+        # Start loop from 1 since we already handled first step
+        for i in range(1, self.env.N):
             # Update u_prev parameter if delta_u is used
             if self.use_delta_u:
                 mpc.u0 = u_prev

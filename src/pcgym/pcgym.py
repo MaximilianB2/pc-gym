@@ -43,6 +43,8 @@ class make_env(gym.Env):
         self._setup_disturbances()
         self._setup_custom_reward()
         self._setup_uncertainty()
+        self._noise_percentage_setup()
+        self._setup_partial_observations()
 
     def _initialize_action_config(self):
         self.a_delta = self.env_params.get("a_delta", False)
@@ -51,6 +53,11 @@ class make_env(gym.Env):
         self.normalise_a = self.env_params.get("normalise_a", True)
         self.normalise_o = self.env_params.get("normalise_o", True)
 
+    def _noise_percentage_setup(self):
+        self.noise_percentage = self.env_params.get("noise_percentage")
+        if self.noise_percentage is not None:
+            self.noise_percentage_float = isinstance(self.noise_percentage, float)
+        
     def _setup_spaces(self):
         if self.normalise_a:
             dim = self.env_params["a_space"]["low"].shape[0]
@@ -184,6 +191,11 @@ class make_env(gym.Env):
             self.custom_reward = True
             self.custom_reward_f = self.env_params["custom_reward"]
 
+
+    def _setup_partial_observations(self):
+        self.partial_observation = False
+        if self.env_params.get("partial_observation") is not None:
+            self.partial_observation = self.env_params["partial_observation"]
     def _setup_uncertainty(self):
         self.uncertainty = False
         self.NUn = 0
@@ -281,23 +293,31 @@ class make_env(gym.Env):
         
         self.state = state
         self.obs = copy.deepcopy(self.state)
+
         if self.custom_reward:
             r_init = 0
         elif not self.custom_reward:
             r_init = 0
         self.done = False
         
-        if self.normalise_o is True:
+        if self.normalise_o:
             self.normobs = (
-                2
-                * (self.obs - self.observation_space_base.low)
-                / (self.observation_space_base.high - self.observation_space_base.low)
-                - 1
+            2 * (self.obs - self.observation_space_base.low)
+            / (self.observation_space_base.high - self.observation_space_base.low)
+            - 1
             )
-            return self.normobs, {"r_init": r_init}
+            self.info['obs'] = copy.deepcopy(self.normobs)
+            obs_to_return = self.normobs
         else:
-            return self.obs, {"r_init": r_init}
+            self.info['obs'] = copy.deepcopy(self.obs)
+            obs_to_return = self.obs
 
+        if self.partial_observation:
+            for i in range(self.Nx_oracle):
+                if self.model.info()["states"][i] not in self.partial_observation:
+                    obs_to_return[i] = 0
+        self.info['r_init'] = r_init    
+        return obs_to_return, self.info
     def step(self, action: np.array) -> tuple[np.array, float, bool, bool, dict]:
         """
         Perform one time step in the environment.
@@ -403,12 +423,21 @@ class make_env(gym.Env):
         # Copy the obs from the state and add noise if the user requests this
         self.obs = copy.deepcopy(self.state)
         if self.env_params.get("noise", False):
-            noise_percentage = self.env_params.get("noise_percentage", 0)
-            self.obs[: self.Nx_oracle] += (
-                np.random.normal(0, 1, self.Nx_oracle)
-                * self.state[: self.Nx_oracle] * noise_percentage )
+            if self.noise_percentage_float:
+                noise_percentage = self.env_params.get("noise_percentage", 0)
+                self.obs[: self.Nx_oracle] += (
+                    np.random.normal(0, 1, self.Nx_oracle)
+                    * self.state[: self.Nx_oracle] * noise_percentage )
+            else:
+                for i in range(self.Nx_oracle):
+                    if self.model.info()["states"][i] in self.noise_percentage:
+                        self.obs[i] += (
+                            np.random.normal(0, 1, 1)
+                            * self.state[i] * self.noise_percentage[str(self.model.info()["states"][i])]
+                        )
         
-        
+
+
         if self.custom_reward:
             rew = self.custom_reward_f(self, self.obs, uk, constraint_violated) 
             
@@ -422,20 +451,24 @@ class make_env(gym.Env):
             raise ValueError(
                 "Reward not valid function"
             )
-        
-
-
-        
-        if self.normalise_o is True:
+        if self.normalise_o:
             self.normobs = (
-                2
-                * (self.obs - self.observation_space_base.low)
-                / (self.observation_space_base.high - self.observation_space_base.low)
-                - 1
+            2 * (self.obs - self.observation_space_base.low)
+            / (self.observation_space_base.high - self.observation_space_base.low)
+            - 1
             )
-            return self.normobs, rew, self.done, False, self.info
+            self.info['obs'] = copy.deepcopy(self.normobs)
+            obs_to_return = self.normobs
         else:
-            return self.obs, rew, self.done, False, self.info
+            self.info['obs'] = copy.deepcopy(self.obs)
+            obs_to_return = self.obs
+
+        if self.partial_observation:
+            for i in range(self.Nx_oracle):
+                if self.model.info()["states"][i] not in self.partial_observation:
+                    obs_to_return[i] = 0
+
+        return obs_to_return, rew, self.done, False, self.info
 
     def batch_reward_fn(self, state: np.array, c_violated: bool) -> float:
         """

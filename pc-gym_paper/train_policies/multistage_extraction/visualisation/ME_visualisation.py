@@ -87,9 +87,9 @@ env = make_env(env_params_ms)
 
 
 # Load trained policies
-SAC_cstr = SAC.load('./policies/SAC_ME_rep_0')
-PPO_cstr = PPO.load('./policies/PPO_ME_rep_0')
-DDPG_cstr = DDPG.load('./policies/DDPG_ME_rep_0')
+SAC_cstr = SAC.load('./policies/SAC_ME_rep_2')
+PPO_cstr = PPO.load('./policies/PPO_ME_rep_2')
+DDPG_cstr = DDPG.load('./policies/DDPG_ME_rep_2')
 
 # Visualise policies with the oracle
 # evaluator, data = env.get_rollouts({'SAC':SAC_cstr,'PPO':PPO_cstr,'DDPG':DDPG_cstr}, reps=50, oracle=True, MPC_params={'N':20})
@@ -103,7 +103,8 @@ for policy in policies:
     rewards = data[policy]["r"].sum(axis=1).flatten()
     rewards = np.median(rewards)
     print(policy,oracle_r, rewards)
-    normalized_gap = (oracle_r - rewards)
+    normalized_gap = (oracle_r - rewards) / nsteps
+
 
     mad = np.median(np.abs( np.median(data[policy]["r"].sum(axis=1).flatten()) - data[policy]["r"].sum(axis=1).flatten()))
     
@@ -127,7 +128,7 @@ def paper_plot(data):
     # Calculate height to maintain aspect ratio
     height = a4_width_inches * 0.4  # Adjusted for more subplots
     
-    fig, axs = plt.subplots(1, 4, figsize=(a4_width_inches, height))
+    fig, axs = plt.subplots(1, 3, figsize=(a4_width_inches, height))
     plt.subplots_adjust(wspace=0.5, hspace=0.4, top=0.85, bottom=0.1, left=0.08, right=0.98)
     policies = ['oracle', 'SAC', 'PPO', 'DDPG']
     cols = ['tab:orange', 'tab:red', 'tab:blue', 'tab:green', ]
@@ -142,15 +143,15 @@ def paper_plot(data):
     lines.append(ref_line)
 
     # Create legend above the plots
-    fig.legend(handles=lines, loc='upper center', bbox_to_anchor=(0.5, 0.82),
+    fig.legend(handles=lines, loc='upper center', bbox_to_anchor=(0.5, 0.85),
                 ncol=5, frameon=False, columnspacing=1)
 
     y_labels = [r'$Y_5$ [kg/m$^3$]', r'$X_5$ [kg/m$^3$]', ]
     u_labels = [r'$L$ [m$^3$/hr]', r'$G$ [m$^3$/hr]']
     
-    for idx in range(7,9):  # Loop for 4 states
+    for idx in range(8,9):  # Loop for 4 states
         
-        ax = axs[idx - 7]
+        ax = axs[idx - 8]
         ax.grid(True, linestyle='--', alpha=0.7)
         ax.set_axisbelow(True)
         
@@ -171,7 +172,7 @@ def paper_plot(data):
 
     # Plot for 2 controls
     for idx in range(2):
-        ax = axs[idx+2]
+        ax = axs[idx+1]
         ax.grid(True, linestyle='--', alpha=0.7)
         ax.set_axisbelow(True)
         
@@ -225,9 +226,8 @@ def paper_r_distribution(data):
     a4_width_inches = 8.27 * 0.5
     height = a4_width_inches
     
-    # Create figure with broken x-axis
-    fig = plt.figure(figsize=(a4_width_inches, height))
-    bax = brokenaxes(xlims=((-0.6, -0.45), (-0.25, 0)), hspace=0.05, d = 0.01, despine = False)
+    # Create figure with regular axes
+    fig, ax = plt.subplots(figsize=(a4_width_inches, height))
     
     policies = ['SAC', 'PPO', 'DDPG']
     cols = ['tab:red', 'tab:blue', 'tab:green']
@@ -237,16 +237,14 @@ def paper_r_distribution(data):
     all_rewards = np.concatenate([data[policy]["r"].sum(axis=1).flatten() for policy in policies])
     global_min, global_max = np.min(all_rewards), np.max(all_rewards)
     
-    # Create bins for each section separately
-    num_bins = 50
-    bins_left = np.linspace(-0.6, -0.45, num_bins//2)
-    bins_right = np.linspace(-0.25, 0, num_bins//2)
-    bins = np.concatenate([bins_left, bins_right])
+    # Create bins spanning the full range
+    num_bins = 20
+    bins = np.linspace(global_min, global_max, num_bins)
     
     # Plot histograms
     for i, policy in enumerate(policies):
         rewards = data[policy]["r"].sum(axis=1).flatten()
-        bax.hist(
+        ax.hist(
             rewards,
             bins=bins,
             color=cols[i],
@@ -257,12 +255,12 @@ def paper_r_distribution(data):
     
     # Add vertical line for oracle
     oracle_reward = np.median(data['oracle']["r"].sum(axis=1).flatten())
-    bax.axvline(x=oracle_reward, color='tab:orange', linestyle='--', linewidth=2, label='Oracle')
+    ax.axvline(x=oracle_reward, color='tab:orange', linestyle='--', linewidth=2, label='Oracle')
     
     # Set labels and legend
-    bax.set_ylabel('Frequency')
-    bax.set_xlabel('Cumulative Reward')
-    bax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.18), ncol=2, frameon=False)
+    ax.set_ylabel('Frequency')
+    ax.set_xlabel('Cumulative Reward')
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.18), ncol=2, frameon=False)
  
     # Adjust layout and save
     plt.savefig('ME_vis_r_dist.pdf', bbox_inches='tight', pad_inches=0.1)
