@@ -201,15 +201,23 @@ class make_env(gym.Env):
         self.NUn = 0
         self.uncertainty_percentages = None
 
-        if self.env_params.get('uncertainty_percentages') is not None:
+        if self.env_params.get('uncertainty_percentages') is not None or self.env_params.get('empirical_distribution') is not None:
             self.uncertainty = True
-            self.uncertainty_percentages = self.env_params['uncertainty_percentages']
-            self.original_param_values = {
-                param: getattr(self.model, param)
-                for param in self.uncertainty_percentages
-                if param != "x0"
-            }
-            self.distribution = self.env_params.get("distribution")
+            if self.env_params.get('uncertainty_percentages') is not None:
+                self.uncertainty_percentages = self.env_params['uncertainty_percentages']
+                self.original_param_values = {
+                    param: getattr(self.model, param)
+                    for param in self.uncertainty_percentages
+                    if param != "x0"
+                }
+                self.distribution = self.env_params.get("distribution")
+            else:
+                self.empirical_distribution = self.env_params.get('empirical_distribution')
+                self.original_param_values = {
+                    param: getattr(self.model, param)
+                    for param in self.empirical_distribution
+                    if param != "x0"
+                }
             
             uncertainty_low = self.env_params["uncertainty_bounds"]["low"]
             uncertainty_high = self.env_params["uncertainty_bounds"]["high"]
@@ -287,6 +295,14 @@ class make_env(gym.Env):
                         setattr(self.model, param, new_value)
                         uncertain_params.append(new_value)
                 state = np.concatenate((state, uncertain_params))
+            elif self.empirical_distribution is not None:
+                for param, _ in self.empirical_distribution.items():
+                    sample = np.random.choice(self.empirical_distribution[param])
+                    setattr(self.model, param, sample)
+                    uncertain_params.append(sample)  
+                state = np.concatenate((state, uncertain_params))
+
+                
         
         if self.a_delta:
             self.a_save = self.a_0
