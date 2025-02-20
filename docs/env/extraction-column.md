@@ -37,6 +37,15 @@ Where the concentration of the solute in the liquid and gas at each stage, $X_i$
 The observation of the `Multistage Extraction` environment provides information on the state variables and their associated setpoints (if they exist) at the current timestep. The observation is an array of shape `(1, 10 + N_SP)` where `N_SP` is the number of setpoints. Therefore, the observation when there a setpoint exists for $X_1$ and $Y_1$ is
 ``[X_n..., Y_n..., X_1, Y_1]``.
 
+The observation space is defined by the following bounds corresponding to the ordered state variables: 
+```
+[[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0.3,0.4]]
+```
+An example, tested set of initial conditions are as follows:
+```
+[0.55, 0.3, 0.45, 0.25, 0.4, 0.20, 0.35, 0.15, 0.25, 0.1,0.3]
+```
+
 ## Action
 The action space is a `ContinuousBox` of `[[5,10],[500,1000]]` which corresponds to a liquid phase flowrate between 5 m$^3$/hr and 500 m$^3$/hr and a gas phase flowrate between 10 m$^3$/hr and 1000 m$^3$/hr.
 
