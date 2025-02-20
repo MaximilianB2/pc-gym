@@ -211,8 +211,6 @@ class oracle:
 
         # Compute correct size dynamically
         num_u_rows = self.env.Nu + (self.env.Nd_model if self.has_disturbances else 0)
-
-        # ✅ Fix: Allocate enough space for u_log
         u_log = np.zeros((num_u_rows, self.env.N))
 
 
@@ -236,20 +234,10 @@ class oracle:
 
             if self.has_disturbances:
                 d = mpc.p_fun(i * self.env.dt)['_p', 0, 'd']
-                u_full = np.vstack([u0, d])  # ✅ Fix: Stack u0 and disturbances correctly
-
-                # Debug print to verify shape consistency
-                print(f"DEBUG: i={i}, u_full shape: {u_full.shape}, u_log shape: {u_log.shape}")
-
-                print("Shape of u0:", u0.shape)  # Expecting (3,1)
-                print("Shape of d:", d.shape)  # Expecting (2,1)
-                print("Shape of u_full before assignment:", u_full.shape)  # Should be (5,1)
-                print("Shape of u_log[:, i] before assignment:", u_log[:, i].shape)  # Should be (5,)
-
-                # ✅ Fix: Assign correctly to u_log
+                u_full = np.vstack([u0, d])
                 u_log[:, i] = u_full.flatten()
             else:
-                u_log[:self.env.Nu, i] = u0.flatten()  # ✅ Fix: Ensure correct slicing
+                u_log[:self.env.Nu, i] = u0.flatten()  
 
             if self.use_delta_u:
                 delta_u_log[:, i] = delta_u0.flatten()
