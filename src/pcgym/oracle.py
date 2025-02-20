@@ -29,6 +29,7 @@ class oracle:
         else:
             self.u_0 = None  # Initialize u_0 as None when not using delta_u
         self.has_disturbances = self.env_params.get("disturbances") is not None
+
     def setup_mpc(self):
         model_type = 'continuous'
         model = do_mpc.model.Model(model_type)
@@ -36,20 +37,21 @@ class oracle:
         # States
         x = model.set_variable(var_type='_x', var_name='x', shape=(self.env.Nx_oracle, 1))
 
-        # Inputs
-        
-        if self.has_disturbances:
-            u = model.set_variable(var_type='_u', var_name='u', shape=(self.env.Nu - self.env.Nd_model, 1))
-            d = model.set_variable(var_type='_p', var_name='d', shape=(self.env.Nd_model, 1))
-            u_full = vertcat(u, d)
-        elif self.use_delta_u:
+        # Input
+        if self.use_delta_u:
             u_prev = model.set_variable(var_type='_p', var_name='u_prev', shape=(self.env.Nu, 1))
             delta_u = model.set_variable(var_type='_u', var_name='delta_u', shape=(self.env.Nu, 1))
             u = u_prev + delta_u
-            u_full = u
+        else:
+            u = model.set_variable(var_type='_u', var_name='u', shape=(self.env.Nu - self.env.Nd_model, 1))
+
+        if self.has_disturbances:
+            d = model.set_variable(var_type='_p', var_name='d', shape=(self.env.Nd_model, 1))
+            u_full = vertcat(u, d)
         else:
             u = model.set_variable(var_type='_u', var_name='u', shape=(self.env.Nu, 1))
             u_full = u
+
         # Set point (as a parameter)
         SP = model.set_variable(var_type='_p', var_name='SP', shape=(len(self.env.SP), 1))
 
@@ -77,13 +79,18 @@ class oracle:
         }
         mpc.set_param(**setup_mpc)
         mpc.n_combinations = 1
+
         # Objective function
         lterm = 0
         for i, sp_key in enumerate(self.env_params["SP"]):
             state_index = self.model_info["states"].index(sp_key)
             lterm += self.Q[state_index, state_index] * (x[state_index] - SP[i])**2
-        lterm += u.T @ self.R_sym @ u
-        
+
+        if self.use_delta_u:
+            lterm += delta_u.T @ self.R_sym @ delta_u
+        else:
+            lterm += u.T @ self.R_sym @ u
+
         mterm = 0
         for i, sp_key in enumerate(self.env_params["SP"]):
             state_index = self.model_info["states"].index(sp_key)
@@ -189,12 +196,12 @@ class oracle:
         mpc.setup()
 
         return mpc, simulator
-
+    
     def mpc(self):
         mpc, simulator = self.setup_mpc()
 
         x0 = np.array(self.x0[:self.env.Nx_oracle])
-        
+
         # Initialize u_prev only if delta_u is used
         if self.use_delta_u:
             u_prev = np.full((self.env.Nu, 1), self.u_0)  # Use the initial input from init
@@ -202,7 +209,13 @@ class oracle:
         simulator.x0 = x0
         mpc.set_initial_guess()
 
-        u_log = np.zeros((self.env.Nu, self.env.N))
+        # Compute correct size dynamically
+        num_u_rows = self.env.Nu + (self.env.Nd_model if self.has_disturbances else 0)
+
+        # ✅ Fix: Allocate enough space for u_log
+        u_log = np.zeros((num_u_rows, self.env.N))
+
+
         x_log = np.zeros((self.env.Nx_oracle, self.env.N))
         delta_u_log = np.zeros((self.env.Nu, self.env.N)) if self.use_delta_u else None
         
@@ -247,12 +260,21 @@ class oracle:
             x0 = y_next
 
             if self.has_disturbances:
-                # Combine optimized control inputs with disturbances
                 d = mpc.p_fun(i * self.env.dt)['_p', 0, 'd']
-                u_full = np.vstack([u0, d])
+                u_full = np.vstack([u0, d])  # ✅ Fix: Stack u0 and disturbances correctly
+
+                # Debug print to verify shape consistency
+                print(f"DEBUG: i={i}, u_full shape: {u_full.shape}, u_log shape: {u_log.shape}")
+
+                print("Shape of u0:", u0.shape)  # Expecting (3,1)
+                print("Shape of d:", d.shape)  # Expecting (2,1)
+                print("Shape of u_full before assignment:", u_full.shape)  # Should be (5,1)
+                print("Shape of u_log[:, i] before assignment:", u_log[:, i].shape)  # Should be (5,)
+
+                # ✅ Fix: Assign correctly to u_log
                 u_log[:, i] = u_full.flatten()
             else:
-                u_log[:, i] = u0.flatten()
+                u_log[:self.env.Nu, i] = u0.flatten()  # ✅ Fix: Ensure correct slicing
 
             if self.use_delta_u:
                 delta_u_log[:, i] = delta_u0.flatten()

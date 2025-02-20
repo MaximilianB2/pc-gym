@@ -166,7 +166,9 @@ class policy_eval:
         if self.oracle:
             r_opt = np.zeros((1, self.env.N, self.reps))
             x_opt = np.zeros((self.env.Nx_oracle, self.env.N, self.reps))
-            u_opt = np.zeros((self.env.Nu, self.env.N, self.reps))
+            # u_opt = np.zeros((self.env.Nu, self.env.N, self.reps))
+            u_opt = np.zeros((self.env.Nu + self.env.Nd_model, self.env.N, self.reps))
+
             oracle_instance = oracle(self.make_env, self.env_params, self.MPC_params)
             for i in range(self.reps):
                 x_opt[:, :, i], u_opt[:, :, i] = oracle_instance.mpc()
@@ -258,6 +260,15 @@ class policy_eval:
                     linestyle="--",
                     label="Set Point",
                 )
+            if self.env.constraint_active:
+                if self.env.model.info()["states"][i] in self.env.constraints:
+                    plt.hlines(
+                        self.env.constraints[self.env.model.info()["states"][i]],
+                        0,
+                        self.env.tsim,
+                        color="black",
+                        label="Constraint",
+                    )
             plt.ylabel(self.env.model.info()["states"][i])
             plt.xlabel("Time (min)")
             plt.legend(loc="best")
@@ -286,6 +297,16 @@ class policy_eval:
                     lw=3,
                     label="Oracle " + str(self.env.model.info()["inputs"][j]),
                 )
+            if self.env.constraint_active:
+                for con_i in self.env.constraints:
+                    if self.env.model.info()["inputs"][j] == con_i:
+                        plt.hlines(
+                            self.env.constraints[self.env.model.info()["inputs"][j]],
+                            0,
+                            self.env.tsim,
+                            "black",
+                            label="Constraint",
+                        )
             plt.ylabel(self.env.model.info()["inputs"][j])
             plt.xlabel("Time (min)")
             plt.legend(loc="best")
@@ -311,33 +332,26 @@ class policy_eval:
             plt.savefig('rollout.pdf')
         plt.show()
 
-        if self.env.constraint_active:
+        if self.cons_viol:
             plt.figure(figsize=(12, 3 * self.env.n_con))
-            for i, con in enumerate(range(self.env.n_con)):
-                    plt.subplot(self.env.n_con, 1, i + 1)
-                    plt.title(f"Constraint {con}")
+            con_i = 0
+            for i, con in enumerate(self.env.constraints):
+                for j in range(len(self.env.constraints[str(con)])):
+                    plt.subplot(self.env.n_con, 1, con_i + 1)
+                    plt.title(f"{con} Constraint")
                     for ind, (pi_name, pi_i) in enumerate(self.policies.items()):
                         plt.step(
                             t,
-                            np.median(data[pi_name]["g"][i, :, :,:], axis=2),
+                            np.sum(data[pi_name]["g"][con_i, :, :, :], axis=2),
                             color=col[ind],
-                            lw=3,
-                            label=f"$g_{con}(x,u)$ ({pi_name})",
+                            label=f"{con} ({pi_name}) Violation (Sum over Repetitions)",
                         )
-                        plt.gca().fill_between(
-                            t,
-                            np.min(data[pi_name]["g"][i, :, :,:], axis=2).squeeze(),
-                            np.max(data[pi_name]["g"][i, :, :,:], axis=2).squeeze(),
-                            color=col[ind],
-                            alpha=0.1,
-                            edgecolor="none",
-                        )
-                    
                     plt.grid("True")
                     plt.xlabel("Time (min)")
-                    plt.ylabel(f'$g_{con}(x,u)$')
+                    plt.ylabel(con)
                     plt.xlim(min(t), max(t))
                     plt.legend(loc="best")
+                    con_i += 1
             plt.tight_layout()
             plt.show()
 
