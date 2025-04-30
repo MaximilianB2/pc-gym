@@ -71,79 +71,91 @@ class cstr(BaseModel):
 
 @dataclass(frozen=False, kw_only=True)
 class complex_cstr(BaseModel):
-    """
-    CSTR Model with Multiple Reactions
+    # Reactor parameters
+    q: float = 100              # Volumetric flow rate [m³/s]
+    V: float = 100              # Reactor volume [m³]
+    rho: float = 1000           # Density [kg/m³]
+    C: float = 0.239            # Heat capacity [kJ/kg·K]
     
-    Attributes: 
+    # Reaction 1 parameters (A -> 2B)
+    deltaHr1: float = -5e4       # Enthalpy of reaction 1 [kJ/kmol]
+    EA1_over_R: float = 8750     # Activation energy/R for reaction 1 [K]
+    k01: float = 7.2e10         # Pre-exponential factor for reaction 1 [1/s]
     
-    rho (float): Density of the liquid (kg/m3)
-    Cp (float): Heat capacity of the liquid (J/kg K)
-    UA (float): Heat transfer coefficient (W/K)
-    mdelH_AB (float): Heat of reaction for reaction A -> B (J/mol)
-    EoverR_AB (float): Activation energy for reaction A -> B (K)
-    k0_A (float): Pre-exponential factor for reaction A -> B (1/s)
-    Fout (float): Outlet flowrate (m3/s)
-    mdelH_BC (float): Heat of reaction for reaction B -> C (J/mol)
-    EoverR_BC (float): Activation energy for reaction B -> C (K)
-    k0_B (float): Pre-exponential factor for reaction B -> C (1/s)
+    # Reaction 2 parameters (B -> C)
+    deltaHr2: float = -3e4       # Enthalpy of reaction 2 [kJ/kmol]
+    EA2_over_R: float = 9000     # Activation energy/R for reaction 2 [K]
+    k02: float = 1.0e10         # Pre-exponential factor for reaction 2 [1/s]
     
-    """
-    rho = 1000
-    Cp = 0.239
-    UA = 5e4
-    mdelH_AB = 5e4
-    EAoverR_AB = 8750
-    k0_A = 7.2e10
-    Fout = 100
+    # Heat transfer parameters
+    UA: float = 5e4             # Heat transfer coefficient × area [kJ/(s·K)]
     
-    mdelH_BC = 5e4
-    EAoverR_BC = 10750
-    k0_B = 8.2e10
+    # Operating parameters
+    Ti: float = 350             # Inlet temperature [K]
+    Caf: float = 1              # Feed concentration of A [kmol/m³]
+    
+    # Inherited parameters
     int_method: str = 'jax'
     states: list = None
     inputs: list = None
     disturbances: list = None
     uncertainties: dict = None
-    
+
     def __post_init__(self):
-        self.states = ["Ca", "Cb", "Cc", "T", "V"]
-        self.inputs = ["Tc", "Fin"]
+        self.states = ["Ca", "Cb", "Cc", "T"]
+        self.inputs = ["Tc"]
         self.disturbances = ["Ti", "Caf"]
-        
+
     def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
-        Ca, Cb, Cc, T, V = x[0], x[1], x[2], x[3], x[4]
+        ca, cb, cc, T = x[0], x[1], x[2], x[3]
+        
         if self.int_method == "jax":
-            if u.shape == (2,):
-                Tc, Fin = u[0], u[1]
+            # Handle inputs (including disturbances if provided)
+            if u.shape == (1,):
+                Tc = u[0]
             else:
-                Tc, Fin, Ti, Caf = u[0], u[1], u[2], u[3]
-                
-            rA = self.k0_A * jnp.exp(-self.EAoverR_AB / T) * Ca
-            rB = self.k0_B * jnp.exp(-self.EAoverR_BC / T) * Cb
-            dxdt = jnp.array([
-                (Fin*Caf - self.Fout*Ca)/V - rA, # Concentration of A
-                rA - rB - self.Fout*Cb/V, # Concentration of B
-                rB - self.Fout*Cc/V, # Concentration of C
-                (Fin / V) * (Ti - T) + (self.mdelH_AB * rA + self.mdelH_BC * rB) / (self.rho * self.Cp) + self.UA * (Tc - T) / (self.rho * self.Cp * V), # Temperature Derivative
-                Fin - self.Fout, # Volume Derivative
-            ])
-            return dxdt
-        else:
-            if u.shape == (2,1):
-                Tc, Fin = u[0], u[1]
+                Tc, self.Ti, self.Caf = u[0], u[1], u[2]
+            
+            # Calculate reaction rates
+            r1 = self.k01 * jnp.exp(-self.EA1_over_R / T) * ca
+            r2 = self.k02 * jnp.exp(-self.EA2_over_R / T) * cb
+            
+            # Material balances
+            dca_dt = (self.q/self.V)*(self.Caf - ca) - r1
+            dcb_dt = (self.q/self.V)*(0 - cb) + 2*r1 - r2
+            dcc_dt = (self.q/self.V)*(0 - cc) + r2
+            
+            # Energy balance
+            heat_gen = (-self.deltaHr1 * r1) + (-self.deltaHr2 * r2)
+            dTdt = (self.q/self.V)*(self.Ti - T) \
+                   + heat_gen/(self.rho * self.C) \
+                   + (self.UA/(self.rho * self.C * self.V))*(Tc - T)
+            
+            return jnp.array([dca_dt, dcb_dt, dcc_dt, dTdt])
+        
+        else:  # numpy implementation
+            # Handle inputs (including disturbances if provided)
+            if u.shape == (1,1):
+                Tc = u[0,0]
             else:
-                Tc, Fin, Ti, Caf = u[0], u[1], u[2], u[3]
-                
-            rA = self.k0_A * np.exp(-self.EAoverR_AB / T) * Ca
-            rB = self.k0_B * np.exp(-self.EAoverR_BC / T) * Cb
-            dxdt = [
-                (Fin*Caf - self.Fout*Ca)/V - rA, # Concentration of A
-                rA - rB - self.Fout*Cb/V, # Concentration of B
-                rB - self.Fout*Cc/V, # Concentration of C
-                (Fin / V) * (Ti - T) + (self.mdelH_AB * rA + self.mdelH_BC * rB) / (self.rho * self.Cp) + self.UA * (Tc - T) / (self.rho * self.Cp * V), # Temperature Derivative
-                Fin - self.Fout, # Volume Derivative
-            ]
-            return dxdt
+                Tc, self.Ti, self.Caf = u[0], u[1], u[2]
+            
+            # Calculate reaction rates
+            r1 = self.k01 * np.exp(-self.EA1_over_R / T) * ca
+            r2 = self.k02 * np.exp(-self.EA2_over_R / T) * cb
+            
+            # Material balances
+            dca_dt = (self.q/self.V)*(self.Caf - ca) - r1
+            dcb_dt = (self.q/self.V)*(0 - cb) + 2*r1 - r2
+            dcc_dt = (self.q/self.V)*(0 - cc) + r2
+            
+            # Energy balance
+            heat_gen = (-self.deltaHr1 * r1) + (-self.deltaHr2 * r2)
+            dTdt = (self.q/self.V)*(self.Ti - T) \
+                   + heat_gen/(self.rho * self.C) \
+                   + (self.UA/(self.rho * self.C * self.V))*(Tc - T)
+            
+            return np.array([dca_dt, dcb_dt, dcc_dt, dTdt])
 
 @dataclass(frozen=False, kw_only=True)
 class first_order_system:
