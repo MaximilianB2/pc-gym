@@ -419,6 +419,7 @@ class nonsmooth_control:
             "disturbances": ["None"],
         }
         return info
+
 @dataclass(frozen=False, kw_only=True)
 class RSR:
     # Parameters
@@ -545,6 +546,7 @@ class cstr_series_recycle:
             "disturbances": []
         }
         return info
+
 @dataclass(frozen=False, kw_only=True)
 class distillation_column:
     # Parameters
@@ -818,7 +820,6 @@ class four_tank:
         )  # Remove 'int_method' from the dictionary since it is not a parameter of the model
         return info
 
-
 @dataclass(frozen=False, kw_only=True)
 class heat_exchanger:
     """
@@ -931,6 +932,7 @@ class heat_exchanger:
             "inputs":['Ft', 'Fs', 'Tt0', 'Ts9']
         }
         return info
+
 @dataclass(frozen=False, kw_only=True)
 class biofilm_reactor:
     """
@@ -1268,4 +1270,193 @@ class crystallization:
         info["parameters"].pop("int_method", None)  # Remove 'int_method' since it's not a parameter of the model
         return info
 
+@dataclass(frozen=False, kw_only=True)
+class pfr(BaseModel):
+    # Physio-chemical parameters
+    Peh: float = 5.0  # Peclet number for heat
+    Pem: float = 5.0  # Peclet number for mass
+    Le: float = 1.0  # Lewis number
+    Da: float = 0.875  # Damköhler number
+    gamma: float = 15.0  # Dimensionless activation energy
+    eta: float = 0.8375  # Dimensionless heat of reaction
+    mu: float = 13.0  # Dimensionless heat transfer coefficient
+    Tw0: float = 1.0  # Initial wall temperature
+    T0: float = 1.0  # Inlet temperature
+    CA0: float = 1.0  # Inlet concentration
+    deltaz: float = 1.0 / 5.0  # Spatial discretization step
+    int_method: str = 'jax'
+    states: list = None
+    inputs: list = None
+    disturbances: list = None
+    uncertainties: dict = None
 
+    def __post_init__(self):
+        self.states = ["T1", "T2", "T3", "T4", "T5", "T6", 
+                       "CA1", "CA2", "CA3", "CA4", "CA5", "CA6"]
+        self.inputs = ["Tw1", "Tw2"]
+        self.disturbances = ["T0", "CA0"]
+
+    def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
+        """
+        Compute derivatives for the plug flow reactor with spatial discretization.
+        
+        Args:
+            x: State vector [T1, T2, T3, T4, T5, T6, CA1, CA2, CA3, CA4, CA5, CA6]
+            u: Input vector [Tw1, Tw2, (optional - ,T0, CA0)] 
+        
+        Returns:
+            Time derivatives of state vector
+        """
+        # Extract states
+        T1, T2, T3, T4, T5, T6 = x[0], x[1], x[2], x[3], x[4], x[5]
+        CA1, CA2, CA3, CA4, CA5, CA6 = x[6], x[7], x[8], x[9], x[10], x[11]
+        
+        if self.int_method == "jax":
+            # Extract inputs
+            if u.shape == (2,):
+                Tw1, Tw2 = u[0], u[1]
+                T0_current = self.T0
+                CA0_current = self.CA0
+            else:
+                Tw1, Tw2 = u[0], u[1]
+                T0_current, CA0_current = u[2], u[3]
+                self.T0 = T0_current
+                self.CA0 = CA0_current
+            
+            # Reaction rates (Arrhenius kinetics)
+            R1 = CA1 * jnp.exp(self.gamma * (1 - 1/T1))
+            R2 = CA2 * jnp.exp(self.gamma * (1 - 1/T2))
+            R3 = CA3 * jnp.exp(self.gamma * (1 - 1/T3))
+            R4 = CA4 * jnp.exp(self.gamma * (1 - 1/T4))
+            R5 = CA5 * jnp.exp(self.gamma * (1 - 1/T5))
+            R6 = CA6 * jnp.exp(self.gamma * (1 - 1/T6))
+            
+            # Temperature equations (finite difference discretization)
+            dT1 = ((1/self.Peh) * (2*T2 - 2*T1) / (self.deltaz**2) + 
+                   (2/self.deltaz + self.Peh/self.Le) * (T0_current - T1) + 
+                   self.eta * R1 + self.mu * (Tw1 - T1))
+            
+            dT2 = ((1/self.Peh) * (T1 - 2*T2 + T3) / (self.deltaz**2) - 
+                   (1/self.Le) * (-T1 + T3) / (2*self.deltaz) + 
+                   self.eta * R2 + self.mu * (Tw1 - T2))
+            
+            dT3 = ((1/self.Peh) * (T2 - 2*T3 + T4) / (self.deltaz**2) - 
+                   (1/self.Le) * (-T2 + T4) / (2*self.deltaz) + 
+                   self.eta * R3 + self.mu * (Tw1 - T3))
+            
+            dT4 = ((1/self.Peh) * (T3 - 2*T4 + T5) / (self.deltaz**2) - 
+                   (1/self.Le) * (-T3 + T5) / (2*self.deltaz) + 
+                   self.eta * R4 + self.mu * (Tw2 - T4))
+            
+            dT5 = ((1/self.Peh) * (T4 - 2*T5 + T6) / (self.deltaz**2) - 
+                   (1/self.Le) * (-T4 + T6) / (2*self.deltaz) + 
+                   self.eta * R5 + self.mu * (Tw2 - T5))
+            
+            dT6 = ((1/self.Peh) * (2*T5 - 2*T6) / (self.deltaz**2) + 
+                   self.eta * R6 + self.mu * (Tw2 - T6))
+            
+            # Concentration equations (finite difference discretization)
+            dCA1 = ((1/self.Pem) * (2*CA2 - 2*CA1) / (self.deltaz**2) + 
+                    (2/self.deltaz + self.Pem) * (CA0_current - CA1) - 
+                    self.Da * R1)
+            
+            dCA2 = ((1/self.Pem) * (CA1 - 2*CA2 + CA3) / (self.deltaz**2) - 
+                    (-CA1 + CA3) / (2*self.deltaz) - 
+                    self.Da * R2)
+            
+            dCA3 = ((1/self.Pem) * (CA2 - 2*CA3 + CA4) / (self.deltaz**2) - 
+                    (-CA2 + CA4) / (2*self.deltaz) - 
+                    self.Da * R3)
+            
+            dCA4 = ((1/self.Pem) * (CA3 - 2*CA4 + CA5) / (self.deltaz**2) - 
+                    (-CA3 + CA5) / (2*self.deltaz) - 
+                    self.Da * R4)
+            
+            dCA5 = ((1/self.Pem) * (CA4 - 2*CA5 + CA6) / (self.deltaz**2) - 
+                    (-CA4 + CA6) / (2*self.deltaz) - 
+                    self.Da * R5)
+            
+            dCA6 = ((1/self.Pem) * (2*CA5 - 2*CA6) / (self.deltaz**2) - 
+                    self.Da * R6)
+            
+            
+            dxdt = jnp.array([
+                dT1, dT2, dT3, dT4, dT5, dT6,
+                dCA1, dCA2, dCA3, dCA4, dCA5, dCA6,
+            ])
+            return dxdt
+            
+        else:
+            # NumPy implementation
+            if u.shape == (2, 1):
+                Tw1, Tw2 = u[0], u[1]
+                T0_current = self.T0
+                CA0_current = self.CA0
+            else:
+                Tw1, Tw2 = u[0], u[1]
+                T0_current, CA0_current = u[2], u[3]
+                self.T0 = T0_current
+                self.CA0 = CA0_current
+            
+            # Reaction rates
+            R1 = CA1 * np.exp(self.gamma * (1 - 1/T1))
+            R2 = CA2 * np.exp(self.gamma * (1 - 1/T2))
+            R3 = CA3 * np.exp(self.gamma * (1 - 1/T3))
+            R4 = CA4 * np.exp(self.gamma * (1 - 1/T4))
+            R5 = CA5 * np.exp(self.gamma * (1 - 1/T5))
+            R6 = CA6 * np.exp(self.gamma * (1 - 1/T6))
+            
+            # Temperature equations
+            dT1 = ((1/self.Peh) * (2*T2 - 2*T1) / (self.deltaz**2) + 
+                   (2/self.deltaz + self.Peh/self.Le) * (T0_current - T1) + 
+                   self.eta * R1 + self.mu * (Tw1 - T1))
+            
+            dT2 = ((1/self.Peh) * (T1 - 2*T2 + T3) / (self.deltaz**2) - 
+                   (1/self.Le) * (-T1 + T3) / (2*self.deltaz) + 
+                   self.eta * R2 + self.mu * (Tw1 - T2))
+            
+            dT3 = ((1/self.Peh) * (T2 - 2*T3 + T4) / (self.deltaz**2) - 
+                   (1/self.Le) * (-T2 + T4) / (2*self.deltaz) + 
+                   self.eta * R3 + self.mu * (Tw1 - T3))
+            
+            dT4 = ((1/self.Peh) * (T3 - 2*T4 + T5) / (self.deltaz**2) - 
+                   (1/self.Le) * (-T3 + T5) / (2*self.deltaz) + 
+                   self.eta * R4 + self.mu * (Tw2 - T4))
+            
+            dT5 = ((1/self.Peh) * (T4 - 2*T5 + T6) / (self.deltaz**2) - 
+                   (1/self.Le) * (-T4 + T6) / (2*self.deltaz) + 
+                   self.eta * R5 + self.mu * (Tw2 - T5))
+            
+            dT6 = ((1/self.Peh) * (2*T5 - 2*T6) / (self.deltaz**2) + 
+                   self.eta * R6 + self.mu * (Tw2 - T6))
+            
+            # Concentration equations
+            dCA1 = ((1/self.Pem) * (2*CA2 - 2*CA1) / (self.deltaz**2) + 
+                    (2/self.deltaz + self.Pem) * (CA0_current - CA1) - 
+                    self.Da * R1)
+            
+            dCA2 = ((1/self.Pem) * (CA1 - 2*CA2 + CA3) / (self.deltaz**2) - 
+                    (-CA1 + CA3) / (2*self.deltaz) - 
+                    self.Da * R2)
+            
+            dCA3 = ((1/self.Pem) * (CA2 - 2*CA3 + CA4) / (self.deltaz**2) - 
+                    (-CA2 + CA4) / (2*self.deltaz) - 
+                    self.Da * R3)
+            
+            dCA4 = ((1/self.Pem) * (CA3 - 2*CA4 + CA5) / (self.deltaz**2) - 
+                    (-CA3 + CA5) / (2*self.deltaz) - 
+                    self.Da * R4)
+            
+            dCA5 = ((1/self.Pem) * (CA4 - 2*CA5 + CA6) / (self.deltaz**2) - 
+                    (-CA4 + CA6) / (2*self.deltaz) - 
+                    self.Da * R5)
+            
+            dCA6 = ((1/self.Pem) * (2*CA5 - 2*CA6) / (self.deltaz**2) - 
+                    self.Da * R6)
+            
+            
+            dxdt = [
+                dT1, dT2, dT3, dT4, dT5, dT6,
+                dCA1, dCA2, dCA3, dCA4, dCA5, dCA6,
+            ]
+            return dxdt

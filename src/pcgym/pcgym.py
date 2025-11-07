@@ -1,7 +1,7 @@
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-from pcgym.model_classes import (
+from src.pcgym.model_classes import (
     cstr,
     first_order_system,
     multistage_extraction,
@@ -15,6 +15,7 @@ from pcgym.model_classes import (
     biofilm_reactor,
     polymerisation_reactor,
     crystallization,
+    pfr,
 )
 from pcgym.policy_evaluation import policy_eval
 from pcgym.integrator import integration_engine
@@ -132,6 +133,7 @@ class make_env(gym.Env):
             "biofilm_reactor": biofilm_reactor,
             "polymerisation_reactor": polymerisation_reactor,
             "crystallization": crystallization,
+            "pfr": pfr,
         }
 
         if self.env_params.get("custom_model") is not None:
