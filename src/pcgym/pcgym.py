@@ -1,7 +1,7 @@
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-from src.pcgym.model_classes import (
+from pcgym.model_classes import (
     cstr,
     first_order_system,
     multistage_extraction,
@@ -71,7 +71,7 @@ class make_env(gym.Env):
                 low=self.env_params["a_space"]["low"],
                 high=self.env_params["a_space"]["high"]
             )
-        
+
         base_obs_low = self.env_params["o_space"]["low"]
         base_obs_high = self.env_params["o_space"]["high"]
         self.observation_space_base = spaces.Box(low=base_obs_low, high=base_obs_high)
