@@ -155,7 +155,192 @@ class complex_cstr(BaseModel):
                    + heat_gen/(self.rho * self.C) \
                    + (self.UA/(self.rho * self.C * self.V))*(Tc - T)
             
-            return np.array([dca_dt, dcb_dt, dcc_dt, dTdt])
+
+@dataclass(frozen=False, kw_only=True)
+class hydraulic_tank(BaseModel):
+    D: float = 1.0
+    int_method: str = "jax"
+    states: list = None
+    inputs: list = None
+    disturbances: list = None
+    uncertainties: dict = None
+
+    def __post_init__(self):
+        self.states = ["q1", "q2"]
+        self.inputs = ["u"]
+        self.disturbances = []
+
+    def __call__(self, x, u):
+        q1, q2 = x[0], x[1]
+        u_in = u[0]
+        if self.int_method == "jax":
+            dq1dt = -self.D * (q1 - q2) + u_in
+            dq2dt = self.D * (q1 - q2) - u_in
+            return jnp.array([dq1dt, dq2dt])
+        else:
+            dq1dt = -self.D * (q1 - q2) + u_in
+            dq2dt = self.D * (q1 - q2) - u_in
+            return np.array([dq1dt, dq2dt])
+
+
+# -------------------------------------------------
+# 2. SIRS Disease Model with Vaccination
+# -------------------------------------------------
+@dataclass(frozen=False, kw_only=True)
+class disease_model(BaseModel):
+    beta: float = 0.3
+    gamma: float = 0.1
+    int_method: str = "jax"
+    states: list = None
+    inputs: list = None
+    disturbances: list = None
+    uncertainties: dict = None
+
+    def __post_init__(self):
+        self.states = ["S", "I", "R"]
+        self.inputs = ["u"]  # vaccination rate
+        self.disturbances = []
+
+    def __call__(self, x, u):
+        S, I, R = x[0], x[1], x[2]
+        u_in = u[0]
+        if self.int_method == "jax":
+            dSdt = -self.beta * S * I - u_in * S
+            dIdt = self.beta * S * I - self.gamma * I
+            dRdt = self.gamma * I + u_in * S
+            return jnp.array([dSdt, dIdt, dRdt])
+        else:
+            dSdt = -self.beta * S * I - u_in * S
+            dIdt = self.beta * S * I - self.gamma * I
+            dRdt = self.gamma * I + u_in * S
+            return np.array([dSdt, dIdt, dRdt])
+
+
+# -------------------------------------------------
+# 3. Coupled Oscillator System
+# -------------------------------------------------
+@dataclass(frozen=False, kw_only=True)
+class coupled_oscillators(BaseModel):
+    N: int = 10
+    k: float = 1.0   # spring constant
+    m: float = 1.0   # mass
+    int_method: str = "jax"
+    states: list = None
+    inputs: list = None
+    disturbances: list = None
+    uncertainties: dict = None
+
+    def __post_init__(self):
+        self.states = [f"x{i+1}" for i in range(self.N)] + [f"p{i+1}" for i in range(self.N)]
+        self.inputs = []  # no external control except momentum-conserving forcing
+        self.disturbances = []
+
+    def __call__(self, x, u=None):
+        N, k, m = self.N, self.k, self.m
+        positions = x[:N]
+        momenta = x[N:]
+        if self.int_method == "jax":
+            dxdt = momenta / m
+            dptdt = []
+            for i in range(N):
+                left = positions[(i - 1) % N]
+                right = positions[(i + 1) % N]
+                dptdt.append(-k * (2 * positions[i] - left - right))
+            return jnp.concatenate([dxdt, jnp.array(dptdt)])
+        else:
+            dxdt = momenta / m
+            dptdt = []
+            for i in range(N):
+                left = positions[(i - 1) % N]
+                right = positions[(i + 1) % N]
+                dptdt.append(-k * (2 * positions[i] - left - right))
+            return np.concatenate([dxdt, np.array(dptdt)])
+
+
+# -------------------------------------------------
+# 4. Batch Reactor (Exothermic consecutive reactions)
+# -------------------------------------------------
+@dataclass(frozen=False, kw_only=True)
+class batch(BaseModel):
+    k01: float = 1.0
+    k02: float = 0.5
+    EA1: float = 5000
+    EA2: float = 6000
+    R: float = 8.314
+    dH1: float = -1000
+    dH2: float = -1500
+    rho: float = 1000
+    Cp: float = 4.0
+    UA: float = 100
+    V: float = 1.0
+    int_method: str = "jax"
+    states: list = None
+    inputs: list = None
+    disturbances: list = None
+    uncertainties: dict = None
+
+    def __post_init__(self):
+        self.states = ["Ca", "Cb", "Cc", "T"]
+        self.inputs = ["Tc"]
+        self.disturbances = []
+
+    def __call__(self, x, u):
+        CA, CB, CC, T = x[0], x[1], x[2], x[3]
+        Tc = u[0]
+        if self.int_method == "jax":
+            r1 = self.k01 * jnp.exp(-self.EA1 / (self.R * T)) * CA
+            r2 = self.k02 * jnp.exp(-self.EA2 / (self.R * T)) * CB
+            dCAdt = -r1
+            dCBdt = 2 * r1 - r2
+            dCCdt = r2
+            dTdt = (-(self.dH1 * r1 + self.dH2 * r2) / (self.rho * self.Cp)
+                    + self.UA / (self.rho * self.Cp * self.V) * (Tc - T))
+            return jnp.array([dCAdt, dCBdt, dCCdt, dTdt])
+        else:
+            r1 = self.k01 * np.exp(-self.EA1 / (self.R * T)) * CA
+            r2 = self.k02 * np.exp(-self.EA2 / (self.R * T)) * CB
+            dCAdt = -r1
+            dCBdt = 2 * r1 - r2
+            dCCdt = r2
+            dTdt = (-(self.dH1 * r1 + self.dH2 * r2) / (self.rho * self.Cp)
+                    + self.UA / (self.rho * self.Cp * self.V) * (Tc - T))
+            return np.array([dCAdt, dCBdt, dCCdt, dTdt])
+
+
+# -------------------------------------------------
+# 5. Batch Reactor with Reaction Invariants
+# -------------------------------------------------
+@dataclass(frozen=False, kw_only=True)
+class invariant_batch(BaseModel):
+    k1f: float = 55.0
+    k1r: float = 1.0
+    k2f: float = 2.0
+    k2r: float = 1.0
+    int_method: str = "jax"
+    states: list = None
+    inputs: list = None
+    disturbances: list = None
+    uncertainties: dict = None
+
+    def __post_init__(self):
+        self.states = ["xA", "xB", "xC", "xD"]
+        self.inputs = []
+        self.disturbances = []
+
+    def __call__(self, x, u=None):
+        xA, xB, xC, xD = x
+        if self.int_method == "jax":
+            dxAdt = -(self.k1f * xA * xB - self.k1r * xC) - (self.k2f * xA * xC - self.k2r * xD)
+            dxBdt = -(self.k1f * xA * xB - self.k1r * xC)
+            dxCdt = (self.k1f * xA * xB - self.k1r * xC) - (self.k2f * xA * xC - self.k2r * xD)
+            dxDdt = self.k2f * xA * xC - self.k2r * xD
+            return jnp.array([dxAdt, dxBdt, dxCdt, dxDdt])
+        else:
+            dxAdt = -(self.k1f * xA * xB - self.k1r * xC) - (self.k2f * xA * xC - self.k2r * xD)
+            dxBdt = -(self.k1f * xA * xB - self.k1r * xC)
+            dxCdt = (self.k1f * xA * xB - self.k1r * xC) - (self.k2f * xA * xC - self.k2r * xD)
+            dxDdt = self.k2f * xA * xC - self.k2r * xD
+            return np.array([dxAdt, dxBdt, dxCdt, dxDdt])
 
 @dataclass(frozen=False, kw_only=True)
 class first_order_system:
@@ -348,7 +533,7 @@ class multistage_extraction:
         }
         info["parameters"].pop("int_method", None)
         return info
-
+    
 @dataclass(frozen = False, kw_only = True)
 class photo_production:
     """
@@ -445,6 +630,7 @@ class photo_production:
         }
         info["parameters"].pop("int_method")
         return info
+
 
 @dataclass(frozen=False, kw_only=True)
 class nonsmooth_control:
