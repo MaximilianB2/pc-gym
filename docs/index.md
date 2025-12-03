@@ -135,8 +135,16 @@ Currently there are six implemented process control environments, this will be e
     <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py">Code</a></td>
     <td><a href="https://maximilianb2.github.io/pc-gym/env/four_tank/">Documentation</a></td>
   </tr>
-     </tr>
+  </tr>
+   </tr>
     <tr>
+    <td>Fluidized Biofilm Sand Bed Reactor</td>
+    <td>Reactor</td> 
+    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py">Code</a></td>
+    <td><a href="https://maximilianb2.github.io/pc-gym/env/biofilm/">Documentation</a></td>
+  </tr>
+
+  <tr>
     <td>Photoproduction</td>
     <td>Bioreactor</td> 
     <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py">Code</a></td>

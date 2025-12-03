@@ -23,7 +23,7 @@
 Model describes K$_2$SO$_4$ crystallization using method of moments, tracking crystal size distribution moments (μ$_0$-μ$_3$) and solute concentration (c).
 
 ## Core Equations
-```
+
 \begin{align}
 \frac{d\mu_0}{dt} &= B_0 \\
 \frac{d\mu_1}{dt} &= G_{\infty} (a\mu_0 + b\mu_1 \times 10^{-4}) \times 10^4 \\
@@ -31,17 +31,15 @@ Model describes K$_2$SO$_4$ crystallization using method of moments, tracking cr
 \frac{d\mu_3}{dt} &= 3G_{\infty} (a\mu_2 \times 10^{-8} + b\mu_3 \times 10^{-12}) \times 10^{12} \\
 \frac{dc}{dt} &= -0.5\rho\alpha G_{\infty} (a\mu_2 \times 10^{-8} + b\mu_3 \times 10^{-12})
 \end{align}
-```
 
 ## Rate Dependencies
-```
+
 \begin{align}
 C_{eq} &= -686.2686 + 3.579165(T+273.15) - 0.00292874(T+273.15)^2 \\
 S &= c \times 10^3 - C_{eq} \\
 B_0 &= k_a \exp\left(\frac{k_b}{T+273.15}\right) (S^2)^{k_c/2} (\mu_3^2)^{k_d/2} \\
 G_{\infty} &= k_g \exp\left(\frac{k_1}{T+273.15}\right) (S^2)^{k_2/2}
 \end{align}
-```
 
 ## Key Parameters
 - Nucleation: $k_a$=0.92, $k_b$=-6800, $k_c$=0.92, $k_d$=1.3
@@ -55,6 +53,16 @@ Temperature (T) serves as control variable to achieve desired crystal size distr
 ## Observation
 The observation of the `crystallisation` environment provides information on the state variables and their associated setpoints (if they exist) at the current timestep. The observation is an array of shape `(1, 7 + N_SP)` where `N_SP` is the number of setpoints. Therefore, the observation when there a setpoint exists for $CV$ and $Ln$ is
 ``[mu0, mu1, mu2, mu3, conc, CV, Ln, CV_SP, Ln_SP]``.
+
+The observation space is defined by the following bounds corresponding to the ordered state variables:
+```
+[[0, 1e20], [0, 1e20], [0, 1e20], [0, 1e20], [0, 0.5], [0, 2], [0, 20], [0.9, 1.1], [14, 16]]
+```
+An example, tested set of initial conditions are as follows:
+```
+[1478.01, 22995.82, 1800863.24, 248516167.94, 0.1586, 0.5, 15, 1, 15]
+```
+
 
 ## Action
 The action space is a `ContinuousBox` of `[[-1],[1]]` which corresponds to a change in cooling temperature.

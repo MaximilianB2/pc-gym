@@ -103,7 +103,7 @@ env = make_env(env_params_cryst)
 SAC_cryst = SAC.load('./policies/SAC_cryst_rep_0')
 PPO_cryst = PPO.load('./policies/PPO_cryst_rep_0')
 DDPG_cryst = DDPG.load('./policies/DDPG_cryst_rep_0')
-evaluator, data = env.get_rollouts({'SAC':SAC_cryst, 'PPO':PPO_cryst,'DDPG':DDPG_cryst}, reps=50, oracle=True, MPC_params={'N':10,})
+evaluator, data = env.get_rollouts({'SAC':SAC_cryst, 'PPO':PPO_cryst,'DDPG':DDPG_cryst}, reps=3, oracle=True, MPC_params={'N':10,})
 # np.save('data.npy', data)
 # data = np.load('data.npy', allow_pickle=True).item()
 def paper_plot(data):
@@ -124,7 +124,7 @@ def paper_plot(data):
     height = a4_width_inches * 0.4  # Adjusted for more subplots
     
     fig, axs = plt.subplots(1, 4, figsize=(a4_width_inches+0.4, height))
-    plt.subplots_adjust(wspace=0.35, hspace=0.4, top=0.85, bottom=0.1, left=0.08, right=0.98)
+    plt.subplots_adjust(wspace=0.5, hspace=0.4, top=0.85, bottom=0.1, left=0.08, right=0.98)
     policies = ['oracle','SAC' , 'PPO', 'DDPG']
     cols = ['tab:orange', 'tab:red', 'tab:blue', 'tab:green', ]
     labels = ['Oracle','SAC','PPO','DDPG']
