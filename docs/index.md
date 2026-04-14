@@ -166,13 +166,13 @@ The following features are being worked on to be added in the near future:
 ## Citing `pc-gym`
 If you use `pc-gym` in your research, please cite using the following 
 ```
-@software{pcgym2024,
-  author = {Max Bloor and Jose Neto and Ilya Sandoval and Max Mowbray
-            and Akhil Ahmed and Mehmet Mercangoz and Calvin Tsay and Antonio Del Rio-Chanona},
-  title = {{pc-gym}: Reinforcement Learning Envionments for Process Control},
-  url = {https://github.com/MaximilianB2/pc-gym},
-  version = {0.0.4},
-  year = {2024},
+@article{bloor2025pc,
+  title={PC-Gym: Benchmark environments for process control problems},
+  author={Bloor, Maximilian and Torraca, Jos{\'e} and Sandoval, Ilya Orson and Ahmed, Akhil and White, Martha and Mercang{\"o}z, Mehmet and Tsay, Calvin and Chanona, Ehecatl Antonio Del Rio and Mowbray, Max},
+  journal={Computers \& Chemical Engineering},
+  pages={109363},
+  year={2025},
+  publisher={Elsevier}
 }
 ```
 
