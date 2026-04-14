@@ -1,6 +1,8 @@
 from dataclasses import dataclass
+
 import jax.numpy as jnp
 import numpy as np
+
 
 @dataclass(frozen=False, kw_only=True)
 class BaseModel:
@@ -42,32 +44,22 @@ class cstr(BaseModel):
 
     def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         ca, T = x[0], x[1]
-        if self.int_method == "jax":
-            if u.shape == (1,):
-                Tc = u[0]
-            else:
-                Tc, self.Ti, self.Caf = u[0], u[1], u[2]
-            rA = self.k0 * jnp.exp(-self.EA_over_R / T) * ca
-            dxdt = jnp.array([
-                self.q / self.V * (self.Caf - ca) - rA,
-                self.q / self.V * (self.Ti - T)
-                + ((-self.deltaHr) * rA) * (1 / (self.rho * self.C))
-                + self.UA * (Tc - T) * (1 / (self.rho * self.C * self.V)),
-            ])
-            return dxdt
+        xp = jnp if self.int_method == "jax" else np
+        if u.size == 1:
+            Tc = u[0]
         else:
-            if u.shape == (1,1):
-                Tc = u[0]
-            else:
-                Tc, self.Ti, self.Caf = u[0], u[1], u[2] 
-            rA = self.k0 * np.exp(-self.EA_over_R / T) * ca
-            dxdt = [
-                self.q / self.V * (self.Caf - ca) - rA,
-                self.q / self.V * (self.Ti - T)
-                + ((-self.deltaHr) * rA) * (1 / (self.rho * self.C))
-                + self.UA * (Tc - T) * (1 / (self.rho * self.C * self.V)),
-            ]
-            return dxdt
+            Tc, self.Ti, self.Caf = u[0], u[1], u[2]
+        rA = self.k0 * xp.exp(-self.EA_over_R / T) * ca
+        dcadt = self.q / self.V * (self.Caf - ca) - rA
+        dTdt = (
+            self.q / self.V * (self.Ti - T)
+            + ((-self.deltaHr) * rA) * (1 / (self.rho * self.C))
+            + self.UA * (Tc - T) * (1 / (self.rho * self.C * self.V))
+        )
+
+        ret = [dcadt, dTdt]
+
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
 
 @dataclass(frozen=False, kw_only=True)
 class complex_cstr(BaseModel):
@@ -108,53 +100,29 @@ class complex_cstr(BaseModel):
 
     def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         ca, cb, cc, T = x[0], x[1], x[2], x[3]
-        
-        if self.int_method == "jax":
-            # Handle inputs (including disturbances if provided)
-            if u.shape == (1,):
-                Tc = u[0]
-            else:
-                Tc, self.Ti, self.Caf = u[0], u[1], u[2]
-            
-            # Calculate reaction rates
-            r1 = self.k01 * jnp.exp(-self.EA1_over_R / T) * ca
-            r2 = self.k02 * jnp.exp(-self.EA2_over_R / T) * cb
-            
-            # Material balances
-            dca_dt = (self.q/self.V)*(self.Caf - ca) - r1
-            dcb_dt = (self.q/self.V)*(0 - cb) + 2*r1 - r2
-            dcc_dt = (self.q/self.V)*(0 - cc) + r2
-            
-            # Energy balance
-            heat_gen = (-self.deltaHr1 * r1) + (-self.deltaHr2 * r2)
-            dTdt = (self.q/self.V)*(self.Ti - T) \
-                   + heat_gen/(self.rho * self.C) \
-                   + (self.UA/(self.rho * self.C * self.V))*(Tc - T)
-            
-            return jnp.array([dca_dt, dcb_dt, dcc_dt, dTdt])
-        
-        else:  # numpy implementation
-            # Handle inputs (including disturbances if provided)
-            if u.shape == (1,1):
-                Tc = u[0,0]
-            else:
-                Tc, self.Ti, self.Caf = u[0], u[1], u[2]
-            
-            # Calculate reaction rates
-            r1 = self.k01 * np.exp(-self.EA1_over_R / T) * ca
-            r2 = self.k02 * np.exp(-self.EA2_over_R / T) * cb
-            
-            # Material balances
-            dca_dt = (self.q/self.V)*(self.Caf - ca) - r1
-            dcb_dt = (self.q/self.V)*(0 - cb) + 2*r1 - r2
-            dcc_dt = (self.q/self.V)*(0 - cc) + r2
-            
-            # Energy balance
-            heat_gen = (-self.deltaHr1 * r1) + (-self.deltaHr2 * r2)
-            dTdt = (self.q/self.V)*(self.Ti - T) \
-                   + heat_gen/(self.rho * self.C) \
-                   + (self.UA/(self.rho * self.C * self.V))*(Tc - T)
-            
+        xp = jnp if self.int_method == "jax" else np
+        if u.size == 1:
+            Tc = u.reshape(-1)[0]
+        else:
+            Tc, self.Ti, self.Caf = u[0], u[1], u[2]
+
+        r1 = self.k01 * xp.exp(-self.EA1_over_R / T) * ca
+        r2 = self.k02 * xp.exp(-self.EA2_over_R / T) * cb
+
+        dca_dt = (self.q / self.V) * (self.Caf - ca) - r1
+        dcb_dt = (self.q / self.V) * (0 - cb) + 2 * r1 - r2
+        dcc_dt = (self.q / self.V) * (0 - cc) + r2
+
+        heat_gen = (-self.deltaHr1 * r1) + (-self.deltaHr2 * r2)
+        dTdt = (
+            (self.q / self.V) * (self.Ti - T)
+            + heat_gen / (self.rho * self.C)
+            + (self.UA / (self.rho * self.C * self.V)) * (Tc - T)
+        )
+
+        ret = [dca_dt, dcb_dt, dcc_dt, dTdt]
+
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
 
 @dataclass(frozen=False, kw_only=True)
 class hydraulic_tank(BaseModel):
@@ -173,14 +141,12 @@ class hydraulic_tank(BaseModel):
     def __call__(self, x, u):
         q1, q2 = x[0], x[1]
         u_in = u[0]
-        if self.int_method == "jax":
-            dq1dt = -self.D * (q1 - q2) + u_in
-            dq2dt = self.D * (q1 - q2) - u_in
-            return jnp.array([dq1dt, dq2dt])
-        else:
-            dq1dt = -self.D * (q1 - q2) + u_in
-            dq2dt = self.D * (q1 - q2) - u_in
-            return np.array([dq1dt, dq2dt])
+        dq1dt = -self.D * (q1 - q2) + u_in
+        dq2dt = self.D * (q1 - q2) - u_in
+
+        ret = [dq1dt, dq2dt]
+
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
 
 
 # -------------------------------------------------
@@ -204,16 +170,13 @@ class disease_model(BaseModel):
     def __call__(self, x, u):
         S, I, R = x[0], x[1], x[2]
         u_in = u[0]
-        if self.int_method == "jax":
-            dSdt = -self.beta * S * I - u_in * S
-            dIdt = self.beta * S * I - self.gamma * I
-            dRdt = self.gamma * I + u_in * S
-            return jnp.array([dSdt, dIdt, dRdt])
-        else:
-            dSdt = -self.beta * S * I - u_in * S
-            dIdt = self.beta * S * I - self.gamma * I
-            dRdt = self.gamma * I + u_in * S
-            return np.array([dSdt, dIdt, dRdt])
+        dSdt = -self.beta * S * I - u_in * S
+        dIdt = self.beta * S * I - self.gamma * I
+        dRdt = self.gamma * I + u_in * S
+
+        ret = [dSdt, dIdt, dRdt]
+
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
 
 
 # -------------------------------------------------
@@ -239,22 +202,17 @@ class coupled_oscillators(BaseModel):
         N, k, m = self.N, self.k, self.m
         positions = x[:N]
         momenta = x[N:]
-        if self.int_method == "jax":
-            dxdt = momenta / m
-            dptdt = []
-            for i in range(N):
-                left = positions[(i - 1) % N]
-                right = positions[(i + 1) % N]
-                dptdt.append(-k * (2 * positions[i] - left - right))
-            return jnp.concatenate([dxdt, jnp.array(dptdt)])
-        else:
-            dxdt = momenta / m
-            dptdt = []
-            for i in range(N):
-                left = positions[(i - 1) % N]
-                right = positions[(i + 1) % N]
-                dptdt.append(-k * (2 * positions[i] - left - right))
-            return np.concatenate([dxdt, np.array(dptdt)])
+        xp = jnp if self.int_method == "jax" else np
+        dxdt = momenta / m
+        dptdt = []
+        for i in range(N):
+            left = positions[(i - 1) % N]
+            right = positions[(i + 1) % N]
+            dptdt.append(-k * (2 * positions[i] - left - right))
+
+        ret = xp.concatenate([dxdt, xp.array(dptdt)])
+
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
 
 
 # -------------------------------------------------
@@ -287,24 +245,20 @@ class batch(BaseModel):
     def __call__(self, x, u):
         CA, CB, CC, T = x[0], x[1], x[2], x[3]
         Tc = u[0]
-        if self.int_method == "jax":
-            r1 = self.k01 * jnp.exp(-self.EA1 / (self.R * T)) * CA
-            r2 = self.k02 * jnp.exp(-self.EA2 / (self.R * T)) * CB
-            dCAdt = -r1
-            dCBdt = 2 * r1 - r2
-            dCCdt = r2
-            dTdt = (-(self.dH1 * r1 + self.dH2 * r2) / (self.rho * self.Cp)
-                    + self.UA / (self.rho * self.Cp * self.V) * (Tc - T))
-            return jnp.array([dCAdt, dCBdt, dCCdt, dTdt])
-        else:
-            r1 = self.k01 * np.exp(-self.EA1 / (self.R * T)) * CA
-            r2 = self.k02 * np.exp(-self.EA2 / (self.R * T)) * CB
-            dCAdt = -r1
-            dCBdt = 2 * r1 - r2
-            dCCdt = r2
-            dTdt = (-(self.dH1 * r1 + self.dH2 * r2) / (self.rho * self.Cp)
-                    + self.UA / (self.rho * self.Cp * self.V) * (Tc - T))
-            return np.array([dCAdt, dCBdt, dCCdt, dTdt])
+        xp = jnp if self.int_method == "jax" else np
+        r1 = self.k01 * xp.exp(-self.EA1 / (self.R * T)) * CA
+        r2 = self.k02 * xp.exp(-self.EA2 / (self.R * T)) * CB
+        dCAdt = -r1
+        dCBdt = 2 * r1 - r2
+        dCCdt = r2
+        dTdt = (
+            -(self.dH1 * r1 + self.dH2 * r2) / (self.rho * self.Cp)
+            + self.UA / (self.rho * self.Cp * self.V) * (Tc - T)
+        )
+
+        ret = [dCAdt, dCBdt, dCCdt, dTdt]
+
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
 
 
 # -------------------------------------------------
@@ -329,18 +283,14 @@ class invariant_batch(BaseModel):
 
     def __call__(self, x, u=None):
         xA, xB, xC, xD = x
-        if self.int_method == "jax":
-            dxAdt = -(self.k1f * xA * xB - self.k1r * xC) - (self.k2f * xA * xC - self.k2r * xD)
-            dxBdt = -(self.k1f * xA * xB - self.k1r * xC)
-            dxCdt = (self.k1f * xA * xB - self.k1r * xC) - (self.k2f * xA * xC - self.k2r * xD)
-            dxDdt = self.k2f * xA * xC - self.k2r * xD
-            return jnp.array([dxAdt, dxBdt, dxCdt, dxDdt])
-        else:
-            dxAdt = -(self.k1f * xA * xB - self.k1r * xC) - (self.k2f * xA * xC - self.k2r * xD)
-            dxBdt = -(self.k1f * xA * xB - self.k1r * xC)
-            dxCdt = (self.k1f * xA * xB - self.k1r * xC) - (self.k2f * xA * xC - self.k2r * xD)
-            dxDdt = self.k2f * xA * xC - self.k2r * xD
-            return np.array([dxAdt, dxBdt, dxCdt, dxDdt])
+        dxAdt = -(self.k1f * xA * xB - self.k1r * xC) - (self.k2f * xA * xC - self.k2r * xD)
+        dxBdt = -(self.k1f * xA * xB - self.k1r * xC)
+        dxCdt = (self.k1f * xA * xB - self.k1r * xC) - (self.k2f * xA * xC - self.k2r * xD)
+        dxDdt = self.k2f * xA * xC - self.k2r * xD
+
+        ret = [dxAdt, dxBdt, dxCdt, dxDdt]
+
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
 
 @dataclass(frozen=False, kw_only=True)
 class first_order_system:
@@ -368,16 +318,13 @@ class first_order_system:
         Returns:
             np.ndarray: State derivative [dx/dt]
         """
-        if self.int_method == "jax":
-            x = x[0]
-            u = u[0]
-            dxdt = jnp.array([(self.K * u - x) * 1 / self.tau])
-            return dxdt
-        else:
-            x = x[0]
-            u = u[0]
-            dxdt = [(self.K * u - x) * 1 / self.tau]
-            return dxdt
+        x = x[0]
+        u = u[0]
+        dxdt = (self.K * u - x) * 1 / self.tau
+
+        ret = [dxdt]
+
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
 
     def info(self) -> dict:
         """
@@ -431,91 +378,39 @@ class multistage_extraction:
         Returns:
             np.ndarray: State derivatives
         """
-        if self.int_method == "jax":
-            if u.shape == (2,):
-                L, G = u[0], u[1]
-            else:
-                L, G, self.X0, self.Y6 = u[0], u[1], u[2], u[3]
-            
-            X1, Y1, X2, Y2, X3, Y3, X4, Y4, X5, Y5 = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9]
-
-            X1_eq = (Y1**self.eq_exponent) / self.m
-            X2_eq = (Y2**self.eq_exponent) / self.m
-            X3_eq = (Y3**self.eq_exponent) / self.m
-            X4_eq = (Y4**self.eq_exponent) / self.m
-            X5_eq = (Y5**self.eq_exponent) / self.m
-
-            Q1 = self.Kla * (X1 - X1_eq) * self.Vl
-            Q2 = self.Kla * (X2 - X2_eq) * self.Vl
-            Q3 = self.Kla * (X3 - X3_eq) * self.Vl
-            Q4 = self.Kla * (X4 - X4_eq) * self.Vl
-            Q5 = self.Kla * (X5 - X5_eq) * self.Vl
-
-            dxdt = jnp.array(
-                [
-                    (1 / self.Vl) * (L * (self.X0 - X1) - Q1),
-                    (1 / self.Vg) * (G * (Y2 - Y1) + Q1),
-                    (1 / self.Vl) * (L * (X1 - X2) - Q2),
-                    (1 / self.Vg) * (G * (Y3 - Y2) + Q2),
-                    (1 / self.Vl) * (L * (X2 - X3) - Q3),
-                    (1 / self.Vg) * (G * (Y4 - Y3) + Q3),
-                    (1 / self.Vl) * (L * (X3 - X4) - Q4),
-                    (1 / self.Vg) * (G * (Y5 - Y4) + Q4),
-                    (1 / self.Vl) * (L * (X4 - X5) - Q5),
-                    (1 / self.Vg) * (G * (self.Y6 - Y5) + Q5),
-                ]
-            )
-            return dxdt
+        X1, Y1, X2, Y2, X3, Y3, X4, Y4, X5, Y5 = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9]
+        if u.size == 2:
+            L, G = u[0], u[1]
         else:
-            if u.shape == (2, 1):
-                L, G = u[0], u[1]
-            else:
-                L, G, self.X0, self.Y6 = u[0], u[1], u[2], u[3]
-            X1, Y1, X2, Y2, X3, Y3, X4, Y4, X5, Y5 = (
-                x[0],
-                x[1],
-                x[2],
-                x[3],
-                x[4],
-                x[5],
-                x[6],
-                x[7],
-                x[8],
-                x[9],
-            )
+            L, G, self.X0, self.Y6 = u[0], u[1], u[2], u[3]
 
-            ##Inputs##
-            # L - Liquid flowrate m3/hr
-            # G - Gas flowrate m3/hr
+        X1_eq = (Y1**self.eq_exponent) / self.m
+        X2_eq = (Y2**self.eq_exponent) / self.m
+        X3_eq = (Y3**self.eq_exponent) / self.m
+        X4_eq = (Y4**self.eq_exponent) / self.m
+        X5_eq = (Y5**self.eq_exponent) / self.m
 
-            X1_eq = (Y1**self.eq_exponent) / self.m
-            X2_eq = (Y2**self.eq_exponent) / self.m
-            X3_eq = (Y3**self.eq_exponent) / self.m
-            X4_eq = (Y4**self.eq_exponent) / self.m
-            X5_eq = (Y5**self.eq_exponent) / self.m
+        Q1 = self.Kla * (X1 - X1_eq) * self.Vl
+        Q2 = self.Kla * (X2 - X2_eq) * self.Vl
+        Q3 = self.Kla * (X3 - X3_eq) * self.Vl
+        Q4 = self.Kla * (X4 - X4_eq) * self.Vl
+        Q5 = self.Kla * (X5 - X5_eq) * self.Vl
 
-            Q1 = self.Kla * (X1 - X1_eq) * self.Vl
-            Q2 = self.Kla * (X2 - X2_eq) * self.Vl
-            Q3 = self.Kla * (X3 - X3_eq) * self.Vl
-            Q4 = self.Kla * (X4 - X4_eq) * self.Vl
-            Q5 = self.Kla * (X5 - X5_eq) * self.Vl
+        ret = [
+            (1 / self.Vl) * (L * (self.X0 - X1) - Q1),
+            (1 / self.Vg) * (G * (Y2 - Y1) + Q1),
+            (1 / self.Vl) * (L * (X1 - X2) - Q2),
+            (1 / self.Vg) * (G * (Y3 - Y2) + Q2),
+            (1 / self.Vl) * (L * (X2 - X3) - Q3),
+            (1 / self.Vg) * (G * (Y4 - Y3) + Q3),
+            (1 / self.Vl) * (L * (X3 - X4) - Q4),
+            (1 / self.Vg) * (G * (Y5 - Y4) + Q4),
+            (1 / self.Vl) * (L * (X4 - X5) - Q5),
+            (1 / self.Vg) * (G * (self.Y6 - Y5) + Q5),
+        ]
 
-            dxdt = [
-                (1 / self.Vl) * (L * (self.X0 - X1) - Q1),
-                (1 / self.Vg) * (G * (Y2 - Y1) + Q1),
-                (1 / self.Vl) * (L * (X1 - X2) - Q2),
-                (1 / self.Vg) * (G * (Y3 - Y2) + Q2),
-                (1 / self.Vl) * (L * (X2 - X3) - Q3),
-                (1 / self.Vg) * (G * (Y4 - Y3) + Q3),
-                (1 / self.Vl) * (L * (X3 - X4) - Q4),
-                (1 / self.Vg) * (G * (Y5 - Y4) + Q4),
-                (1 / self.Vl) * (L * (X4 - X5) - Q5),
-                (1 / self.Vg) * (G * (self.Y6 - Y5) + Q5),
-            ]
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
 
-            return dxdt
-
-            
 
     def info(self) -> dict:
         """
@@ -580,38 +475,16 @@ class photo_production:
         Returns:
             np.ndarray: State derivatives [dc_x, dc_N, dc_q]
         """
-        if self.int_method == "jax":
-            I, F_N = u[0], u[1]
-            
-            c_x, c_N, c_q = x[0], x[1], x[2]
-            
-            dxdt = jnp.array(
-                [
-                    self.u_m * I / (I + self.k_s + (I**2 / self.k_i)) * c_x * c_N / (c_N+ self.k_N) - self.u_d * c_x,
-                    -self.Y_NX * self.u_m * I / (I + self.k_s + (I**2 / self.k_i)) * c_x * c_N / (c_N+ self.k_N) + F_N,
-                    self.k_m * I / (I + self.k_sq + (I**2 / self.k_iq)) * c_x - (self.k_d * c_q)/(c_N + self.K_Nq),
-                    
-                ]
-            )
-            return dxdt
-        
-        else: 
-            I, F_N = u[0], u[1]
-            
-            c_x, c_N, c_q = (
-                x[0], 
-                x[1], 
-                x[2],
-            )
-            
-            dxdt = [
-                    self.u_m * I / (I + self.k_s + (I**2 / self.k_i)) * c_x * c_N / (c_N+ self.k_N) - self.u_d * c_x,
-                    -self.Y_NX * self.u_m * I / (I + self.k_s + (I**2 / self.k_i)) * c_x * c_N / (c_N+ self.k_N) + F_N,
-                    self.k_m * I / (I + self.k_sq + (I**2 / self.k_iq)) * c_x - (self.k_d * c_q)/(c_N + self.K_Nq),
-                    
-                ]
-            
-            return dxdt
+        c_x, c_N, c_q = x[0], x[1], x[2]
+        I, F_N = u[0], u[1]
+
+        dc_x = self.u_m * I / (I + self.k_s + (I**2 / self.k_i)) * c_x * c_N / (c_N + self.k_N) - self.u_d * c_x
+        dc_N = -self.Y_NX * self.u_m * I / (I + self.k_s + (I**2 / self.k_i)) * c_x * c_N / (c_N + self.k_N) + F_N
+        dc_q = self.k_m * I / (I + self.k_sq + (I**2 / self.k_iq)) * c_x - (self.k_d * c_q) / (c_N + self.K_Nq)
+
+        ret = [dc_x, dc_N, dc_q]
+
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
         
     def info(self) -> dict:
         """
@@ -662,22 +535,13 @@ class nonsmooth_control:
         Returns:
             np.ndarray: State derivatives [dx1/dt, dx2/dt]
         """
-        if self.int_method == "jax":
-            x1, x2 = x[0], x[1]
-            dxdt = jnp.array(
-                [
-                    self.a_11 * x1 + self.a_12 * x2 + self.b_1 * u,
-                    self.a_21 * x1 + self.a_22 * x2 + self.b_2 * u,
-                ]
-            )
-            return dxdt
-        else:
-            x1, x2 = x[0], x[1]
-            dxdt = [
-                self.a_11 * x1 + self.a_12 * x2 + self.b_1 * u,
-                self.a_21 * x1 + self.a_22 * x2 + self.b_2 * u,
-            ]
-            return dxdt
+        x1, x2 = x[0], x[1]
+        dx1dt = self.a_11 * x1 + self.a_12 * x2 + self.b_1 * u
+        dx2dt = self.a_21 * x1 + self.a_22 * x2 + self.b_2 * u
+
+        ret = [dx1dt, dx2dt]
+
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
 
     def info(self) -> dict:
         """
@@ -707,17 +571,13 @@ class RSR:
     x1_O: float = 1.00  # Initial molar liquid fraction of component 1
 
     def __call__(self, x, u):
-        # States
         H_R, x1_R, x2_R, x3_R, H_M, x1_M, x2_M, x3_M, H_B, x1_B, x2_B, x3_B = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11]
-
-        # Inputs
         F_O, F_R, F_M, B, D = u[0], u[1], u[2], u[3], u[4]
 
-        # Calculate distillate composition
         x1_D = (x1_B * self.alpha_1) / (1 - x1_B + x1_B * self.alpha_1)
         x2_D = 1 - x1_D
 
-        dxdt = [
+        ret = [
             (1 / (self.rho * self.A_R)) * (F_O + D - F_R),
             ((F_O * (self.x1_O - x1_R) + D * (x1_D - x1_R)) / (self.rho * self.A_R * H_R)) - self.k_1 * x1_R,
             ((-F_O * x2_R + D * (x2_D - x2_R)) / (self.rho * self.A_R * H_R)) + self.k_1 * x1_R - self.k_2 * x2_R,
@@ -732,7 +592,7 @@ class RSR:
             (1 / (self.rho * self.A_B * H_B)) * (F_M * (x3_M - x3_B) + D * (x3_B))
         ]
 
-        return dxdt
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
 
     def info(self):
         # Return a dictionary with the model information
@@ -777,6 +637,7 @@ class cstr_series_recycle:
     E: float = 46.14  # kJ/mol
     deltaH: float = 58.41  # kJ/mol
     R: float = 8.3145e-3  # kJ/mol K
+    int_method: str = "jax"
 
     def __call__(self, x, u):
         """
@@ -789,20 +650,18 @@ class cstr_series_recycle:
         Returns:
             np.ndarray: State derivatives
         """
-        # States
         C1, T1, C2, T2 = x
-
-        # Inputs
         F, L, Tc1, Tc2 = u
+        xp = jnp if self.int_method == "jax" else np
 
-        dxdt = [
-            (self.C_O / self.V1) * F + (1 / self.V1) * L * C2 - (1 / self.V1) * (F + L) * C1 - self.k * C1 * np.exp((-self.E / (self.R * T1))),
-            (self.T_O / self.V1) * F + (1 / self.V1) * L * T2 - ((self.U1A1) / (self.V1 * self.rho * self.cp)) * (T1 - Tc1) - (1 / self.V1) * (F + L) * T1 + ((self.k * (-self.deltaH)) / (self.rho * self.cp)) * C1 * np.exp((-self.E / (self.R * T1))),
-            (1 / self.V2) * (F + L) * (C1 - C2) - self.k * C2 * np.exp((-self.E / (self.R * T2))),
-            (1 / self.V2) * (F + L) * (T1 - T2) - ((self.U2A2) / (self.V2 * self.rho * self.cp)) * (T2 - Tc2) + ((self.k * (-self.deltaH)) / (self.rho * self.cp)) * C2 * np.exp((-self.E / (self.R * T2)))
+        ret = [
+            (self.C_O / self.V1) * F + (1 / self.V1) * L * C2 - (1 / self.V1) * (F + L) * C1 - self.k * C1 * xp.exp((-self.E / (self.R * T1))),
+            (self.T_O / self.V1) * F + (1 / self.V1) * L * T2 - ((self.U1A1) / (self.V1 * self.rho * self.cp)) * (T1 - Tc1) - (1 / self.V1) * (F + L) * T1 + ((self.k * (-self.deltaH)) / (self.rho * self.cp)) * C1 * xp.exp((-self.E / (self.R * T1))),
+            (1 / self.V2) * (F + L) * (C1 - C2) - self.k * C2 * xp.exp((-self.E / (self.R * T2))),
+            (1 / self.V2) * (F + L) * (T1 - T2) - ((self.U2A2) / (self.V2 * self.rho * self.cp)) * (T2 - Tc2) + ((self.k * (-self.deltaH)) / (self.rho * self.cp)) * C2 * xp.exp((-self.E / (self.R * T2)))
         ]
 
-        return dxdt
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
 
     def info(self):
         """
@@ -839,6 +698,7 @@ class distillation_column:
     M0: float = 2000.0
     Mb: float = 2000.0
     M: float = 2000.0
+    int_method: str = "jax"
 
     def __call__(self, x, u):
         """
@@ -851,11 +711,7 @@ class distillation_column:
         Returns:
             np.ndarray: State derivatives
         """
-        # States
-        
         X0, X1, X2, X3, Xf, X4, X5, X6, Xb = x
-
-        # Inputs
         R, F = u
 
         L = R * self.D
@@ -873,19 +729,19 @@ class distillation_column:
         Y6 = (self.alpha * X6) / (1 + (self.alpha - 1) * X6)
         Yb = (self.alpha * Xb) / (1 + (self.alpha - 1) * Xb)
 
-        dxdt = [
-            (1 / self.M0) * ((V * Y1) - (L + self.D) * X0),  # reflux drum
-            (1 / self.M) * (L * (X0 - X1) + V * (Y2 - Y1)),  # Plate 1
-            (1 / self.M) * (L * (X1 - X2) + V * (Y3 - Y2)),  # Plate 2
-            (1 / self.M) * (L * (X2 - X3) + V * (Yf - Y3)),  # Plate 3
-            (1 / self.M) * (L * X3 - L_dash * Xf + V_dash * Y4 - V * Yf + F * self.X_feed),  # Feed plate
-            (1 / self.M) * (L_dash * (Xf - X4) + V_dash * (Y5 - Y4)),  # Plate 4
-            (1 / self.M) * (L_dash * (X4 - X5) + V_dash * (Y6 - Y5)),  # Plate 5
-            (1 / self.M) * (L_dash * (X5 - X6) + V_dash * (Yb - Y6)),  # Plate 6
-            (1 / self.Mb) * (L_dash * X6 - W * Xb - V_dash * Yb)  # Reboiler
+        ret = [
+            (1 / self.M0) * ((V * Y1) - (L + self.D) * X0),
+            (1 / self.M) * (L * (X0 - X1) + V * (Y2 - Y1)),
+            (1 / self.M) * (L * (X1 - X2) + V * (Y3 - Y2)),
+            (1 / self.M) * (L * (X2 - X3) + V * (Yf - Y3)),
+            (1 / self.M) * (L * X3 - L_dash * Xf + V_dash * Y4 - V * Yf + F * self.X_feed),
+            (1 / self.M) * (L_dash * (Xf - X4) + V_dash * (Y5 - Y4)),
+            (1 / self.M) * (L_dash * (X4 - X5) + V_dash * (Y6 - Y5)),
+            (1 / self.M) * (L_dash * (X5 - X6) + V_dash * (Yb - Y6)),
+            (1 / self.Mb) * (L_dash * X6 - W * Xb - V_dash * Yb)
         ]
 
-        return dxdt
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
 
     def info(self):
         """
@@ -929,6 +785,7 @@ class multistage_extraction_reactive:
     YA6: float = 0.00  # Feed conc of component A in gas phase
     YB6: float = 2.00  # Feed conc of component B in gas phase
     YC6: float = 0.00  # Feed conc of component C in gas phase
+    int_method: str = "jax"
 
     def __call__(self, x, u):
         """
@@ -941,10 +798,7 @@ class multistage_extraction_reactive:
         Returns:
             np.ndarray: State derivatives
         """
-        # States
         XA1, YA1, YB1, YC1, XA2, YA2, YB2, YC2, XA3, YA3, YB3, YC3, XA4, YA4, YB4, YC4, XA5, YA5, YB5, YC5 = x
-
-        # Inputs
         L, G = u
 
         XA1_eq = ((YA1 ** self.eq_exponent) / self.m)
@@ -965,7 +819,7 @@ class multistage_extraction_reactive:
         r4 = self.k * YA4 * YB4
         r5 = self.k * YA5 * YB5
 
-        dxdt = [
+        ret = [
             (1 / self.Vl) * (L * (self.XA0 - XA1) - Q1),
             (1 / self.Vg) * (G * (YA2 - YA1) + Q1 - r1 * self.Vg),
             (1 / self.Vg) * (G * (YB2 - YB1) - r1 * self.Vg),
@@ -988,7 +842,7 @@ class multistage_extraction_reactive:
             (1 / self.Vg) * (G * (self.YC6 - YC5) + r5 * self.Vg),
         ]
 
-        return dxdt
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
 
     def info(self):
         """
@@ -1045,34 +899,18 @@ class four_tank:
         Returns:
             np.ndarray: State derivatives
         """
-        if self.int_method == 'jax':
-            # States
-            h1, h2, h3, h4 = x[0], x[1], x[2], x[3]
+        h1, h2, h3, h4 = x[0], x[1], x[2], x[3]
+        v1, v2 = u[0], u[1]
+        xp = jnp if self.int_method == "jax" else np
 
-            # Inputs
-            v1, v2 = u[0], u[1]
+        ret = [
+            (-self.a1 / self.A1) * xp.sqrt(2 * self.g * h1) + (self.a3 / self.A1) * xp.sqrt(2 * self.g * h3) + ((self.gamma_1 * self.k1) / (self.A1)) * v1,
+            (-self.a2 / self.A2) * xp.sqrt(2 * self.g * h2) + (self.a4 / self.A2) * xp.sqrt(2 * self.g * h4) + ((self.gamma_2 * self.k2) / (self.A2)) * v2,
+            (-self.a3 / self.A3) * xp.sqrt(2 * self.g * h3) + (((1 - self.gamma_2) * self.k2) / (self.A3)) * v2,
+            (-self.a4 / self.A4) * xp.sqrt(2 * self.g * h4) + (((1 - self.gamma_1) * self.k1) / (self.A4)) * v1,
+        ]
 
-            dxdt = [
-                (-self.a1 / self.A1) * jnp.sqrt(2 * self.g * h1) + (self.a3 / self.A1) * jnp.sqrt(2 * self.g * h3) + ((self.gamma_1 * self.k1) / (self.A1)) * v1,
-                (-self.a2 / self.A2) * jnp.sqrt(2 * self.g * h2) + (self.a4 / self.A2) * jnp.sqrt(2 * self.g * h4) + ((self.gamma_2 * self.k2) / (self.A2)) * v2,
-                (-self.a3 / self.A3) * jnp.sqrt(2 * self.g * h3) + (((1 - self.gamma_2) * self.k2) / (self.A3)) * v2,
-                (-self.a4 / self.A4) * jnp.sqrt(2 * self.g * h4) + (((1 - self.gamma_1) * self.k1) / (self.A4)) * v1,
-            ]
-            return dxdt
-        else:
-            # States
-            h1, h2, h3, h4 = x[0], x[1], x[2], x[3]
-
-            # Inputs
-            v1, v2 = u[0], u[1]
-
-            dxdt = [
-                (-self.a1 / self.A1) * np.sqrt(2 * self.g * h1) + (self.a3 / self.A1) * np.sqrt(2 * self.g * h3) + ((self.gamma_1 * self.k1) / (self.A1)) * v1,
-                (-self.a2 / self.A2) * np.sqrt(2 * self.g * h2) + (self.a4 / self.A2) * np.sqrt(2 * self.g * h4) + ((self.gamma_2 * self.k2) / (self.A2)) * v2,
-                (-self.a3 / self.A3) * np.sqrt(2 * self.g * h3) + (((1 - self.gamma_2) * self.k2) / (self.A3)) * v2,
-                (-self.a4 / self.A4) * np.sqrt(2 * self.g * h4) + (((1 - self.gamma_1) * self.k1) / (self.A4)) * v1,
-            ]
-            return dxdt
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
 
     def info(self):
         """
@@ -1121,6 +959,7 @@ class heat_exchanger:
     rhot: float = 1.0  # Density of tube side fluid [kg/m3]
     rhom: float = 1.0  # Density of metal [kg/m3]
     rhos: float = 1.0  # Density of shell side fluid [kg/m3]
+    int_method: str = "jax"
 
     def __call__(self, x, u):
         """
@@ -1133,17 +972,15 @@ class heat_exchanger:
         Returns:
             np.ndarray: State derivatives
         """
-        # States
         Tt1, Tm1, Ts1, Tt2, Tm2, Ts2, Tt3, Tm3, Ts3, Tt4, Tm4, Ts4, Tt5, Tm5, Ts5, Tt6, Tm6, Ts6, Tt7, Tm7, Ts7, Tt8, Tm8, Ts8 = x
-
-        # Inputs
         Ft, Fs, Tt0, Ts9 = u
+        xp = jnp if self.int_method == "jax" else np
 
-        Vt = self.L * np.pi * self.Dt**2
-        At = self.L * np.pi * self.Dt
-        Vm = self.L * np.pi * (self.Dm**2 - self.Dt**2)
-        Am = self.L * np.pi * self.Dm
-        Vs = self.L * np.pi * (self.Ds**2 - self.Dm**2)
+        Vt = self.L * xp.pi * self.Dt**2
+        At = self.L * xp.pi * self.Dt
+        Vm = self.L * xp.pi * (self.Dm**2 - self.Dt**2)
+        Am = self.L * xp.pi * self.Dm
+        Vs = self.L * xp.pi * (self.Ds**2 - self.Dm**2)
 
         Qt1 = self.Utm * At * (Tt1 - Tm1)
         Qm1 = self.Usm * Am * (Tm1 - Ts1)
@@ -1162,7 +999,7 @@ class heat_exchanger:
         Qt8 = self.Utm * At * (Tt8 - Tm8)
         Qm8 = self.Usm * Am * (Tm8 - Ts8)
 
-        dxdt = [
+        ret = [
             (1 / (self.cpt * self.rhot * Vt)) * (Ft * self.cpt * (Tt0 - Tt1) - Qt1),
             (1 / (self.cpm * self.rhom * Vm)) * (Qt1 - Qm1),
             (1 / (self.cps * self.rhos * Vs)) * (Fs * self.cps * (Ts2 - Ts1) + Qm1),
@@ -1189,7 +1026,7 @@ class heat_exchanger:
             (1 / (self.cps * self.rhos * Vs)) * (Fs * self.cps * (Ts9 - Ts8) + Qm8),
         ]
 
-        return dxdt
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
 
     def info(self):
         """
@@ -1248,13 +1085,9 @@ class biofilm_reactor:
         Returns:
             np.ndarray: State derivatives
         """
-        # States
         S1_1, S2_1, S3_1, O_1, S1_2, S2_2, S3_2, O_2, S1_3, S2_3, S3_3, O_3, S1_A, S2_A, S3_A, O_A = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11], x[12], x[13], x[14], x[15]
-
-        # Inputs
         F, Fr, S1_F, S2_F, S3_F = u[0], u[1], u[2], u[3], u[4]
 
-        # Reaction rates and stoichiometry
         r1_1 = ((self.vm_1 * S1_1) / (self.K1 + S1_1)) * ((O_1) / (self.KO_1 + O_1))
         r2_1 = ((self.vm_2 * S2_1) / (self.K2 + S2_1)) * ((O_1) / (self.KO_2 + O_1))
         ro_1 = -r1_1 * 3.5 - r2_1 * 1.1
@@ -1279,9 +1112,9 @@ class biofilm_reactor:
         rs2_3 = +r1_3 - r2_3
         rs3_3 = r2_3
 
-        O_Aeq = ((self.O_air ** self.eq_exponent) / self.m)  # Oxygen dissolved in water in equilibrium with air
+        O_Aeq = ((self.O_air ** self.eq_exponent) / self.m)
 
-        dxdt = [
+        ret = [
             (Fr / self.V) * (S1_A - S1_1) - rs1_1,
             (Fr / self.V) * (S2_A - S2_1) - rs2_1,
             (Fr / self.V) * (S3_A - S3_1) - rs3_1,
@@ -1300,7 +1133,7 @@ class biofilm_reactor:
             (Fr / self.Va) * (O_3 - O_A) + self.Kla * (O_Aeq - O_A)
         ]
 
-        return dxdt
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
 
     def info(self):
         """
@@ -1347,6 +1180,7 @@ class polymerisation_reactor:
     deltaHp: float = -3e4  # Heat of reaction per monomer unit [kJ/kmol]
     rho: float = 1200.0  # Density of input fluid mixture [kg/m3]
     cp: float = 2.0  # Heat capacity of fluid mixture [kj/kg K]
+    int_method: str = "jax"
 
     def __call__(self, x, u):
         """
@@ -1359,26 +1193,24 @@ class polymerisation_reactor:
         Returns:
             np.ndarray: State derivatives
         """
-        # States
         T, M, I = x
-
-        # Inputs
         F, Tf, Mf, If = u
+        xp = jnp if self.int_method == "jax" else np
 
-        kp = self.Ap * np.exp(-self.Ep_over_R / T)
-        kd = self.Ad * np.exp(-self.Ed_over_R / T)
-        kt = self.At * np.exp(-self.Et_over_R / T)
+        kp = self.Ap * xp.exp(-self.Ep_over_R / T)
+        kd = self.Ad * xp.exp(-self.Ed_over_R / T)
+        kt = self.At * xp.exp(-self.Et_over_R / T)
 
         ri = 2 * self.f * kd * I
         rp = kp * ((self.f * kd * I) / kt) ** 0.5
 
-        dxdt = [
+        ret = [
             (F / self.V) * (Tf - T) + ((-self.deltaHp) / (self.rho * self.cp)) * rp,
             (F / self.V) * (Mf - M) - rp,
             (F / self.V) * (If - I) - ri
         ]
 
-        return dxdt
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
 
     def info(self):
         # Return a dictionary with the model information
@@ -1463,58 +1295,28 @@ class crystallization:
                 - dmu3/dt: Rate of change of 3rd moment
                 - dconc/dt: Rate of change of solute concentration
         """
-        mu0, mu1, mu2, mu3, conc, = x[0], x[1], x[2], x[3], x[4], 
+        mu0, mu1, mu2, mu3, conc = x[0], x[1], x[2], x[3], x[4]
         T = u[0]
-        # T = fmin(fmax(T, 0), 40)
-        if self.int_method == "jax":
-            Ceq = -686.2686 + 3.579165 * (T+273.15) - 0.00292874 * (T+273.15) ** 2  # g/L
-            S = conc * 1e3 - Ceq  # g/L
-            B0 = self.ka * jnp.exp(self.kb / (T+273.15)) * (S ** 2) ** (self.kc / 2) * ((mu3 ** 2) ** (self.kd / 2))  # /(cm³*min)
-            Ginf = self.kg * jnp.exp(self.k1 / (T+273.15)) * (S ** 2) ** (self.k2 / 2)  # [G] = [Ginf] = cm/min
+        xp = jnp if self.int_method == "jax" else np
 
-            dmi0dt = B0 # mu_0
-            dmi1dt = Ginf * (self.a * mu0 + self.b * mu1 * 1e-4) * 1e4 # mu_1 
-            dmi2dt = 2 * Ginf * (self.a * mu1 * 1e-4 + self.b * mu2 * 1e-8) * 1e8 # mu_2
-            dmi3dt = 3 * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12) * 1e12 # mu_3
-            dcdt = -0.5 * self.ro * self.alfa * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12) 
-            # dTdt = self.UA * (Tc - (T+273.15)) / (self.V * self.ro_t * self.Cp_t)
+        Ceq = -686.2686 + 3.579165 * (T + 273.15) - 0.00292874 * (T + 273.15) ** 2
+        S = conc * 1e3 - Ceq
+        B0 = self.ka * xp.exp(self.kb / (T + 273.15)) * (S ** 2) ** (self.kc / 2) * ((mu3 ** 2) ** (self.kd / 2))
+        Ginf = self.kg * xp.exp(self.k1 / (T + 273.15)) * (S ** 2) ** (self.k2 / 2)
 
+        dmi0dt = B0
+        dmi1dt = Ginf * (self.a * mu0 + self.b * mu1 * 1e-4) * 1e4
+        dmi2dt = 2 * Ginf * (self.a * mu1 * 1e-4 + self.b * mu2 * 1e-8) * 1e8
+        dmi3dt = 3 * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12) * 1e12
+        dcdt = -0.5 * self.ro * self.alfa * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12)
 
-            dxdt = jnp.array([dmi0dt, dmi1dt, dmi2dt, dmi3dt, dcdt])
-            
-            # Calculate algebraic variables
-            CV = jnp.sqrt(mu2 * mu0 / (mu1**2) - 1)
-            
-            # Append algebraic variables to dxdt, but with zero derivatives
-            dCVdt = 1 / (2 * CV + 1e-10) * ((dmi2dt * mu0 + mu2 * dmi0dt) * mu1**2 - mu2 * mu0 * 2 * mu1 * dmi1dt) / (mu1**4 + 1e-10)
+        CV = xp.sqrt(mu2 * mu0 / (mu1**2) - 1)
+        dCVdt = 1 / (2 * CV + 1e-10) * ((dmi2dt * mu0 + mu2 * dmi0dt) * mu1**2 - mu2 * mu0 * 2 * mu1 * dmi1dt) / (mu1**4 + 1e-10)
+        dLndt = (dmi1dt * mu0 - mu1 * dmi0dt) / (mu0**2 + 1e-10)
 
-            # Calculate dLndt
-            dLndt = (dmi1dt * mu0 - mu1 * dmi0dt) / (mu0**2 + 1e-10)
-            dxdt = [dmi0dt, dmi1dt, dmi2dt, dmi3dt, dcdt, dCVdt, dLndt]
-        else:
-            Ceq = -686.2686 + 3.579165 * (T+273.15) - 0.00292874 * (T+273.15) ** 2  # g/L
-            S = conc * 1e3 - Ceq  # g/L
-            B0 = self.ka * np.exp(self.kb / (T+273.15)) * (S ** 2) ** (self.kc / 2) * ((mu3 ** 2) ** (self.kd / 2))  # /(cm³*min)
-            Ginf = self.kg * np.exp(self.k1 / (T+273.15)) * (S ** 2) ** (self.k2 / 2)  # [G] = [Ginf] = cm/min
+        ret = [dmi0dt, dmi1dt, dmi2dt, dmi3dt, dcdt, dCVdt, dLndt]
 
-            dmi0dt = B0
-            dmi1dt = Ginf * (self.a * mu0 + self.b * mu1 * 1e-4) * 1e4
-            dmi2dt = 2 * Ginf * (self.a * mu1 * 1e-4 + self.b * mu2 * 1e-8) * 1e8
-            dmi3dt = 3 * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12) * 1e12
-            dcdt = -0.5 * self.ro * self.alfa * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12)
-                    
-            CV = np.sqrt(mu2 * mu0 / (mu1**2) - 1)
-            dCVdt = 1 / (2 * CV + 1e-10) * ((dmi2dt * mu0 + mu2 * dmi0dt) * mu1**2 - mu2 * mu0 * 2 * mu1 * dmi1dt) / (mu1**4 + 1e-10)
-
-            # Calculate dLndt
-            dLndt = (dmi1dt * mu0 - mu1 * dmi0dt) / (mu0**2 + 1e-10)
-
-
-            
-            # Append algebraic variables to dxdt, but with zero derivatives
-            dxdt = [dmi0dt, dmi1dt, dmi2dt, dmi3dt, dcdt, dCVdt, dLndt]
-
-        return dxdt
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
             
 
 
