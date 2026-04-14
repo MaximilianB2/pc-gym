@@ -3,6 +3,7 @@ import gymnasium as gym
 from gymnasium import spaces
 from pcgym.model_classes import (
     cstr,
+    complex_cstr,
     first_order_system,
     multistage_extraction,
     nonsmooth_control,
@@ -15,6 +16,12 @@ from pcgym.model_classes import (
     biofilm_reactor,
     polymerisation_reactor,
     crystallization,
+    invariant_batch,
+    batch,
+    coupled_oscillators,
+    disease_model,
+    hydraulic_tank
+    
 )
 from pcgym.policy_evaluation import policy_eval
 from pcgym.integrator import integration_engine
@@ -120,6 +127,7 @@ class make_env(gym.Env):
     def _initialize_model(self):
         model_mapping = {
             "cstr": cstr,
+            "complex_cstr": complex_cstr,
             "first_order_system": first_order_system,
             "nonsmooth_control": nonsmooth_control,
             "multistage_extraction": multistage_extraction,
@@ -127,11 +135,16 @@ class make_env(gym.Env):
             "distillation_column": distillation_column,
             "multistage_extraction_reactive": multistage_extraction_reactive,
             "four_tank": four_tank,
-            "photo_production": photo_production,
             "heat_exchanger": heat_exchanger,
             "biofilm_reactor": biofilm_reactor,
             "polymerisation_reactor": polymerisation_reactor,
+            "photobioreactor": photo_production,
             "crystallization": crystallization,
+            "invariant_batch": invariant_batch,
+            "batch": batch,
+            "coupled_oscillator": coupled_oscillators,
+            "disease": disease_model,
+            "hydraulic_tank": hydraulic_tank,
         }
 
         if self.env_params.get("custom_model") is not None:
