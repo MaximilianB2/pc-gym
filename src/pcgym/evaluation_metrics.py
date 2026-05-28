@@ -9,6 +9,7 @@ import numpy as np
 from abc import ABC
 from typing import Dict, Any, Callable, Union, Optional, Type
 
+
 class metric_base(ABC):
     """
     Abstract base class for policy evaluation metrics.
@@ -45,9 +46,7 @@ class metric_base(ABC):
         Returns:
             The policy dispersion metric value.
         """
-        raise NotImplementedError(
-            "Subclasses must implement the policy_dispersion_metric method."
-        )
+        raise NotImplementedError("Subclasses must implement the policy_dispersion_metric method.")
 
     def policy_performance_metric(self, data: Dict[str, Any]) -> Any:
         """
@@ -59,9 +58,7 @@ class metric_base(ABC):
         Returns:
             The policy performance metric value.
         """
-        raise NotImplementedError(
-            "Subclasses must implement the policy_performance_metric method."
-        )
+        raise NotImplementedError("Subclasses must implement the policy_performance_metric method.")
 
     def scalarised_performance(self, data: Dict[str, Any]) -> Any:
         """
@@ -73,9 +70,7 @@ class metric_base(ABC):
         Returns:
             The scalarised policy performance metric value.
         """
-        raise NotImplementedError(
-            "Subclasses must implement the scalarised_performance method."
-        )
+        raise NotImplementedError("Subclasses must implement the scalarised_performance method.")
 
 
 class standard_deviation:
@@ -197,20 +192,26 @@ class reproducibility_metric(metric_base):
         # it should be negative for the lower confidence bound
         self.scalarised_weight = scalarised_weight
         if dispersion == "std":
-            self.dispersion: Union[Type[standard_deviation], Type[median_absolute_deviation]] = standard_deviation
+            self.dispersion: Union[Type[standard_deviation], Type[median_absolute_deviation]] = (
+                standard_deviation
+            )
         elif dispersion == "mad":
             self.dispersion = median_absolute_deviation
         else:
             raise ValueError("Invalid dispersion metric")
 
         if performance == "mean":
-            self.performance: Union[Type[mean_performance], Type[median_performance]] = mean_performance
+            self.performance: Union[Type[mean_performance], Type[median_performance]] = (
+                mean_performance
+            )
         elif performance == "median":
             self.performance = median_performance
         else:
             raise ValueError("Invalid performance metric")
 
-    def evaluate(self, policy_evaluator: Any, component: Optional[str] = None) -> Dict[str, Dict[str, np.ndarray]]:
+    def evaluate(
+        self, policy_evaluator: Any, component: Optional[str] = None
+    ) -> Dict[str, Dict[str, np.ndarray]]:
         """
         Evaluate the given policy using the specified environment.
 
@@ -228,7 +229,9 @@ class reproducibility_metric(metric_base):
 
         return self.scalarised_performance(self.data, component)
 
-    def policy_dispersion_metric(self, data: Dict[str, Dict[str, np.ndarray]], component: Optional[str]) -> Dict[str, Dict[str, np.ndarray]]:
+    def policy_dispersion_metric(
+        self, data: Dict[str, Dict[str, np.ndarray]], component: Optional[str]
+    ) -> Dict[str, Dict[str, np.ndarray]]:
         """
         Evaluate the dispersion of the policy.
 
@@ -241,7 +244,9 @@ class reproducibility_metric(metric_base):
         """
         values: Dict[str, Dict[str, np.ndarray]] = {k: {} for k in data.keys()}
 
-        for policy in data.keys():  # has structure n_x x T x reps  - operation always applied along the reps row
+        for policy in (
+            data.keys()
+        ):  # has structure n_x x T x reps  - operation always applied along the reps row
             if component is None:
                 for comp in data[policy].keys():
                     operation = self.determine_op(comp)
@@ -256,7 +261,9 @@ class reproducibility_metric(metric_base):
 
         return values
 
-    def policy_performance_metric(self, data: Dict[str, Dict[str, np.ndarray]], component: Optional[str]) -> Dict[str, Dict[str, np.ndarray]]:
+    def policy_performance_metric(
+        self, data: Dict[str, Dict[str, np.ndarray]], component: Optional[str]
+    ) -> Dict[str, Dict[str, np.ndarray]]:
         """
         Evaluate the performance of the policy.
 
@@ -284,7 +291,9 @@ class reproducibility_metric(metric_base):
 
         return values
 
-    def scalarised_performance(self, data: Dict[str, Dict[str, np.ndarray]], component: Optional[str]) -> Dict[str, Dict[str, np.ndarray]]:
+    def scalarised_performance(
+        self, data: Dict[str, Dict[str, np.ndarray]], component: Optional[str]
+    ) -> Dict[str, Dict[str, np.ndarray]]:
         """
         Evaluate the scalarised performance of the policy.
 
@@ -299,8 +308,7 @@ class reproducibility_metric(metric_base):
         dispersion = self.policy_dispersion_metric(data, component)
         return {
             k: {
-                comp: performance[k][comp]
-                + self.scalarised_weight * dispersion[k][comp]
+                comp: performance[k][comp] + self.scalarised_weight * dispersion[k][comp]
                 for comp in performance[k].keys()
             }
             for k in performance.keys()

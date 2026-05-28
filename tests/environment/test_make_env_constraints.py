@@ -1,9 +1,11 @@
 import pytest
 import numpy as np
 import sys
-sys.path.append("..\src\pcgym") # Add local pc-gym files to path.
+
+sys.path.append("..\src\pcgym")  # Add local pc-gym files to path.
 
 from pcgym import make_env
+
 
 def test_make_env_constraints():
     env_params = {
@@ -17,13 +19,13 @@ def test_make_env_constraints():
         "constraints": {"Ca": [0, 1], "T": [300, 400]},
         "done_on_cons_vio": True,
         "r_penalty": True,
-        "cons_type": {"Ca": [">=", "<="], "T": [">=", "<="]}
+        "cons_type": {"Ca": [">=", "<="], "T": [">=", "<="]},
     }
     env = make_env(env_params)
     assert env.constraint_active
     assert env.done_on_constraint
     assert env.r_penalty
-    
+
     env.reset()
     action = np.array([500])  # Action that should violate temperature constraint
     _, reward, done, _, info = env.step(action)

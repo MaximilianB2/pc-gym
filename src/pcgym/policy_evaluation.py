@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pcgym.oracle import oracle
 
+
 class policy_eval:
     """
     Policy Evaluation Class for pc-gym.
@@ -42,7 +43,7 @@ class policy_eval:
         oracle: bool = False,
         MPC_params: dict = False,
         cons_viol: bool = False,
-        save_fig: bool = False
+        save_fig: bool = False,
     ):
         """
         Initialize the policy_eval class.
@@ -87,12 +88,12 @@ class policy_eval:
         actions = np.zeros((self.env.env_params["a_space"]["low"].shape[0], self.env.N))
 
         o, info = self.env.reset()
-        
+
         total_reward.append(info["r_init"])
         s_rollout[:, 0] = (o + 1) * (
             self.env.observation_space_base.high - self.env.observation_space_base.low
         ) / 2 + self.env.observation_space_base.low
-        if hasattr(self.env, 'partial_observation') and self.env.partial_observation:
+        if hasattr(self.env, "partial_observation") and self.env.partial_observation:
             s_rollout[:, 0] = (info["obs"] + 1) * (
                 self.env.observation_space_base.high - self.env.observation_space_base.low
             ) / 2 + self.env.observation_space_base.low
@@ -101,15 +102,14 @@ class policy_eval:
             a, _s = policy_i.predict(o, deterministic=True)
             o, r, term, trunc, info = self.env.step(a)
             actions[:, i] = (a + 1) * (
-                self.env.env_params["a_space"]["high"]
-                - self.env.env_params["a_space"]["low"]
+                self.env.env_params["a_space"]["high"] - self.env.env_params["a_space"]["low"]
             ) / 2 + self.env.env_params["a_space"]["low"]
             s_rollout[:, i + 1] = (o + 1) * (
                 self.env.observation_space_base.high - self.env.observation_space_base.low
             ) / 2 + self.env.observation_space_base.low
 
-            if hasattr(self.env, 'partial_observation') and self.env.partial_observation:
-                s_rollout[:, i+1] = (info["obs"] + 1) * (
+            if hasattr(self.env, "partial_observation") and self.env.partial_observation:
+                s_rollout[:, i + 1] = (info["obs"] + 1) * (
                     self.env.observation_space_base.high - self.env.observation_space_base.low
                 ) / 2 + self.env.observation_space_base.low
             try:
@@ -123,12 +123,11 @@ class policy_eval:
             cons_info = np.zeros((1, self.env.N, 1))
         a, _s = policy_i.predict(o, deterministic=True)
         actions[:, self.env.N - 1] = (a + 1) * (
-            self.env.env_params["a_space"]["high"]
-            - self.env.env_params["a_space"]["low"]
+            self.env.env_params["a_space"]["high"] - self.env.env_params["a_space"]["low"]
         ) / 2 + self.env.env_params["a_space"]["low"]
-        
+
         return total_reward, s_rollout, actions, cons_info
-    
+
     def oracle_reward_fn(self, x: np.ndarray, u: np.ndarray) -> list:
         """
         Calculate the oracle reward for given states and actions.
@@ -146,10 +145,10 @@ class policy_eval:
             if i == 0:
                 r_opt.append(0)
             else:
-                if hasattr(self.env, 'custom_reward') and self.env.custom_reward:
-                    r_opt.append(self.env.custom_reward_f(self.env, x[:,i], u[:,i], 0))
+                if hasattr(self.env, "custom_reward") and self.env.custom_reward:
+                    r_opt.append(self.env.custom_reward_f(self.env, x[:, i], u[:, i], 0))
                 else:
-                    r_opt.append(self.env.SP_reward_fn(x[:,i], False)) 
+                    r_opt.append(self.env.SP_reward_fn(x[:, i], False))
         return r_opt
 
     def get_rollouts(self) -> dict:
@@ -172,20 +171,22 @@ class policy_eval:
             oracle_instance = oracle(self.make_env, self.env_params, self.MPC_params)
             for i in range(self.reps):
                 x_opt[:, :, i], u_opt[:, :, i] = oracle_instance.mpc()
-                r_opt[:, :, i] = np.array(self.oracle_reward_fn(x_opt[:, :, i], u_opt[:, :, i])).reshape(1,self.env.N)
+                r_opt[:, :, i] = np.array(
+                    self.oracle_reward_fn(x_opt[:, :, i], u_opt[:, :, i])
+                ).reshape(1, self.env.N)
             data.update({"oracle": {"r": r_opt, "x": x_opt, "u": u_opt}})
 
         for pi_name, pi_i in self.policies.items():
             states = np.zeros((num_states, self.env.N, self.reps))
             actions = np.zeros((action_space_shape, self.env.N, self.reps))
-            rew = np.zeros((1,self.env.N, self.reps))
+            rew = np.zeros((1, self.env.N, self.reps))
             try:
                 cons_info = np.zeros((self.env.n_con, self.env.N, 1, self.reps))
             except Exception:
                 cons_info = np.zeros((1, self.env.N, 1, self.reps))
             for r_i in range(self.reps):
                 (
-                    rew[:,:,r_i],
+                    rew[:, :, r_i],
                     states[:, :, r_i],
                     actions[:, :, r_i],
                     cons_info[:, :, :, r_i],
@@ -329,7 +330,7 @@ class policy_eval:
                     i += 1
         plt.tight_layout()
         if self.save_fig:
-            plt.savefig('rollout.pdf')
+            plt.savefig("rollout.pdf")
         plt.show()
 
         if self.cons_viol:

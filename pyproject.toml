@@ -60,6 +60,13 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = [
+  "Control-Club-Challenge",
+  "pc-gym_paper",
+  "example_notebooks",
+  "Quick_Start.ipynb",
+  "docs",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

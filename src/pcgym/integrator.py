@@ -4,6 +4,7 @@ from diffrax import diffeqsolve, ODETerm, Tsit5, PIDController
 import jax.numpy as jnp
 import numpy as np
 
+
 class integration_engine:
     """
     Integration class that contains both the casadi and JAX integration wrappers.
@@ -17,7 +18,6 @@ class integration_engine:
     """
 
     def __init__(self, make_env: Callable, env_params: Dict[str, Any]) -> None:
-        
         """
         Initialize the integration engine.
 
@@ -38,9 +38,7 @@ class integration_engine:
         if integration_method == "casadi":
             self.sym_x = self.gen_casadi_variable(self.env.Nx_oracle, "x")
             self.sym_u = self.gen_casadi_variable(self.env.Nu, "u")
-            self.casadi_sym_model = self.casadify(
-                self.env.model, self.sym_x, self.sym_u
-            )
+            self.casadi_sym_model = self.casadify(self.env.model, self.sym_x, self.sym_u)
             self.casadi_model_func = self.gen_casadi_function(
                 [self.sym_x, self.sym_u],
                 [self.casadi_sym_model],
@@ -50,6 +48,7 @@ class integration_engine:
             )
 
         if integration_method == "jax":
+
             def autonomous_model(t: float, x: jnp.ndarray, u: jnp.ndarray) -> jnp.ndarray:
                 return jnp.array(self.env.model(x, u))
 
@@ -59,8 +58,8 @@ class integration_engine:
             self.tf = self.env.dt
             self.dt0 = None
             self.step_controller = PIDController(rtol=1e-8, atol=1e-8)
-            
-        pass 
+
+        pass
 
     def jax_step(self, state: np.ndarray, uk: np.ndarray) -> np.ndarray:
         """
@@ -142,7 +141,7 @@ class integration_engine:
         casadi_output: List[SX],
         name: str,
         input_name: List[str] = [],
-        output_name: List[str] = []
+        output_name: List[str] = [],
     ) -> Function:
         """
         Generate a CasADi function.
@@ -178,5 +177,11 @@ class integration_engine:
         dae = {"x": x, "p": u, "ode": xdot}
         t0 = 0
         tf = delta_t
-        discrete_model = integrator("discrete_model", "cvodes", dae, t0, tf,)
+        discrete_model = integrator(
+            "discrete_model",
+            "cvodes",
+            dae,
+            t0,
+            tf,
+        )
         return discrete_model

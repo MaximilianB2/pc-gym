@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 import sys
 from pcgym import make_env
 
+
 @dataclass(frozen=False, kw_only=True)
 class CustomModel:
     int_method: str = field(default="casadi")
@@ -16,14 +17,12 @@ class CustomModel:
 
     def info(self):
         return {
-            "parameters": {
-                "param1": self.param1,
-                "param2": self.param2
-            },
+            "parameters": {"param1": self.param1, "param2": self.param2},
             "states": ["x1", "x2"],
             "inputs": ["u1"],
-            "disturbances": []
+            "disturbances": [],
         }
+
 
 def test_make_env_custom_model():
     env_params = {
@@ -33,17 +32,18 @@ def test_make_env_custom_model():
         "SP": {"x2": [2] * 100},
         "N": 100,
         "tsim": 10,
-        "x0": np.array([0, 0])
+        "x0": np.array([0, 0]),
     }
     env = make_env(env_params)
     assert isinstance(env.model, CustomModel)
-    
+
     obs, info = env.reset()
     assert obs.shape == (2,)
-    
+
     action = env.action_space.sample()
     obs, reward, done, truncated, info = env.step(action)
     assert obs.shape == (2,)
+
 
 def test_custom_model_call():
     model = CustomModel()
@@ -54,6 +54,7 @@ def test_custom_model_call():
     assert np.isclose(result[0], 1.5)  # 1.0 * 1.0 + 0.5
     assert np.isclose(result[1], 4.0)  # 2.0 * 2.0
 
+
 def test_custom_model_info():
     model = CustomModel(param1=1.5, param2=2.5)
     info = model.info()
@@ -62,6 +63,7 @@ def test_custom_model_info():
     assert info["states"] == ["x1", "x2"]
     assert info["inputs"] == ["u1"]
     assert info["disturbances"] == []
+
 
 def test_make_env_custom_model_integration():
     custom_model = CustomModel(param1=1.5, param2=2.5)
@@ -72,13 +74,13 @@ def test_make_env_custom_model_integration():
         "SP": {"x2": [2] * 100},
         "N": 100,
         "tsim": 10,
-        "x0": np.array([1.0, 1.0])
+        "x0": np.array([1.0, 1.0]),
     }
     env = make_env(env_params)
-    
+
     obs, _ = env.reset()
     assert np.allclose(obs, np.array([1.0, 1.0]))
-    
+
     action = np.array([0.5])
     obs, reward, done, truncated, info = env.step(action)
     print(obs)
