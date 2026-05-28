@@ -1,0 +1,92 @@
+name: Nightly
+
+# Runs the full test suite (including @pytest.mark.slow MPC/JAX cases)
+# and a curated notebook smoke-test set every night, plus on demand.
+# Opens a GitHub issue when the scheduled run fails so regressions
+# don't silently slip past the PR-time fast suite.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # 06:00 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  test-full:
+    name: Full pytest (incl. slow)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            pyproject.toml
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Pytest (no marker filter)
+        run: pytest -m "" --cov=pcgym --cov-report=term -n auto
+
+  notebooks:
+    name: nbmake smoke-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            pyproject.toml
+      - name: Install (dev + optional, notebooks may use torch / SB3)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,optional]"
+      - name: Run nbmake on curated subset
+        run: |
+          pytest --nbmake -p no:cacheprovider \
+            Quick_Start.ipynb \
+            example_notebooks/ClassicalControllers.ipynb \
+            example_notebooks/Constraints.ipynb \
+            example_notebooks/MeasurementNoise.ipynb
+
+  report-failure:
+    name: Open issue on scheduled failure
+    needs: [test-full, notebooks]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Create issue via gh CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue create \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Nightly CI failed ($(date -u +%Y-%m-%d))" \
+            --label "nightly,ci-failure" \
+            --body "Scheduled nightly run failed.
+
+          Run: ${RUN_URL}
+
+          Failed jobs: test-full and/or notebooks. Check the run log for the
+          first failing step. Common causes:
+          - Upstream dependency release breaking JAX / CasADi / do-mpc.
+          - Notebook drift: a tutorial cell now errors with current code.
+          - A new @pytest.mark.slow test that does not pass standalone.
+
+          This issue was opened automatically by .github/workflows/nightly.yml."

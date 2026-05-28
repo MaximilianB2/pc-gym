@@ -1,7 +1,7 @@
-import pytest
-import numpy as np
 from dataclasses import dataclass, field
-import sys
+
+import numpy as np
+
 from pcgym import make_env
 
 

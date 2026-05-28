@@ -46,7 +46,7 @@ class cstr(BaseModel):
     def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         ca, T = x[0], x[1]
         xp = jnp if self.int_method == "jax" else np
-        if u.size == 1:
+        if u.shape[0] == 1:
             Tc = u[0]
         else:
             Tc, self.Ti, self.Caf = u[0], u[1], u[2]
@@ -103,7 +103,7 @@ class complex_cstr(BaseModel):
     def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         ca, cb, cc, T = x[0], x[1], x[2], x[3]
         xp = jnp if self.int_method == "jax" else np
-        if u.size == 1:
+        if u.shape[0] == 1:
             Tc = u.reshape(-1)[0]
         else:
             Tc, self.Ti, self.Caf = u[0], u[1], u[2]
@@ -171,7 +171,7 @@ class disease_model(BaseModel):
         self.disturbances = []
 
     def __call__(self, x, u):
-        S, I, R = x[0], x[1], x[2]
+        S, I, _R = x[0], x[1], x[2]
         u_in = u[0]
         dSdt = -self.beta * S * I - u_in * S
         dIdt = self.beta * S * I - self.gamma * I
@@ -246,7 +246,7 @@ class batch(BaseModel):
         self.disturbances = []
 
     def __call__(self, x, u):
-        CA, CB, CC, T = x[0], x[1], x[2], x[3]
+        CA, CB, _CC, T = x[0], x[1], x[2], x[3]
         Tc = u[0]
         xp = jnp if self.int_method == "jax" else np
         r1 = self.k01 * xp.exp(-self.EA1 / (self.R * T)) * CA
@@ -254,9 +254,9 @@ class batch(BaseModel):
         dCAdt = -r1
         dCBdt = 2 * r1 - r2
         dCCdt = r2
-        dTdt = -(self.dH1 * r1 + self.dH2 * r2) / (self.rho * self.Cp) + self.UA / (
-            self.rho * self.Cp * self.V
-        ) * (Tc - T)
+        dTdt = -(self.dH1 * r1 + self.dH2 * r2) / (self.rho * self.Cp) + self.UA / (self.rho * self.Cp * self.V) * (
+            Tc - T
+        )
 
         ret = [dCAdt, dCBdt, dCCdt, dTdt]
 
@@ -394,7 +394,7 @@ class multistage_extraction:
             x[8],
             x[9],
         )
-        if u.size == 2:
+        if u.shape[0] == 2:
             L, G = u[0], u[1]
         else:
             L, G, self.X0, self.Y6 = u[0], u[1], u[2], u[3]
@@ -493,23 +493,9 @@ class photo_production:
         c_x, c_N, c_q = x[0], x[1], x[2]
         I, F_N = u[0], u[1]
 
-        dc_x = (
-            self.u_m * I / (I + self.k_s + (I**2 / self.k_i)) * c_x * c_N / (c_N + self.k_N)
-            - self.u_d * c_x
-        )
-        dc_N = (
-            -self.Y_NX
-            * self.u_m
-            * I
-            / (I + self.k_s + (I**2 / self.k_i))
-            * c_x
-            * c_N
-            / (c_N + self.k_N)
-            + F_N
-        )
-        dc_q = self.k_m * I / (I + self.k_sq + (I**2 / self.k_iq)) * c_x - (self.k_d * c_q) / (
-            c_N + self.K_Nq
-        )
+        dc_x = self.u_m * I / (I + self.k_s + (I**2 / self.k_i)) * c_x * c_N / (c_N + self.k_N) - self.u_d * c_x
+        dc_N = -self.Y_NX * self.u_m * I / (I + self.k_s + (I**2 / self.k_i)) * c_x * c_N / (c_N + self.k_N) + F_N
+        dc_q = self.k_m * I / (I + self.k_sq + (I**2 / self.k_iq)) * c_x - (self.k_d * c_q) / (c_N + self.K_Nq)
 
         ret = [dc_x, dc_N, dc_q]
 
@@ -623,11 +609,8 @@ class RSR:
 
         ret = [
             (1 / (self.rho * self.A_R)) * (F_O + D - F_R),
-            ((F_O * (self.x1_O - x1_R) + D * (x1_D - x1_R)) / (self.rho * self.A_R * H_R))
-            - self.k_1 * x1_R,
-            ((-F_O * x2_R + D * (x2_D - x2_R)) / (self.rho * self.A_R * H_R))
-            + self.k_1 * x1_R
-            - self.k_2 * x2_R,
+            ((F_O * (self.x1_O - x1_R) + D * (x1_D - x1_R)) / (self.rho * self.A_R * H_R)) - self.k_1 * x1_R,
+            ((-F_O * x2_R + D * (x2_D - x2_R)) / (self.rho * self.A_R * H_R)) + self.k_1 * x1_R - self.k_2 * x2_R,
             ((-x3_R * (F_O + D)) / (self.rho * self.A_R * H_R)) + self.k_2 * x2_R,
             (1 / (self.rho * self.A_M)) * (F_R - F_M),
             ((F_R) / (self.rho * self.A_M * H_M)) * (x1_R - x1_M),
@@ -725,15 +708,11 @@ class cstr_series_recycle:
             + (1 / self.V1) * L * T2
             - ((self.U1A1) / (self.V1 * self.rho * self.cp)) * (T1 - Tc1)
             - (1 / self.V1) * (F + L) * T1
-            + ((self.k * (-self.deltaH)) / (self.rho * self.cp))
-            * C1
-            * xp.exp((-self.E / (self.R * T1))),
+            + ((self.k * (-self.deltaH)) / (self.rho * self.cp)) * C1 * xp.exp((-self.E / (self.R * T1))),
             (1 / self.V2) * (F + L) * (C1 - C2) - self.k * C2 * xp.exp((-self.E / (self.R * T2))),
             (1 / self.V2) * (F + L) * (T1 - T2)
             - ((self.U2A2) / (self.V2 * self.rho * self.cp)) * (T2 - Tc2)
-            + ((self.k * (-self.deltaH)) / (self.rho * self.cp))
-            * C2
-            * xp.exp((-self.E / (self.R * T2))),
+            + ((self.k * (-self.deltaH)) / (self.rho * self.cp)) * C2 * xp.exp((-self.E / (self.R * T2))),
         ]
 
         return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
@@ -872,7 +851,9 @@ class multistage_extraction_reactive:
         Calculate the state derivatives for the multistage extraction with reactive components.
 
         Args:
-            x (np.ndarray): Current state [XA1, YA1, YB1, YC1, XA2, YA2, YB2, YC2, XA3, YA3, YB3, YC3, XA4, YA4, YB4, YC4, XA5, YA5, YB5, YC5]
+            x (np.ndarray): Current state
+                [XA1, YA1, YB1, YC1, XA2, YA2, YB2, YC2, XA3, YA3, YB3, YC3,
+                 XA4, YA4, YB4, YC4, XA5, YA5, YB5, YC5]
             u (np.ndarray): Input [L, G]
 
         Returns:
@@ -1035,10 +1016,8 @@ class four_tank:
             (-self.a2 / self.A2) * xp.sqrt(2 * self.g * h2)
             + (self.a4 / self.A2) * xp.sqrt(2 * self.g * h4)
             + ((self.gamma_2 * self.k2) / (self.A2)) * v2,
-            (-self.a3 / self.A3) * xp.sqrt(2 * self.g * h3)
-            + (((1 - self.gamma_2) * self.k2) / (self.A3)) * v2,
-            (-self.a4 / self.A4) * xp.sqrt(2 * self.g * h4)
-            + (((1 - self.gamma_1) * self.k1) / (self.A4)) * v1,
+            (-self.a3 / self.A3) * xp.sqrt(2 * self.g * h3) + (((1 - self.gamma_2) * self.k2) / (self.A3)) * v2,
+            (-self.a4 / self.A4) * xp.sqrt(2 * self.g * h4) + (((1 - self.gamma_1) * self.k1) / (self.A4)) * v1,
         ]
 
         return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
@@ -1255,12 +1234,8 @@ class biofilm_reactor:
     vm_2: float = 1.0  # Maximum velocity through fluidized bed for reaction 2 [mg/L hr]
     K1: float = 0.5  # Equilibrium constant for reaction 1 (Saturation constant for ammonia in reaction 1) [mg/L]
     K2: float = 0.1  # Equilibrium constant for reaction 2 (Saturation constant for ammonia in reaction 2) [mg/L]
-    KO_1: float = (
-        1.5  # Equilibrium constant for oxygen in reaction 1 (saturation constant for oxygen) [mg/L]
-    )
-    KO_2: float = (
-        0.5  # Equilibrium constant for oxygen in reaction 2 (saturation constant for oxygen) [mg/L]
-    )
+    KO_1: float = 1.5  # Equilibrium constant for oxygen in reaction 1 (saturation constant for oxygen) [mg/L]
+    KO_2: float = 0.5  # Equilibrium constant for oxygen in reaction 2 (saturation constant for oxygen) [mg/L]
     int_method: str = "jax"
 
     def __call__(self, x, u):
@@ -1544,12 +1519,7 @@ class crystallization:
 
         Ceq = -686.2686 + 3.579165 * (T + 273.15) - 0.00292874 * (T + 273.15) ** 2
         S = conc * 1e3 - Ceq
-        B0 = (
-            self.ka
-            * xp.exp(self.kb / (T + 273.15))
-            * (S**2) ** (self.kc / 2)
-            * ((mu3**2) ** (self.kd / 2))
-        )
+        B0 = self.ka * xp.exp(self.kb / (T + 273.15)) * (S**2) ** (self.kc / 2) * ((mu3**2) ** (self.kd / 2))
         Ginf = self.kg * xp.exp(self.k1 / (T + 273.15)) * (S**2) ** (self.k2 / 2)
 
         dmi0dt = B0
@@ -1592,7 +1562,5 @@ class crystallization:
             "inputs": ["Tc"],
             "disturbances": ["ka", "kg", "UA"],
         }
-        info["parameters"].pop(
-            "int_method", None
-        )  # Remove 'int_method' since it's not a parameter of the model
+        info["parameters"].pop("int_method", None)  # Remove 'int_method' since it's not a parameter of the model
         return info
