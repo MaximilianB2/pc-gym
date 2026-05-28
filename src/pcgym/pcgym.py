@@ -45,9 +45,9 @@ class make_env(gym.Env):
         self._setup_spaces()
         self._configure_reward()
         self._setup_simulation_params()
-        self._setup_constraints()
         self._initialize_model()
         self._setup_state_dimensions()
+        self._setup_constraints()
         self._setup_disturbances()
         self._setup_custom_reward()
         self._setup_uncertainty()
@@ -110,13 +110,37 @@ class make_env(gym.Env):
         self.custom_constraint_active = False
         self.info = {}
 
-        if self.env_params.get("constraints") is not None:
-            self.constraints = self.env_params["constraints"]
-            self.done_on_constraint = self.env_params["done_on_cons_vio"]
-            self.r_penalty = self.env_params["r_penalty"]
-            self.constraint_active = True
-            self.n_con = self.constraints(self.x0, self.action_space.sample()).shape[0]
-            self.info["cons_info"] = np.zeros((self.n_con, self.N, 1))
+        constraints = self.env_params.get("constraints")
+        if constraints is None:
+            return
+
+        if isinstance(constraints, dict):
+            constraints = self._dict_constraints_to_callable(constraints)
+
+        self.constraints = constraints
+        self.done_on_constraint = self.env_params["done_on_cons_vio"]
+        self.r_penalty = self.env_params["r_penalty"]
+        self.constraint_active = True
+        self.n_con = self.constraints(self.x0, self.action_space.sample()).shape[0]
+        self.info["cons_info"] = np.zeros((self.n_con, self.N, 1))
+
+    def _dict_constraints_to_callable(self, constraints_dict):
+        cons_type = self.env_params.get("cons_type", {})
+        state_names = self.model.info()["states"]
+
+        def _constraints(x, u):
+            g = []
+            for state_name, bounds in constraints_dict.items():
+                idx = state_names.index(state_name)
+                types = cons_type.get(state_name, [">=", "<="])
+                for bound, op in zip(bounds, types):
+                    if op == ">=":
+                        g.append(bound - x[idx])
+                    else:
+                        g.append(x[idx] - bound)
+            return np.array(g).reshape(-1)
+
+        return _constraints
 
     def _initialize_model(self):
         model_mapping = {
@@ -241,12 +265,11 @@ class make_env(gym.Env):
                 self.observation_space = spaces.Box(low=extended_obs_low, high=extended_obs_high)
 
     def apply_uncertainties(self, value, percentage, distribution):
-        if distribution == "uniform":
-            noise = np.random.uniform(-percentage, percentage)
-            noisy_value = value * (1 + noise)
-        elif distribution == "normal":
-            noisy_value = np.random.normal(value, percentage * value)
-        return noisy_value
+        if distribution == "normal":
+            return np.random.normal(value, percentage * value)
+        # default: uniform around the nominal value
+        noise = np.random.uniform(-percentage, percentage)
+        return value * (1 + noise)
 
     def reset(self, seed: int = 0, **kwargs) -> tuple[np.array, dict]:
         """
