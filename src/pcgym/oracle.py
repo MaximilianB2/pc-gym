@@ -50,7 +50,6 @@ class oracle:
             d = model.set_variable(var_type="_p", var_name="d", shape=(self.env.Nd_model, 1))
             u_full = vertcat(u, d)
         else:
-            u = model.set_variable(var_type="_u", var_name="u", shape=(self.env.Nu, 1))
             u_full = u
 
         # Set point (as a parameter)
@@ -145,6 +144,7 @@ class oracle:
 
         # Parameter function
         def p_fun(t_now):
+            t_now = float(np.asarray(t_now).item())
             p_template = mpc.get_p_template(1)
 
             SP_values = []
@@ -178,6 +178,7 @@ class oracle:
         simulator.set_param(t_step=self.env.dt)
 
         def p_fun_sim(t_now):
+            t_now = float(np.asarray(t_now).item())
             p_template_sim = simulator.get_p_template()
 
             SP_values = []
@@ -219,10 +220,8 @@ class oracle:
         simulator.x0 = x0
         mpc.set_initial_guess()
 
-        # Compute correct size dynamically
-        num_u_rows = self.env.Nu + (self.env.Nd_model if self.has_disturbances else 0)
-
-        u_log = np.zeros((num_u_rows, self.env.N))
+        # env.Nu already includes Nd_model after _setup_disturbances.
+        u_log = np.zeros((self.env.Nu, self.env.N))
 
         x_log = np.zeros((self.env.Nx_oracle, self.env.N))
         delta_u_log = np.zeros((self.env.Nu, self.env.N)) if self.use_delta_u else None
