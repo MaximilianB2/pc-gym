@@ -1,8 +1,4 @@
-import sys
-
 import numpy as np
-
-sys.path.append("..\src\pcgym")  # Add local pc-gym files to path.
 
 from pcgym import make_env
 
