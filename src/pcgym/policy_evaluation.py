@@ -1,6 +1,7 @@
 # Policy Evaluation Class for pc-gym
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+
 from pcgym.oracle import oracle
 
 
@@ -171,9 +172,7 @@ class policy_eval:
             oracle_instance = oracle(self.make_env, self.env_params, self.MPC_params)
             for i in range(self.reps):
                 x_opt[:, :, i], u_opt[:, :, i] = oracle_instance.mpc()
-                r_opt[:, :, i] = np.array(
-                    self.oracle_reward_fn(x_opt[:, :, i], u_opt[:, :, i])
-                ).reshape(1, self.env.N)
+                r_opt[:, :, i] = np.array(self.oracle_reward_fn(x_opt[:, :, i], u_opt[:, :, i])).reshape(1, self.env.N)
             data.update({"oracle": {"r": r_opt, "x": x_opt, "u": u_opt}})
 
         for pi_name, pi_i in self.policies.items():
