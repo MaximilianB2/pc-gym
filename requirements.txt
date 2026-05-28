@@ -1,4 +1,3 @@
-ruff
 numpy
 tqdm
 cloudpickle

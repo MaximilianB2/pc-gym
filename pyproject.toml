@@ -2,7 +2,7 @@
 name = "pcgym"
 version = "0.1.8"
 description = "Reinforcement learning suite of process control problems."
-requires-python = "~=3.11"
+requires-python = ">=3.11"
 license = { file = "LICENSE" }
 readme = "README.md"
 authors = [{ name = "Max Bloor", email = "max.bloor@gmail.com" }]
@@ -21,6 +21,9 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Natural Language :: English",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
   "Topic :: Scientific/Engineering :: Information Analysis",
   "Topic :: Scientific/Engineering :: Mathematics",
@@ -41,3 +44,47 @@ dependencies = { file = ["requirements.txt"] }
 
 [project.optional-dependencies]
 optional = ["jupyterlab", "torch", "stable-baselines3", "mkdocs-material"]
+dev = [
+  "ruff",
+  "pytest",
+  "pytest-cov",
+  "pytest-xdist",
+  "nbmake",
+  "pyright",
+  "pre-commit",
+  "pip-audit",
+  "build",
+  "twine",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "slow: integration/MPC/JAX tests excluded from default PR runs",
+]
+addopts = "-m 'not slow' --strict-markers"
+
+[tool.coverage.run]
+source = ["src/pcgym"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 60
+show_missing = true
+skip_covered = true
+
+[tool.pyright]
+include = ["src"]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+reportMissingImports = "warning"

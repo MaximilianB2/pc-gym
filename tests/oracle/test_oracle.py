@@ -56,6 +56,7 @@ def create_base_env_params(model_name):
 # Test configurations
 models_to_test = ["cstr", "multistage_extraction", "biofilm_reactor", "crystallization", "four_tank"]
 
+@pytest.mark.slow
 @pytest.mark.parametrize("model_name", models_to_test)
 def test_oracle_initialization(model_name):
     env_params = create_base_env_params(model_name)
@@ -67,6 +68,7 @@ def test_oracle_initialization(model_name):
     assert oracle_instance.T == env_params["tsim"], f"Simulation time mismatch for {model_name}"
     assert np.allclose(oracle_instance.x0, env_params["x0"]), f"Initial state mismatch for {model_name}"
 
+@pytest.mark.slow
 @pytest.mark.parametrize("model_name", models_to_test)
 def test_oracle_mpc_setup(model_name):
     env_params = create_base_env_params(model_name)
@@ -79,6 +81,7 @@ def test_oracle_mpc_setup(model_name):
     assert simulator is not None, f"Simulator should be initialized for {model_name}"
     assert mpc.settings.n_horizon == oracle_instance.N, f"MPC horizon mismatch for {model_name}"
 
+@pytest.mark.slow
 @pytest.mark.parametrize("model_name", models_to_test)
 def test_oracle_mpc_execution(model_name):
     env_params = create_base_env_params(model_name)
@@ -91,6 +94,7 @@ def test_oracle_mpc_execution(model_name):
     assert x_log.shape == (env.Nx_oracle, env.N), f"State log shape mismatch for {model_name}"
     assert u_log.shape == (env.Nu, env.N), f"Control input log shape mismatch for {model_name}"
 
+@pytest.mark.slow
 @pytest.mark.parametrize("model_name", models_to_test)
 def test_oracle_with_custom_mpc_params(model_name):
     env_params = create_base_env_params(model_name)
@@ -117,7 +121,8 @@ def calculate_tv(control_inputs):
     """Calculate Total Variation of control inputs"""
     return np.sum(np.abs(np.diff(control_inputs, axis=1)))
 
-@pytest.mark.parametrize("model_name", ["cstr", "multistage_extraction"])   
+@pytest.mark.slow
+@pytest.mark.parametrize("model_name", ["cstr", "multistage_extraction"])
 def test_oracle_disturbance_performance(model_name):
     env_params = create_base_env_params(model_name)
     
@@ -161,6 +166,7 @@ def test_oracle_disturbance_performance(model_name):
     assert all(iae < 2000 for iae in iae_values), f"IAE too high under disturbances for {model_name}"
     assert tv < 2000, f"Total Variation too high under disturbances for {model_name}"
 
+@pytest.mark.slow
 @pytest.mark.parametrize("model_name", models_to_test)
 def test_oracle_constraint_handling(model_name):
     env_params = create_base_env_params(model_name)

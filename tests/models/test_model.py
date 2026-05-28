@@ -85,6 +85,7 @@ def test_basic_functionality(model_name):
         assert isinstance(info, dict)
         if done:
             break
+@pytest.mark.slow
 @pytest.mark.parametrize("model_name", ['cstr'])
 def test_uncertainty(model_name):
     config = model_configs[model_name]
@@ -198,7 +199,8 @@ def test_constraints(model_name):
         print(constraint_violated)
     assert constraint_violated_1 and constraint_violated_0, "Constraint should have been violated"
     
-@pytest.mark.parametrize("model_name", ["cstr", "multistage_extraction"])   
+@pytest.mark.slow
+@pytest.mark.parametrize("model_name", ["cstr", "multistage_extraction"])
 def test_disturbances(model_name):
     config = model_configs[model_name]
     params = create_base_params(model_name, 
@@ -227,7 +229,8 @@ def test_disturbances(model_name):
 
         assert not np.allclose(state[-len(disturbances):], next_state[-len(disturbances):])  # Disturbances should change
         state = copy.deepcopy(next_state)
-@pytest.mark.parametrize("model_name", ["cstr", "multistage_extraction", "four_tank","crystallization"])   
+@pytest.mark.slow
+@pytest.mark.parametrize("model_name", ["cstr", "multistage_extraction", "four_tank","crystallization"])
 def test_JAX_int(model_name):
     config = model_configs[model_name]
     params = create_base_params(model_name, 
