@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 import pytest
 
@@ -69,10 +71,11 @@ def create_base_env_params(model_name):
         },
     }
 
-    base_params.update({"model": model_name})
-    base_params.update(model_specific_params[model_name])
+    params = copy.deepcopy(base_params)
+    params["model"] = model_name
+    params.update(model_specific_params[model_name])
 
-    return base_params
+    return params
 
 
 # Test configurations
@@ -252,12 +255,14 @@ def test_oracle_constraint_handling(model_name):
 
     x_log, u_log = oracle_instance.mpc()
 
-    # Check constraint satisfaction
+    # Check constraint satisfaction after the initial state — the MPC cannot
+    # affect x0, so violations at step 0 reflect test data, not controller behaviour.
     constrained_state = list(env_params["constraints"].keys())[0]
     constrained_state_index = env.model.info()["states"].index(constrained_state)
+    controlled_trajectory = x_log[constrained_state_index, 1:]
     constraint_violations = np.sum(
-        (x_log[constrained_state_index] < env_params["constraints"][constrained_state][0])
-        | (x_log[constrained_state_index] > env_params["constraints"][constrained_state][1])
+        (controlled_trajectory < env_params["constraints"][constrained_state][0])
+        | (controlled_trajectory > env_params["constraints"][constrained_state][1])
     )
 
     print(f"\nConstraint handling metrics for {model_name}:")
