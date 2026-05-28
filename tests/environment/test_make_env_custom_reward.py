@@ -1,6 +1,6 @@
-import pytest
-import numpy as np
 import sys
+
+import numpy as np
 
 sys.path.append("..\src\pcgym")  # Add local pc-gym files to path.
 
