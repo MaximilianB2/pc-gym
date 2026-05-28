@@ -1,30 +1,32 @@
-import numpy as np
+import copy
+
 import gymnasium as gym
+import numpy as np
 from gymnasium import spaces
+
+from pcgym.integrator import integration_engine
 from pcgym.model_classes import (
-    cstr,
-    complex_cstr,
-    first_order_system,
-    multistage_extraction,
-    nonsmooth_control,
-    cstr_series_recycle,
-    distillation_column,
-    multistage_extraction_reactive,
-    four_tank,
-    photo_production,
-    heat_exchanger,
-    biofilm_reactor,
-    polymerisation_reactor,
-    crystallization,
-    invariant_batch,
     batch,
+    biofilm_reactor,
+    complex_cstr,
     coupled_oscillators,
+    crystallization,
+    cstr,
+    cstr_series_recycle,
     disease_model,
+    distillation_column,
+    first_order_system,
+    four_tank,
+    heat_exchanger,
     hydraulic_tank,
+    invariant_batch,
+    multistage_extraction,
+    multistage_extraction_reactive,
+    nonsmooth_control,
+    photo_production,
+    polymerisation_reactor,
 )
 from pcgym.policy_evaluation import policy_eval
-from pcgym.integrator import integration_engine
-import copy
 
 
 class make_env(gym.Env):
@@ -79,9 +81,7 @@ class make_env(gym.Env):
 
         if self.normalise_o:
             dim = base_obs_low.shape[0]
-            self.observation_space = spaces.Box(
-                low=np.array([-1] * dim), high=np.array([1] * dim, dtype=np.float32)
-            )
+            self.observation_space = spaces.Box(low=np.array([-1] * dim), high=np.array([1] * dim, dtype=np.float32))
         else:
             self.observation_space = self.observation_space_base
 
@@ -177,9 +177,7 @@ class make_env(gym.Env):
             extended_obs_high = np.concatenate((self.observation_space_base.high, dist_high))
             self.observation_space_base.high = extended_obs_high
 
-            self.observation_space_base = spaces.Box(
-                low=extended_obs_low, high=extended_obs_high, dtype=np.float32
-            )
+            self.observation_space_base = spaces.Box(low=extended_obs_low, high=extended_obs_high, dtype=np.float32)
 
             if self.normalise_o:
                 self.observation_space = spaces.Box(
@@ -214,17 +212,13 @@ class make_env(gym.Env):
             if self.env_params.get("uncertainty_percentages") is not None:
                 self.uncertainty_percentages = self.env_params["uncertainty_percentages"]
                 self.original_param_values = {
-                    param: getattr(self.model, param)
-                    for param in self.uncertainty_percentages
-                    if param != "x0"
+                    param: getattr(self.model, param) for param in self.uncertainty_percentages if param != "x0"
                 }
                 self.distribution = self.env_params.get("distribution")
             else:
                 self.empirical_distribution = self.env_params.get("empirical_distribution")
                 self.original_param_values = {
-                    param: getattr(self.model, param)
-                    for param in self.empirical_distribution
-                    if param != "x0"
+                    param: getattr(self.model, param) for param in self.empirical_distribution if param != "x0"
                 }
 
             uncertainty_low = self.env_params["uncertainty_bounds"]["low"]
@@ -298,9 +292,7 @@ class make_env(gym.Env):
                 for param, percentage in self.uncertainty_percentages.items():
                     if param != "x0":  # x0 handled separately
                         original_value = self.original_param_values[param]
-                        new_value = self.apply_uncertainties(
-                            original_value, percentage, self.distribution
-                        )
+                        new_value = self.apply_uncertainties(original_value, percentage, self.distribution)
                         setattr(self.model, param, new_value)
                         uncertain_params.append(new_value)
                 state = np.concatenate((state, uncertain_params))
@@ -383,9 +375,7 @@ class make_env(gym.Env):
 
         # Add disturbance to control vector
         if self.disturbance_active:
-            uk[: self.Nu - len(self.model.info()["disturbances"])] = (
-                action  # Add action to control vector
-            )
+            uk[: self.Nu - len(self.model.info()["disturbances"])] = action  # Add action to control vector
             disturbance_values = []
             disturbance_values_state = []
             for i, k in enumerate(self.model.info()["disturbances"]):
@@ -452,9 +442,7 @@ class make_env(gym.Env):
             if self.noise_percentage_float:
                 noise_percentage = self.env_params.get("noise_percentage", 0)
                 self.obs[: self.Nx_oracle] += (
-                    np.random.normal(0, 1, self.Nx_oracle)
-                    * self.state[: self.Nx_oracle]
-                    * noise_percentage
+                    np.random.normal(0, 1, self.Nx_oracle) * self.state[: self.Nx_oracle] * noise_percentage
                 )
             else:
                 for i in range(self.Nx_oracle):
@@ -514,17 +502,15 @@ class make_env(gym.Env):
             all_states = self.model.info()["states"]
             # Find indices of reward states that actually exist in the model
             reward_state_indices = [
-                all_states.index(state_name)
-                for state_name in self.reward_states
-                if str(state_name) in all_states
+                all_states.index(state_name) for state_name in self.reward_states if str(state_name) in all_states
             ]
             # Calculate reward based on those indices
             r_scale = self.env_params.get("r_scale", {})
             for state_index in reward_state_indices:
                 state_name = all_states[state_index]
-                if self.maximise_reward == True:
+                if self.maximise_reward:
                     r += state[state_index] * r_scale.get(state_name, 1)
-                elif self.maximise_reward == False:
+                else:
                     r -= state[state_index] * r_scale.get(state_name, 1)
 
             if self.r_penalty and c_violated:
@@ -673,9 +659,7 @@ class make_env(gym.Env):
                 - dict: Data from the rollouts.
         """
         # construct evaluator
-        evaluator = policy_eval(
-            make_env, policies, reps, self.env_params, oracle, MPC_params, cons_viol, save_fig
-        )
+        evaluator = policy_eval(make_env, policies, reps, self.env_params, oracle, MPC_params, cons_viol, save_fig)
         # generate rollouts
         data = evaluator.get_rollouts()
         # plot data from rollouts via the evaluator method
