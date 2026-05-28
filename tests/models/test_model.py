@@ -1,7 +1,9 @@
-import pytest
-import numpy as np
-from pcgym import make_env
 import copy
+
+import numpy as np
+import pytest
+
+from pcgym import make_env
 
 
 # Helper function to create environment parameters
@@ -171,9 +173,7 @@ def test_uncertainty(model_name):
     for i, variation in enumerate(state_variations):
         print(f"State element {i}: std dev = {variation}")
 
-    assert np.any(state_variations > 0), (
-        f"No variation detected in initial states for {model_name}."
-    )
+    assert np.any(state_variations > 0), f"No variation detected in initial states for {model_name}."
 
     # Check variations in uncertain parameters
     print("\nUncertain Parameter Variations:")
@@ -185,9 +185,7 @@ def test_uncertainty(model_name):
 
     # Additional check: Ensure parameters change across resets
     for param, values in param_values.items():
-        assert len(set(values)) > 1, (
-            f"Parameter {param} did not change across resets. Values: {values}"
-        )
+        assert len(set(values)) > 1, f"Parameter {param} did not change across resets. Values: {values}"
 
     # Check that parameters are within the specified bounds
     for param, values in param_values.items():
@@ -280,9 +278,7 @@ def test_disturbances(model_name):
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize(
-    "model_name", ["cstr", "multistage_extraction", "four_tank", "crystallization"]
-)
+@pytest.mark.parametrize("model_name", ["cstr", "multistage_extraction", "four_tank", "crystallization"])
 def test_JAX_int(model_name):
     config = model_configs[model_name]
     params = create_base_params(
@@ -307,9 +303,7 @@ def test_JAX_int(model_name):
         pytest.fail(f"env.step() raised an exception: {e}")
 
 
-@pytest.mark.parametrize(
-    "model_name", ["cstr", "multistage_extraction", "four_tank", "crystallization"]
-)
+@pytest.mark.parametrize("model_name", ["cstr", "multistage_extraction", "four_tank", "crystallization"])
 def test_state_and_obs_noise(model_name):
     """
     Test if with measurement noise the state and observation are different.

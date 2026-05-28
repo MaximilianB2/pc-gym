@@ -1,6 +1,6 @@
-import numpy as np
 import do_mpc
-from casadi import vertcat, sum1, reshape, DM, mtimes
+import numpy as np
+from casadi import DM, reshape, vertcat
 
 
 class oracle:
@@ -20,9 +20,7 @@ class oracle:
             self.Q = np.eye(self.env.Nx_oracle)
         else:
             self.N = MPC_params.get("N", 5)
-            self.R = MPC_params.get(
-                "R", np.zeros((self.env.Nu - self.env.Nd_model, self.env.Nu - self.env.Nd_model))
-            )
+            self.R = MPC_params.get("R", np.zeros((self.env.Nu - self.env.Nd_model, self.env.Nu - self.env.Nd_model)))
             self.Q = MPC_params.get("Q", np.eye(self.env.Nx_oracle))
         self.model_info = self.env.model.info()
         self.R_sym = DM(self.R)
@@ -46,9 +44,7 @@ class oracle:
             delta_u = model.set_variable(var_type="_u", var_name="delta_u", shape=(self.env.Nu, 1))
             u = u_prev + delta_u
         else:
-            u = model.set_variable(
-                var_type="_u", var_name="u", shape=(self.env.Nu - self.env.Nd_model, 1)
-            )
+            u = model.set_variable(var_type="_u", var_name="u", shape=(self.env.Nu - self.env.Nd_model, 1))
 
         if self.has_disturbances:
             d = model.set_variable(var_type="_p", var_name="d", shape=(self.env.Nd_model, 1))
@@ -113,12 +109,8 @@ class oracle:
 
         # Constraints
         if self.use_delta_u:
-            mpc.bounds["lower", "_u", "delta_u"] = np.concatenate(
-                [self.env_params["a_space"]["low"]]
-            )
-            mpc.bounds["upper", "_u", "delta_u"] = np.concatenate(
-                [self.env_params["a_space"]["high"]]
-            )
+            mpc.bounds["lower", "_u", "delta_u"] = np.concatenate([self.env_params["a_space"]["low"]])
+            mpc.bounds["upper", "_u", "delta_u"] = np.concatenate([self.env_params["a_space"]["high"]])
 
             # Add constraint on u (u_prev + delta_u)
             u = model.p["u_prev"] + model.u["delta_u"]
