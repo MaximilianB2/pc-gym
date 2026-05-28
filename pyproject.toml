@@ -58,7 +58,7 @@ dev = [
 ]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py311"
 extend-exclude = [
   "Control-Club-Challenge",
@@ -70,6 +70,12 @@ extend-exclude = [
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
+# E741: scientific code uses single-letter math notation (e.g. SIRS model S/I/R).
+extend-ignore = ["E741"]
+
+[tool.ruff.lint.per-file-ignores]
+# __init__.py legitimately re-exports the public API surface.
+"src/pcgym/__init__.py" = ["F401"]
 
 [tool.ruff.format]
 quote-style = "double"

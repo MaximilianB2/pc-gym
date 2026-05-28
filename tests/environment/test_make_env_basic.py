@@ -1,5 +1,6 @@
-import pytest
 import numpy as np
+import pytest
+
 from pcgym import make_env
 
 
@@ -27,8 +28,8 @@ def test_make_env_initialization(env_params):
     assert env.model.__class__.__name__ == "cstr"
     assert env.N == 120
     assert env.tsim == 26
-    assert env.normalise_a == True
-    assert env.normalise_o == True
+    assert env.normalise_a is True
+    assert env.normalise_o is True
 
 
 def test_make_env_reset(env_params):
