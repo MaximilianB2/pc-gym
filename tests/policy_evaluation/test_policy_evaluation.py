@@ -30,6 +30,7 @@ def mock_env():
     env.disturbance_active = False  # Add this line
     env.constraints = {"s1": [1], "u1": [2]}
     env.SP = {"s1": [0.5, 0.5, 0.5]}
+    env.partial_observation = False
     return env
 
 
@@ -111,14 +112,14 @@ def test_get_rollouts(pe, mock_env):
 
 def test_oracle_reward_fn(pe):
     pe.env.custom_reward = False
-    pe.env.reward_fn = MagicMock(return_value=1)
+    pe.env.SP_reward_fn = MagicMock(return_value=1)
     x = np.array([[1, 2], [3, 4]])
     u = np.array([[5, 6]])
 
     rewards = pe.oracle_reward_fn(x, u)
 
     assert len(rewards) == 2
-    pe.env.reward_fn.assert_called()
+    pe.env.SP_reward_fn.assert_called()
 
 
 @pytest.mark.parametrize("reward_dist", [True, False])

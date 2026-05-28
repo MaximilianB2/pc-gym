@@ -46,7 +46,7 @@ class cstr(BaseModel):
     def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         ca, T = x[0], x[1]
         xp = jnp if self.int_method == "jax" else np
-        if u.size == 1:
+        if u.shape[0] == 1:
             Tc = u[0]
         else:
             Tc, self.Ti, self.Caf = u[0], u[1], u[2]
@@ -103,7 +103,7 @@ class complex_cstr(BaseModel):
     def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         ca, cb, cc, T = x[0], x[1], x[2], x[3]
         xp = jnp if self.int_method == "jax" else np
-        if u.size == 1:
+        if u.shape[0] == 1:
             Tc = u.reshape(-1)[0]
         else:
             Tc, self.Ti, self.Caf = u[0], u[1], u[2]
@@ -394,7 +394,7 @@ class multistage_extraction:
             x[8],
             x[9],
         )
-        if u.size == 2:
+        if u.shape[0] == 2:
             L, G = u[0], u[1]
         else:
             L, G, self.X0, self.Y6 = u[0], u[1], u[2], u[3]
