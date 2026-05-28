@@ -1,8 +1,8 @@
-import pytest
 import numpy as np
+import pytest
+
 from pcgym import make_env
 from pcgym.oracle import oracle
-import time
 
 # Helper function to create base environment parameters
 base_params = {
@@ -93,13 +93,11 @@ def test_oracle_initialization(model_name):
     oracle_instance = oracle(env, env_params)
 
     assert oracle_instance.N == 5, f"Default prediction horizon should be 5 for {model_name}"
-    assert np.array_equal(
-        oracle_instance.R, np.zeros((env.Nu - env.Nd_model, env.Nu - env.Nd_model))
-    ), f"Default control penalty should be 0 for {model_name}"
-    assert oracle_instance.T == env_params["tsim"], f"Simulation time mismatch for {model_name}"
-    assert np.allclose(oracle_instance.x0, env_params["x0"]), (
-        f"Initial state mismatch for {model_name}"
+    assert np.array_equal(oracle_instance.R, np.zeros((env.Nu - env.Nd_model, env.Nu - env.Nd_model))), (
+        f"Default control penalty should be 0 for {model_name}"
     )
+    assert oracle_instance.T == env_params["tsim"], f"Simulation time mismatch for {model_name}"
+    assert np.allclose(oracle_instance.x0, env_params["x0"]), f"Initial state mismatch for {model_name}"
 
 
 @pytest.mark.slow
@@ -146,12 +144,8 @@ def test_oracle_with_custom_mpc_params(model_name):
         f"Custom control penalty not set correctly for {model_name}"
     )
     x_log, u_log = oracle_instance.mpc()
-    assert x_log.shape == (env.Nx_oracle, env.N), (
-        f"State log shape mismatch for {model_name} with custom MPC params"
-    )
-    assert u_log.shape == (env.Nu, env.N), (
-        f"Control input log shape mismatch for {model_name} with custom MPC params"
-    )
+    assert x_log.shape == (env.Nx_oracle, env.N), f"State log shape mismatch for {model_name} with custom MPC params"
+    assert u_log.shape == (env.Nu, env.N), f"Control input log shape mismatch for {model_name} with custom MPC params"
 
 
 def calculate_iae(setpoint, actual):
@@ -221,9 +215,7 @@ def test_oracle_disturbance_performance(model_name):
     print(f"Total Variation of control inputs with disturbances: {tv:.4f}")
 
     # Assert some basic robustness criteria
-    assert all(iae < 2000 for iae in iae_values), (
-        f"IAE too high under disturbances for {model_name}"
-    )
+    assert all(iae < 2000 for iae in iae_values), f"IAE too high under disturbances for {model_name}"
     assert tv < 2000, f"Total Variation too high under disturbances for {model_name}"
 
 

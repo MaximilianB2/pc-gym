@@ -5,9 +5,10 @@ This module implements various metrics for evaluating policies, following the ge
 described in the paper by Manon Flageat et al (2024) - https://arxiv.org/pdf/2312.07178.pdf
 """
 
-import numpy as np
 from abc import ABC
-from typing import Dict, Any, Callable, Union, Optional, Type
+from typing import Any, Callable, Dict, Optional, Type, Union
+
+import numpy as np
 
 
 class metric_base(ABC):
@@ -192,26 +193,20 @@ class reproducibility_metric(metric_base):
         # it should be negative for the lower confidence bound
         self.scalarised_weight = scalarised_weight
         if dispersion == "std":
-            self.dispersion: Union[Type[standard_deviation], Type[median_absolute_deviation]] = (
-                standard_deviation
-            )
+            self.dispersion: Union[Type[standard_deviation], Type[median_absolute_deviation]] = standard_deviation
         elif dispersion == "mad":
             self.dispersion = median_absolute_deviation
         else:
             raise ValueError("Invalid dispersion metric")
 
         if performance == "mean":
-            self.performance: Union[Type[mean_performance], Type[median_performance]] = (
-                mean_performance
-            )
+            self.performance: Union[Type[mean_performance], Type[median_performance]] = mean_performance
         elif performance == "median":
             self.performance = median_performance
         else:
             raise ValueError("Invalid performance metric")
 
-    def evaluate(
-        self, policy_evaluator: Any, component: Optional[str] = None
-    ) -> Dict[str, Dict[str, np.ndarray]]:
+    def evaluate(self, policy_evaluator: Any, component: Optional[str] = None) -> Dict[str, Dict[str, np.ndarray]]:
         """
         Evaluate the given policy using the specified environment.
 
@@ -223,7 +218,8 @@ class reproducibility_metric(metric_base):
             The evaluation metric value.
         """
         try:
-            self.data = policy_evaluator.data  # Try to get data from policy evaluator if this fails then call the get_rollouts method to generate the data
+            # Reuse cached rollouts if the evaluator has already produced them; otherwise generate.
+            self.data = policy_evaluator.data
         except Exception:
             self.data = policy_evaluator.get_rollouts()
 
@@ -244,20 +240,14 @@ class reproducibility_metric(metric_base):
         """
         values: Dict[str, Dict[str, np.ndarray]] = {k: {} for k in data.keys()}
 
-        for policy in (
-            data.keys()
-        ):  # has structure n_x x T x reps  - operation always applied along the reps row
+        for policy in data.keys():  # has structure n_x x T x reps  - operation always applied along the reps row
             if component is None:
                 for comp in data[policy].keys():
                     operation = self.determine_op(comp)
-                    values[policy][comp] = self.dispersion(
-                        operation(data[policy][comp])
-                    ).get_value()
+                    values[policy][comp] = self.dispersion(operation(data[policy][comp])).get_value()
             else:
                 operation = self.determine_op(component)
-                values[policy][component] = self.dispersion(
-                    operation(data[policy][component])
-                ).get_value()
+                values[policy][component] = self.dispersion(operation(data[policy][component])).get_value()
 
         return values
 
@@ -280,14 +270,10 @@ class reproducibility_metric(metric_base):
             if component is None:
                 for comp in data[policy].keys():
                     operation = self.determine_op(comp)
-                    values[policy][comp] = self.performance(
-                        operation(data[policy][comp])
-                    ).get_value()
+                    values[policy][comp] = self.performance(operation(data[policy][comp])).get_value()
             else:
                 operation = self.determine_op(component)
-                values[policy][component] = self.performance(
-                    operation(data[policy][component])
-                ).get_value()
+                values[policy][component] = self.performance(operation(data[policy][component])).get_value()
 
         return values
 
@@ -299,7 +285,8 @@ class reproducibility_metric(metric_base):
 
         Args:
             data: Nested dictionary containing policy data.
-            component: The specific component to evaluate (set to None to scalarise over all components).
+            component: The specific component to evaluate
+                (set to None to scalarise over all components).
 
         Returns:
             The scalarised policy performance metric value.
@@ -331,6 +318,4 @@ class reproducibility_metric(metric_base):
         elif component == "r":
             return lambda x: x  # sum over discrete time indices (undiscounted)
         elif component == "g":
-            return lambda x: np.max(
-                x, axis=0
-            )  # return the greatest constraint violation of n_g defined
+            return lambda x: np.max(x, axis=0)  # return the greatest constraint violation of n_g defined
