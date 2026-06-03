@@ -1,13 +1,11 @@
-name: Nightly
+name: Full Suite (manual)
 
 # Runs the full test suite (including @pytest.mark.slow MPC/JAX cases)
-# and a curated notebook smoke-test set every night, plus on demand.
-# Opens a GitHub issue when the scheduled run fails so regressions
-# don't silently slip past the PR-time fast suite.
+# and a curated notebook smoke-test set. Triggered manually on demand
+# (no nightly schedule — kept off to avoid the recurring CI cost).
+# Opens a GitHub issue if a manual run fails, for tracking.
 
 on:
-  schedule:
-    - cron: '0 6 * * *'  # 06:00 UTC daily
   workflow_dispatch:
 
 permissions:
@@ -62,9 +60,9 @@ jobs:
             example_notebooks/MeasurementNoise.ipynb
 
   report-failure:
-    name: Open issue on scheduled failure
+    name: Open issue on failure
     needs: [test-full, notebooks]
-    if: failure() && github.event_name == 'schedule'
+    if: failure()
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -77,9 +75,9 @@ jobs:
         run: |
           gh issue create \
             --repo "${GITHUB_REPOSITORY}" \
-            --title "Nightly CI failed ($(date -u +%Y-%m-%d))" \
+            --title "Full-suite CI failed ($(date -u +%Y-%m-%d))" \
             --label "nightly,ci-failure" \
-            --body "Scheduled nightly run failed.
+            --body "Manual full-suite run failed.
 
           Run: ${RUN_URL}
 
