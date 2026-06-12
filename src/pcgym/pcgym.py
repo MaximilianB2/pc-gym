@@ -26,6 +26,7 @@ from pcgym.model_classes import (
     photo_production,
     polymerisation_reactor,
 )
+from pcgym.model_defaults import get_default, has_defaults
 from pcgym.policy_evaluation import policy_eval
 
 
@@ -42,6 +43,7 @@ class make_env(gym.Env):
             raise ValueError("env_params must be a dictionary")
         self.env_params = copy.deepcopy(env_params)
         self._initialize_action_config()
+        self._apply_space_defaults()
         self._setup_spaces()
         self._configure_reward()
         self._setup_simulation_params()
@@ -60,6 +62,29 @@ class make_env(gym.Env):
             self.a_0 = self.env_params["a_0"]
         self.normalise_a = self.env_params.get("normalise_a", True)
         self.normalise_o = self.env_params.get("normalise_o", True)
+
+    def _apply_space_defaults(self):
+        """Fill in a_space / o_space / x0 from the model's canonical defaults.
+
+        For any of these keys the user omits, fall back to the model's native
+        bounds / initial state (see pcgym.model_defaults) so large models don't
+        need to be fully hand-specified. Custom models have no registered
+        defaults and must supply all three explicitly.
+        """
+        model_name = self.env_params.get("model")
+        is_custom = self.env_params.get("custom_model") is not None
+
+        for key in ("a_space", "o_space", "x0"):
+            if self.env_params.get(key) is not None:
+                continue
+            if is_custom:
+                raise ValueError(f"'{key}' must be provided in env_params when using a custom_model.")
+            if not has_defaults(model_name):
+                raise ValueError(
+                    f"'{key}' is missing from env_params and model '{model_name}' has no registered "
+                    f"defaults. Please specify '{key}' explicitly."
+                )
+            self.env_params[key] = get_default(model_name, key)
 
     def _noise_percentage_setup(self):
         self.noise_percentage = self.env_params.get("noise_percentage")
