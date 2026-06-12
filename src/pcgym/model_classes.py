@@ -104,7 +104,7 @@ class complex_cstr(BaseModel):
         ca, cb, cc, T = x[0], x[1], x[2], x[3]
         xp = jnp if self.int_method == "jax" else np
         if u.shape[0] == 1:
-            Tc = u.reshape(-1)[0]
+            Tc = u[0]
         else:
             Tc, self.Ti, self.Caf = u[0], u[1], u[2]
 
@@ -284,7 +284,7 @@ class invariant_batch(BaseModel):
         self.disturbances = []
 
     def __call__(self, x, u=None):
-        xA, xB, xC, xD = x
+        xA, xB, xC, xD = x[0], x[1], x[2], x[3]
         dxAdt = -(self.k1f * xA * xB - self.k1r * xC) - (self.k2f * xA * xC - self.k2r * xD)
         dxBdt = -(self.k1f * xA * xB - self.k1r * xC)
         dxCdt = (self.k1f * xA * xB - self.k1r * xC) - (self.k2f * xA * xC - self.k2r * xD)
@@ -695,8 +695,8 @@ class cstr_series_recycle:
         Returns:
             np.ndarray: State derivatives
         """
-        C1, T1, C2, T2 = x
-        F, L, Tc1, Tc2 = u
+        C1, T1, C2, T2 = x[0], x[1], x[2], x[3]
+        F, L, Tc1, Tc2 = u[0], u[1], u[2], u[3]
         xp = jnp if self.int_method == "jax" else np
 
         ret = [
@@ -768,8 +768,18 @@ class distillation_column:
         Returns:
             np.ndarray: State derivatives
         """
-        X0, X1, X2, X3, Xf, X4, X5, X6, Xb = x
-        R, F = u
+        X0, X1, X2, X3, Xf, X4, X5, X6, Xb = (
+            x[0],
+            x[1],
+            x[2],
+            x[3],
+            x[4],
+            x[5],
+            x[6],
+            x[7],
+            x[8],
+        )
+        R, F = u[0], u[1]
 
         L = R * self.D
         V = (R + 1) * self.D
@@ -880,8 +890,8 @@ class multistage_extraction_reactive:
             YA5,
             YB5,
             YC5,
-        ) = x
-        L, G = u
+        ) = (x[i] for i in range(20))
+        L, G = u[0], u[1]
 
         XA1_eq = (YA1**self.eq_exponent) / self.m
         XA2_eq = (YA2**self.eq_exponent) / self.m
@@ -1108,8 +1118,8 @@ class heat_exchanger:
             Tt8,
             Tm8,
             Ts8,
-        ) = x
-        Ft, Fs, Tt0, Ts9 = u
+        ) = (x[i] for i in range(24))
+        Ft, Fs, Tt0, Ts9 = u[0], u[1], u[2], u[3]
         xp = jnp if self.int_method == "jax" else np
 
         Vt = self.L * xp.pi * self.Dt**2
@@ -1408,8 +1418,8 @@ class polymerisation_reactor:
         Returns:
             np.ndarray: State derivatives
         """
-        T, M, I = x
-        F, Tf, Mf, If = u
+        T, M, I = x[0], x[1], x[2]
+        F, Tf, Mf, If = u[0], u[1], u[2], u[3]
         xp = jnp if self.int_method == "jax" else np
 
         kp = self.Ap * xp.exp(-self.Ep_over_R / T)
