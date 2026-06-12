@@ -165,15 +165,47 @@ class make_env(gym.Env):
             "hydraulic_tank": hydraulic_tank,
         }
 
+        model_params = self.env_params.get("model_params") or {}
+        if not isinstance(model_params, dict):
+            raise ValueError("model_params must be a dictionary of {parameter_name: value}")
+
         if self.env_params.get("custom_model") is not None:
             m = self.env_params["custom_model"]
             m.int_method = self.integration_method
+            self._apply_model_params(m, model_params)
             self.model = m
         else:
             model_name = self.env_params.get("model")
             if model_name not in model_mapping:
                 raise ValueError(f"Model '{model_name}' not found in model_mapping.")
-            self.model = model_mapping[model_name](int_method=self.integration_method)
+            model_cls = model_mapping[model_name]
+            self._validate_model_params(model_cls, model_params)
+            # Pass overrides to the constructor so any __post_init__ derived
+            # quantities (e.g. state lists sized by a parameter) are rebuilt.
+            self.model = model_cls(int_method=self.integration_method, **model_params)
+
+    @staticmethod
+    def _validate_model_params(model_cls, model_params):
+        """Raise a helpful error if an override is not a parameter of the model."""
+        valid = getattr(model_cls, "__dataclass_fields__", None)
+        if valid is None:
+            return
+        unknown = [k for k in model_params if k not in valid]
+        if unknown:
+            settable = sorted(
+                k for k in valid if k not in ("int_method", "states", "inputs", "disturbances", "uncertainties")
+            )
+            raise ValueError(
+                f"Unknown model_params {unknown} for model '{model_cls.__name__}'. Settable parameters: {settable}"
+            )
+
+    @staticmethod
+    def _apply_model_params(model, model_params):
+        """Override parameters on an already-constructed (custom) model instance."""
+        for name, value in model_params.items():
+            if not hasattr(model, name):
+                raise ValueError(f"Unknown model_params '{name}' for custom model '{type(model).__name__}'")
+            setattr(model, name, value)
 
     def _setup_state_dimensions(self):
         self.Nx = len(self.model.info()["states"])
