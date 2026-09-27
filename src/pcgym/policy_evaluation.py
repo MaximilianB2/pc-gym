@@ -90,30 +90,14 @@ class policy_eval:
         actions = np.zeros((self.env.env_params["a_space"]["low"].shape[0], self.env.N))
 
         o, info = self.env.reset()
-
         total_reward.append(info["r_init"])
-        s_rollout[:, 0] = (o + 1) * (
-            self.env.observation_space_base.high - self.env.observation_space_base.low
-        ) / 2 + self.env.observation_space_base.low
-        if hasattr(self.env, "partial_observation") and self.env.partial_observation:
-            s_rollout[:, 0] = (info["obs"] + 1) * (
-                self.env.observation_space_base.high - self.env.observation_space_base.low
-            ) / 2 + self.env.observation_space_base.low
+        s_rollout[:, 0] = self._physical_obs(info)
 
         for i in range(self.env.N):
             a, _s = policy_i.predict(o, deterministic=True)
             o, r, term, trunc, info = self.env.step(a)
-            actions[:, i] = (a + 1) * (
-                self.env.env_params["a_space"]["high"] - self.env.env_params["a_space"]["low"]
-            ) / 2 + self.env.env_params["a_space"]["low"]
-            s_rollout[:, i + 1] = (o + 1) * (
-                self.env.observation_space_base.high - self.env.observation_space_base.low
-            ) / 2 + self.env.observation_space_base.low
-
-            if hasattr(self.env, "partial_observation") and self.env.partial_observation:
-                s_rollout[:, i + 1] = (info["obs"] + 1) * (
-                    self.env.observation_space_base.high - self.env.observation_space_base.low
-                ) / 2 + self.env.observation_space_base.low
+            actions[:, i] = self._applied_action(a, info)
+            s_rollout[:, i + 1] = self._physical_obs(info)
             try:
                 total_reward.append(r[0])
             except Exception:
@@ -125,6 +109,27 @@ class policy_eval:
             cons_info = np.zeros((1, self.env.N + 1, 1))
 
         return total_reward, s_rollout, actions, cons_info
+
+    def _physical_obs(self, info: dict) -> np.ndarray:
+        """Full observation in physical units.
+
+        info["obs"] is taken before partial-observation masking and is normalised only when
+        normalise_o is set.
+        """
+        obs = np.asarray(info["obs"], dtype=float)
+        if getattr(self.env, "normalise_o", True):
+            low, high = self.env.observation_space_base.low, self.env.observation_space_base.high
+            obs = (obs + 1) * (high - low) / 2 + low
+        return obs
+
+    def _applied_action(self, a: np.ndarray, info: dict) -> np.ndarray:
+        """Control input actually applied to the plant, in physical units."""
+        if "u" in info:
+            return info["u"]
+        if getattr(self.env, "normalise_a", True):
+            low, high = self.env.env_params["a_space"]["low"], self.env.env_params["a_space"]["high"]
+            return (a + 1) * (high - low) / 2 + low
+        return a
 
     def oracle_reward_fn(self, x: np.ndarray, u: np.ndarray) -> list:
         """
@@ -202,6 +207,10 @@ class policy_eval:
             data (dict): Dictionary containing rollout data.
             reward_dist (bool, optional): Whether to plot reward distribution. Defaults to False.
         """
+        # make_env turns dict constraints into a callable, so read names and bounds from env_params.
+        cons = self.env.env_params.get("constraints") if self.env.constraint_active else None
+        cons_dict = cons if isinstance(cons, dict) else {}
+
         # States are sampled at t_0..t_N; actions, setpoints and disturbances are held over each interval.
         t = np.linspace(0, self.env.tsim, self.env.N + 1)
 
@@ -265,9 +274,9 @@ class policy_eval:
                     label="Set Point",
                 )
             if self.env.constraint_active:
-                if self.env.model.info()["states"][i] in self.env.constraints:
+                if self.env.model.info()["states"][i] in cons_dict:
                     plt.hlines(
-                        self.env.constraints[self.env.model.info()["states"][i]],
+                        cons_dict[self.env.model.info()["states"][i]],
                         0,
                         self.env.tsim,
                         color="black",
@@ -304,10 +313,10 @@ class policy_eval:
                     label="Oracle " + str(self.env.model.info()["inputs"][j]),
                 )
             if self.env.constraint_active:
-                for con_i in self.env.constraints:
+                for con_i in cons_dict:
                     if self.env.model.info()["inputs"][j] == con_i:
                         plt.hlines(
-                            self.env.constraints[self.env.model.info()["inputs"][j]],
+                            cons_dict[self.env.model.info()["inputs"][j]],
                             0,
                             self.env.tsim,
                             "black",
@@ -340,24 +349,25 @@ class policy_eval:
 
         if self.cons_viol:
             plt.figure(figsize=(12, 3 * self.env.n_con))
-            con_i = 0
-            for i, con in enumerate(self.env.constraints):
-                for j in range(len(self.env.constraints[str(con)])):
-                    plt.subplot(self.env.n_con, 1, con_i + 1)
-                    plt.title(f"{con} Constraint")
-                    for ind, (pi_name, pi_i) in enumerate(self.policies.items()):
-                        plt.step(
-                            t,
-                            np.sum(data[pi_name]["g"][con_i, :, :, :], axis=2),
-                            color=col[ind],
-                            label=f"{con} ({pi_name}) Violation (Sum over Repetitions)",
-                        )
-                    plt.grid("True")
-                    plt.xlabel("Time (min)")
-                    plt.ylabel(con)
-                    plt.xlim(min(t), max(t))
-                    plt.legend(loc="best")
-                    con_i += 1
+            if cons_dict:
+                con_names = [name for name, bounds in cons_dict.items() for _ in bounds]
+            else:
+                con_names = [f"g{k}" for k in range(self.env.n_con)]
+            for con_i, con in enumerate(con_names):
+                plt.subplot(self.env.n_con, 1, con_i + 1)
+                plt.title(f"{con} Constraint")
+                for ind, (pi_name, pi_i) in enumerate(self.policies.items()):
+                    plt.step(
+                        t,
+                        np.sum(data[pi_name]["g"][con_i, :, :, :], axis=2),
+                        color=col[ind],
+                        label=f"{con} ({pi_name}) Violation (Sum over Repetitions)",
+                    )
+                plt.grid("True")
+                plt.xlabel("Time (min)")
+                plt.ylabel(con)
+                plt.xlim(min(t), max(t))
+                plt.legend(loc="best")
             plt.tight_layout()
             plt.show()
 

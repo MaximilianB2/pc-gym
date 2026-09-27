@@ -359,6 +359,9 @@ class make_env(gym.Env):
         if self.a_delta:
             self.a_save = self.a_0
 
+        if self.constraint_active:
+            self.info["cons_info"] = np.zeros((self.n_con, self.N + 1, 1))
+
         self.state = state
         self.obs = copy.deepcopy(self.state)
 
@@ -413,18 +416,16 @@ class make_env(gym.Env):
             action = (action + 1) * (
                 self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
             ) / 2 + self.env_params["a_space"]["low"]
-        if self.normalise_a and self.a_delta:
-            action = (action + 1) * (
-                self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
-            ) / 2 + self.env_params["a_space"]["low"]
-            action = self.a_save + action
-            self.a_save = action
-
+        if self.a_delta:
+            # `action` is a change in input: accumulate it and apply the clipped absolute input.
             self.a_save = np.clip(
-                self.a_save,
+                self.a_save + action,
                 self.env_params["a_space_act"]["low"],
                 self.env_params["a_space_act"]["high"],
             )
+            action = self.a_save
+        # Applied (physical-unit) control inputs, excluding disturbances.
+        self.info["u"] = np.array(action, dtype=float).reshape(-1)
 
         # Add disturbance to control vector
         if self.disturbance_active:
@@ -625,8 +626,8 @@ class make_env(gym.Env):
         custom constraints defined by the user.
 
         Args:
-            state (numpy.array): The current state of the system.
-            input (numpy.array): The current input (action) applied to the system.
+            state (numpy.array): The current state of the system, in physical units.
+            input (numpy.array): The current control vector applied to the system, in physical units.
 
         Returns:
             bool: True if any constraint is violated, False otherwise.
@@ -634,15 +635,8 @@ class make_env(gym.Env):
 
         self.con_i = 0
 
-        if self.normalise_a is True:
-            input = (input + 1) * (
-                self.env_params["a_space"]["high"] - self.env_params["a_space"]["low"]
-            ) / 2 + self.env_params["a_space"]["low"]
-
-        if self.normalise_o is True:
-            state = (state + 1) * (
-                self.observation_space_base.high - self.observation_space_base.low
-            ) / 2 + self.observation_space_base.low
+        # `state` and `input` are already in physical units (step() passes the raw state and the
+        # de-normalised control vector), so no de-normalisation is applied here.
         constraint_violated = self.con_checker(state, input)  # Check both inputs and states
 
         if constraint_violated and self.done_on_constraint:

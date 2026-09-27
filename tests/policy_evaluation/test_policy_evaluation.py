@@ -17,8 +17,14 @@ def mock_env():
     env.env_params = {"a_space": {"low": np.array([0]), "high": np.array([1])}}
     env.observation_space_base.low = np.array([0, 0])
     env.observation_space_base.high = np.array([1, 1])
-    env.reset.return_value = (np.array([0.5, 0.5]), {"r_init": 0})
-    env.step.return_value = (np.array([0.6, 0.6]), 1, False, False, {"cons_info": np.array([[0]])})
+    env.reset.return_value = (np.array([0.5, 0.5]), {"r_init": 0, "obs": np.array([0.5, 0.5])})
+    env.step.return_value = (
+        np.array([0.6, 0.6]),
+        1,
+        False,
+        False,
+        {"cons_info": np.array([[0]]), "obs": np.array([0.6, 0.6])},
+    )
     env.constraint_active = True
     env.n_con = 1
     env.Nx_oracle = 2
@@ -72,7 +78,7 @@ def test_rollout(pe, mock_env):
         np.array([1]),
         False,
         False,
-        {"cons_info": np.array([[0]])},
+        {"cons_info": np.array([[0]]), "obs": np.array([0.6, 0.6])},
     )
 
     total_reward, s_rollout, actions, cons_info = pe.rollout(policy)
