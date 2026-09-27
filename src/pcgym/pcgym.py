@@ -47,6 +47,7 @@ class make_env(gym.Env):
         self._setup_simulation_params()
         self._initialize_model()
         self._setup_state_dimensions()
+        self._validate_x0()
         self._setup_constraints()
         self._setup_disturbances()
         self._setup_custom_reward()
@@ -181,6 +182,22 @@ class make_env(gym.Env):
             self.Nx += len(self.SP)
         self.Nx_oracle = len(self.model.info()["states"])
         self.Nu = len(self.model.info()["inputs"])
+
+    def _validate_x0(self):
+        """Check x0 and o_space have one entry per model state followed by one entry per setpoint."""
+        layout = list(self.model.info()["states"])
+        if self.SP is not None:
+            layout += [f"{k}_SP" for k in self.SP]
+        hint = (
+            f"the model states followed by one entry per setpoint, in this order: {layout}. "
+            "Disturbance and uncertain-parameter entries are appended automatically and must not be included."
+        )
+        n_x0 = np.asarray(self.x0).reshape(-1).shape[0]
+        if n_x0 != len(layout):
+            raise ValueError(f"x0 has {n_x0} entries but {len(layout)} are expected: {hint}")
+        n_obs = self.observation_space_base.shape[0]
+        if n_obs != len(layout):
+            raise ValueError(f"o_space has {n_obs} entries but {len(layout)} are expected: {hint}")
 
     def _setup_disturbances(self):
         self.disturbance_active = False

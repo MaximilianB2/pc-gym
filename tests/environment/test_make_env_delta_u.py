@@ -7,11 +7,11 @@ def test_make_env_delta_u():
     env_params = {
         "model": "cstr",
         "a_space": {"low": np.array([-1]), "high": np.array([1])},
-        "o_space": {"low": np.array([-1, -1]), "high": np.array([1, 1])},
+        "o_space": {"low": np.array([-1, -1, -1]), "high": np.array([1, 1, 1])},
         "SP": {"T": [350] * 100},
         "N": 100,
         "tsim": 10,
-        "x0": np.array([0.5, 350]),
+        "x0": np.array([0.5, 350, 350]),
         "a_delta": True,
         "a_0": np.array([0]),
         "a_space_act": {"low": np.array([-10]), "high": np.array([10])},

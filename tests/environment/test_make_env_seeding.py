@@ -12,7 +12,7 @@ def env_params():
         "tsim": 5,
         "SP": {"Ca": [0.85] * 20},
         "a_space": {"low": np.array([295]), "high": np.array([302])},
-        "o_space": {"low": np.array([0.7, 300, 0.8, 1e9]), "high": np.array([1, 350, 0.9, 1e11])},
+        "o_space": {"low": np.array([0.7, 300, 0.8]), "high": np.array([1, 350, 0.9])},
         "x0": np.array([0.8, 330, 0.8]),
         "normalise_o": False,
         "noise": True,

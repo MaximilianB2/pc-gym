@@ -11,11 +11,11 @@ def test_make_env_custom_reward():
     env_params = {
         "model": "cstr",
         "a_space": {"low": np.array([-1]), "high": np.array([1])},
-        "o_space": {"low": np.array([-1, -1]), "high": np.array([1, 1])},
+        "o_space": {"low": np.array([-1, -1, -1]), "high": np.array([1, 1, 1])},
         "SP": {"T": [350] * 100},
         "N": 100,
         "tsim": 10,
-        "x0": np.array([0.5, 350]),
+        "x0": np.array([0.5, 350, 350]),
         "custom_reward": custom_reward_function,
     }
     env = make_env(env_params)

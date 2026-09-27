@@ -28,21 +28,21 @@ def test_make_env_custom_model():
     env_params = {
         "custom_model": CustomModel(),
         "a_space": {"low": np.array([-1]), "high": np.array([1])},
-        "o_space": {"low": np.array([-1, -1]), "high": np.array([1, 1])},
+        "o_space": {"low": np.array([-1, -1, -1]), "high": np.array([1, 1, 1])},
         "SP": {"x2": [2] * 100},
         "N": 100,
         "tsim": 10,
-        "x0": np.array([0, 0]),
+        "x0": np.array([0, 0, 2]),
     }
     env = make_env(env_params)
     assert isinstance(env.model, CustomModel)
 
     obs, info = env.reset()
-    assert obs.shape == (2,)
+    assert obs.shape == (3,)
 
     action = env.action_space.sample()
     obs, reward, done, truncated, info = env.step(action)
-    assert obs.shape == (2,)
+    assert obs.shape == (3,)
 
 
 def test_custom_model_call():
@@ -70,16 +70,16 @@ def test_make_env_custom_model_integration():
     env_params = {
         "custom_model": custom_model,
         "a_space": {"low": np.array([-1]), "high": np.array([1])},
-        "o_space": {"low": np.array([-1, -1]), "high": np.array([1, 1])},
+        "o_space": {"low": np.array([-1, -1, -1]), "high": np.array([1, 1, 1])},
         "SP": {"x2": [2] * 100},
         "N": 100,
         "tsim": 10,
-        "x0": np.array([1.0, 1.0]),
+        "x0": np.array([1.0, 1.0, 2.0]),
     }
     env = make_env(env_params)
 
     obs, _ = env.reset()
-    assert np.allclose(obs, np.array([1.0, 1.0]))
+    assert np.allclose(obs, np.array([1.0, 1.0, 2.0]))
 
     action = np.array([0.5])
     obs, reward, done, truncated, info = env.step(action)
