@@ -266,12 +266,12 @@ class make_env(gym.Env):
 
     def apply_uncertainties(self, value, percentage, distribution):
         if distribution == "normal":
-            return np.random.normal(value, percentage * value)
+            return self.np_random.normal(value, percentage * value)
         # default: uniform around the nominal value
-        noise = np.random.uniform(-percentage, percentage)
+        noise = self.np_random.uniform(-percentage, percentage)
         return value * (1 + noise)
 
-    def reset(self, seed: int = 0, **kwargs) -> tuple[np.array, dict]:
+    def reset(self, seed: int | None = None, options: dict | None = None, **kwargs) -> tuple[np.array, dict]:
         """
         Reset the environment to its initial state.
 
@@ -279,7 +279,10 @@ class make_env(gym.Env):
         It's called at the beginning of each episode.
 
         Args:
-            seed (int, optional): Seed for random number generator.
+            seed (int, optional): Seeds the environment's random number generator (``self.np_random``),
+                which drives observation noise and parametric/initial-state uncertainty. If None, the
+                generator is left as is (seeded from OS entropy on first use).
+            options (dict, optional): Unused; accepted for Gymnasium API compatibility.
             **kwargs: Additional keyword arguments.
 
         Returns:
@@ -287,6 +290,7 @@ class make_env(gym.Env):
                 - numpy.array: The initial state observation.
                 - dict: Additional information (e.g., initial reward).
         """
+        super().reset(seed=seed)
         self.t = 0
 
         # Initialize state with potential random uncertainties in x0
@@ -319,7 +323,7 @@ class make_env(gym.Env):
                 state = np.concatenate((state, uncertain_params))
             elif self.empirical_distribution is not None:
                 for param, _ in self.empirical_distribution.items():
-                    sample = np.random.choice(self.empirical_distribution[param])
+                    sample = self.np_random.choice(self.empirical_distribution[param])
                     setattr(self.model, param, sample)
                     uncertain_params.append(sample)
                 state = np.concatenate((state, uncertain_params))
@@ -468,13 +472,13 @@ class make_env(gym.Env):
             if self.noise_percentage_float:
                 noise_percentage = self.env_params.get("noise_percentage", 0)
                 self.obs[: self.Nx_oracle] += (
-                    np.random.normal(0, 1, self.Nx_oracle) * self.state[: self.Nx_oracle] * noise_percentage
+                    self.np_random.normal(0, 1, self.Nx_oracle) * self.state[: self.Nx_oracle] * noise_percentage
                 )
             else:
                 for i in range(self.Nx_oracle):
                     if self.model.info()["states"][i] in self.noise_percentage:
                         self.obs[i] += (
-                            np.random.normal(0, 1, 1)
+                            self.np_random.normal(0, 1, 1)
                             * self.state[i]
                             * self.noise_percentage[str(self.model.info()["states"][i])]
                         )
