@@ -77,20 +77,22 @@ def test_rollout(pe, mock_env):
 
     total_reward, s_rollout, actions, cons_info = pe.rollout(policy)
 
-    assert len(total_reward) == 3
-    assert s_rollout.shape == (2, 3)
+    # N = 3 steps: reset reward + 3 step rewards, states x_0..x_3, actions u_0..u_2.
+    assert len(total_reward) == 4
+    assert s_rollout.shape == (2, 4)
     assert actions.shape == (1, 3)
     assert cons_info.shape == (1, 1)
+    assert pe.env.step.call_count == 3
 
 
 def test_get_rollouts(pe, mock_env):
     # Mock the rollout method to return consistent shapes
     def mock_rollout(policy):
         return (
-            np.array([1, 2, 3]),  # total_reward
-            np.random.rand(2, 3),  # s_rollout
+            np.array([0, 1, 2, 3]),  # total_reward
+            np.random.rand(2, 4),  # s_rollout
             np.random.rand(1, 3),  # actions
-            np.random.rand(1, 3, 1),  # cons_info
+            np.random.rand(1, 4, 1),  # cons_info
         )
 
     with patch.object(pe, "rollout", side_effect=mock_rollout):
@@ -104,10 +106,10 @@ def test_get_rollouts(pe, mock_env):
         assert "x" in policy_data
         assert "u" in policy_data
         assert "g" in policy_data
-        assert policy_data["r"].shape == (1, 3, 5)  # (1, N, reps)
-        assert policy_data["x"].shape == (2, 3, 5)  # (Nx, N, reps)
+        assert policy_data["r"].shape == (1, 4, 5)  # (1, N + 1, reps)
+        assert policy_data["x"].shape == (2, 4, 5)  # (Nx, N + 1, reps)
         assert policy_data["u"].shape == (1, 3, 5)  # (Nu, N, reps)
-        assert policy_data["g"].shape == (1, 3, 1, 5)  # (n_con, N, 1, reps)
+        assert policy_data["g"].shape == (1, 4, 1, 5)  # (n_con, N + 1, 1, reps)
 
 
 def test_oracle_reward_fn(pe):
@@ -128,10 +130,10 @@ def test_plot_data(pe, reward_dist):
     data = {}
     for policy_name in pe.policies.keys():
         data[policy_name] = {
-            "x": np.random.rand(pe.env.Nx_oracle, pe.env.N, pe.reps),
+            "x": np.random.rand(pe.env.Nx_oracle, pe.env.N + 1, pe.reps),
             "u": np.random.rand(pe.env.Nu, pe.env.N, pe.reps),
-            "r": np.random.rand(1, pe.env.N, pe.reps),
-            "g": np.random.rand(pe.env.n_con, pe.env.N, 1, pe.reps),
+            "r": np.random.rand(1, pe.env.N + 1, pe.reps),
+            "g": np.random.rand(pe.env.n_con, pe.env.N + 1, 1, pe.reps),
         }
 
 

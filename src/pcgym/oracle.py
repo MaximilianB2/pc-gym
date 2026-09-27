@@ -31,6 +31,15 @@ class oracle:
             self.u_0 = None  # Initialize u_0 as None when not using delta_u
         self.has_disturbances = self.env_params.get("disturbances") is not None
 
+    def _value_at(self, seq, t_now, offset=0):
+        """Value of a per-interval sequence (setpoint/disturbance) for the step starting at t_now.
+
+        Mirrors make_env.step, which during step i applies disturbance d[i + 1] and rewards x_{i+1}
+        against SP[i + 1]; indices past the end hold the last value.
+        """
+        i = int(round(float(np.asarray(t_now).item()) / self.env.dt)) + offset
+        return seq[min(max(i, 0), len(seq) - 1)]
+
     def setup_mpc(self):
         model_type = "continuous"
         model = do_mpc.model.Model(model_type)
@@ -144,14 +153,9 @@ class oracle:
 
         # Parameter function
         def p_fun(t_now):
-            t_now = float(np.asarray(t_now).item())
             p_template = mpc.get_p_template(1)
 
-            SP_values = []
-            for k in self.env_params["SP"]:
-                sp_array = self.env_params["SP"][k]
-                current_index = min(int(t_now / self.env.dt - 1), len(sp_array) - 1)
-                SP_values.append(sp_array[current_index])
+            SP_values = [self._value_at(self.env_params["SP"][k], t_now, offset=1) for k in self.env_params["SP"]]
 
             p_template["_p", 0, "SP"] = np.array(SP_values).reshape(-1, 1)
             # Set u_prev only if delta_u is used
@@ -162,9 +166,7 @@ class oracle:
                 d = np.zeros((self.env.Nd_model, 1))
                 for i, k in enumerate(self.env.model.info()["disturbances"], start=0):
                     if k in self.env_params["disturbances"]:
-                        d_array = self.env_params["disturbances"][k]
-                        current_index = min(int(t_now / self.env.dt - 1), len(d_array) - 1)
-                        d[i, 0] = d_array[current_index]
+                        d[i, 0] = self._value_at(self.env_params["disturbances"][k], t_now, offset=1)
                     else:
                         d[i, 0] = self.model_info["parameters"][str(k)]
                 p_template["_p", 0, "d"] = d
@@ -178,23 +180,16 @@ class oracle:
         simulator.set_param(t_step=self.env.dt)
 
         def p_fun_sim(t_now):
-            t_now = float(np.asarray(t_now).item())
             p_template_sim = simulator.get_p_template()
 
-            SP_values = []
-            for k in self.env_params["SP"]:
-                sp_array = self.env_params["SP"][k]
-                current_index = min(int(t_now / self.env.dt), len(sp_array) - 1)
-                SP_values.append(sp_array[current_index])
+            SP_values = [self._value_at(self.env_params["SP"][k], t_now, offset=1) for k in self.env_params["SP"]]
             p_template_sim["SP"] = np.array(SP_values).reshape(-1, 1)
 
             if self.has_disturbances:
                 d = np.zeros((self.env.Nd_model, 1))
                 for i, k in enumerate(self.env.model.info()["disturbances"], start=0):
                     if k in self.env_params["disturbances"]:
-                        d_array = self.env_params["disturbances"][k]
-                        current_index = min(int(t_now / self.env.dt - 1), len(d_array) - 1)
-                        d[i, 0] = d_array[current_index]
+                        d[i, 0] = self._value_at(self.env_params["disturbances"][k], t_now, offset=1)
                     else:
                         d[i, 0] = self.model_info["parameters"][str(k)]
                 p_template_sim["d"] = d
@@ -221,62 +216,31 @@ class oracle:
         mpc.set_initial_guess()
 
         # env.Nu already includes Nd_model after _setup_disturbances.
+        # States x_0..x_N (N + 1 columns) and the N inputs applied between them, matching policy_eval.
         u_log = np.zeros((self.env.Nu, self.env.N))
-
-        x_log = np.zeros((self.env.Nx_oracle, self.env.N))
+        x_log = np.zeros((self.env.Nx_oracle, self.env.N + 1))
         delta_u_log = np.zeros((self.env.Nu, self.env.N)) if self.use_delta_u else None
 
-        # Store initial state as first entry
         x_log[:, 0] = x0.flatten()
-
-        # Calculate first control input
-        if self.use_delta_u:
-            mpc.u0 = u_prev
-            simulator.u0 = u_prev
-            delta_u0 = mpc.make_step(x0)
-            u0 = u_prev + delta_u0
-            delta_u_log[:, 0] = delta_u0.flatten()
-        else:
-            u0 = mpc.make_step(x0)
-
-        if self.has_disturbances:
-            d = mpc.p_fun(0 * self.env.dt)["_p", 0, "d"]
-            u_full = np.vstack([u0, d])
-            u_log[:, 0] = u_full.flatten()
-        else:
-            u_log[:, 0] = u0.flatten()
-
-        # Get next state
-        y_next = simulator.make_step(u0)
-        x0 = y_next
-
-        # Start loop from 1 since we already handled first step
-        for i in range(1, self.env.N):
-            # Update u_prev parameter if delta_u is used
+        x = x0
+        for i in range(self.env.N):
             if self.use_delta_u:
                 mpc.u0 = u_prev
                 simulator.u0 = u_prev
-
-            if self.use_delta_u:
-                delta_u0 = mpc.make_step(x0)
+                delta_u0 = mpc.make_step(x)
                 u0 = u_prev + delta_u0
+                delta_u_log[:, i] = delta_u0.flatten()
+                u_prev = u0
             else:
-                u0 = mpc.make_step(x0)
-
-            y_next = simulator.make_step(u0)
-            x0 = y_next
+                u0 = mpc.make_step(x)
 
             if self.has_disturbances:
                 d = mpc.p_fun(i * self.env.dt)["_p", 0, "d"]
-                u_full = np.vstack([u0, d])
-
-                u_log[:, i] = u_full.flatten()
+                u_log[:, i] = np.vstack([u0, d]).flatten()
             else:
-                u_log[: self.env.Nu, i] = u0.flatten()
+                u_log[:, i] = u0.flatten()
 
-            if self.use_delta_u:
-                delta_u_log[:, i] = delta_u0.flatten()
-                u_prev = u0  # Update u_prev for the next iteration
-            x_log[:, i] = x0.flatten()
+            x = simulator.make_step(u0)
+            x_log[:, i + 1] = x.flatten()
 
         return x_log, u_log

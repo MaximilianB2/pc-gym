@@ -127,7 +127,7 @@ def test_oracle_mpc_execution(model_name):
         oracle_instance = oracle(env, env_params, MPC_params={"N": 2})
     x_log, u_log = oracle_instance.mpc()
 
-    assert x_log.shape == (env.Nx_oracle, env.N), f"State log shape mismatch for {model_name}"
+    assert x_log.shape == (env.Nx_oracle, env.N + 1), f"State log shape mismatch for {model_name}"
     assert u_log.shape == (env.Nu, env.N), f"Control input log shape mismatch for {model_name}"
 
 
@@ -147,7 +147,9 @@ def test_oracle_with_custom_mpc_params(model_name):
         f"Custom control penalty not set correctly for {model_name}"
     )
     x_log, u_log = oracle_instance.mpc()
-    assert x_log.shape == (env.Nx_oracle, env.N), f"State log shape mismatch for {model_name} with custom MPC params"
+    assert x_log.shape == (env.Nx_oracle, env.N + 1), (
+        f"State log shape mismatch for {model_name} with custom MPC params"
+    )
     assert u_log.shape == (env.Nu, env.N), f"Control input log shape mismatch for {model_name} with custom MPC params"
 
 
@@ -204,7 +206,7 @@ def test_oracle_disturbance_performance(model_name):
     for sp_key in setpoint_keys:
         sp_index = env.model.info()["states"].index(sp_key)
         setpoint = np.array(env_params["SP"][sp_key])
-        actual = x_log[sp_index, :]
+        actual = x_log[sp_index, 1:]  # x_1..x_N, one per setpoint interval
 
         iae = calculate_iae(setpoint, actual)
         iae_values.append(iae)

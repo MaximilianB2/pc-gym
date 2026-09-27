@@ -29,6 +29,11 @@ from pcgym.model_classes import (
 from pcgym.policy_evaluation import policy_eval
 
 
+def _seq_at(seq, i: int):
+    """Return seq[i], holding the last value for indices past the end (e.g. the final state x_N)."""
+    return seq[min(i, len(seq) - 1)]
+
+
 class make_env(gym.Env):
     def __init__(self, env_params: dict) -> None:
         """Initialize the environment with given parameters.
@@ -123,7 +128,8 @@ class make_env(gym.Env):
         self.r_penalty = self.env_params["r_penalty"]
         self.constraint_active = True
         self.n_con = self.constraints(self.x0, self.action_space.sample()).shape[0]
-        self.info["cons_info"] = np.zeros((self.n_con, self.N, 1))
+        # One column per visited state x_0..x_N.
+        self.info["cons_info"] = np.zeros((self.n_con, self.N + 1, 1))
 
     def _dict_constraints_to_callable(self, constraints_dict):
         cons_type = self.env_params.get("cons_type", {})
@@ -427,10 +433,8 @@ class make_env(gym.Env):
             disturbance_values_state = []
             for i, k in enumerate(self.model.info()["disturbances"]):
                 if k in self.disturbances:
-                    current_disturbance_value = self.disturbances[k][self.t + 1]
-                    uk[self.Nu - self.Nd_model + i] = self.disturbances[k][
-                        self.t + 1
-                    ]  # Add disturbance to control vector
+                    current_disturbance_value = _seq_at(self.disturbances[k], self.t + 1)
+                    uk[self.Nu - self.Nd_model + i] = current_disturbance_value  # Add disturbance to control vector
 
                     disturbance_values_state.append(current_disturbance_value)
                     disturbance_values.append(current_disturbance_value)
@@ -468,7 +472,7 @@ class make_env(gym.Env):
             SP_t = []
             for k in self.SP.keys():
                 if k in self.SP:
-                    SP_t.append(self.SP[k][self.t])
+                    SP_t.append(_seq_at(self.SP[k], self.t))
 
             self.state[self.Nx_oracle : self.Nx_oracle + len(self.SP)] = np.array(SP_t)
 
@@ -480,7 +484,11 @@ class make_env(gym.Env):
         if self.constraint_active:
             constraint_violated = self.constraint_check(self.state, uk)
 
-        if self.t == self.N - 1:
+        # The time limit is a truncation; `terminated` is reserved for genuine terminal conditions
+        # (currently constraint violation with done_on_cons_vio).
+        terminated = bool(self.done)
+        truncated = self.t >= self.N and not terminated
+        if truncated:
             self.done = True
 
         # Copy the obs from the state and add noise if the user requests this
@@ -529,7 +537,7 @@ class make_env(gym.Env):
                 if self.model.info()["states"][i] not in self.partial_observation:
                     obs_to_return[i] = 0
 
-        return obs_to_return, rew, self.done, False, self.info
+        return obs_to_return, rew, terminated, truncated, self.info
 
     def batch_reward_fn(self, state: np.array, c_violated: bool) -> float:
         """
@@ -544,7 +552,7 @@ class make_env(gym.Env):
         """
 
         r = 0.0
-        if self.t == self.N - 1:
+        if self.t == self.N:
             # Get the full list of states from the model
             all_states = self.model.info()["states"]
             # Find indices of reward states that actually exist in the model
@@ -585,7 +593,7 @@ class make_env(gym.Env):
         for k in self.SP:
             i = self.model.info()["states"].index(k)
             r_scale = self.env_params.get("r_scale", {})
-            r += (-((state[i] - np.array(self.SP[k][self.t])) ** 2)) * r_scale.get(k, 1)
+            r += (-((state[i] - np.array(_seq_at(self.SP[k], self.t))) ** 2)) * r_scale.get(k, 1)
             if self.r_penalty and c_violated:
                 r -= 1000
         return r

@@ -72,20 +72,21 @@ class policy_eval:
 
     def rollout(self, policy_i):
         """
-        Rollout the policy for N steps and return the total reward, states and actions.
+        Rollout the policy for N steps and return the rewards, states and actions.
 
         Args:
             policy_i: Policy to be rolled out.
 
         Returns:
             tuple: Containing:
-                - total_reward (list): Total reward obtained.
-                - s_rollout (np.ndarray): States obtained from rollout.
-                - actions (np.ndarray): Actions obtained from rollout.
-                - cons_info (np.ndarray): Constraint information.
+                - total_reward (list): N + 1 rewards; entry i is the reward for reaching state x_i
+                  (entry 0 is the initial reward from reset).
+                - s_rollout (np.ndarray): States x_0..x_N, shape (Nx, N + 1).
+                - actions (np.ndarray): Actions u_0..u_{N-1}, shape (Nu, N).
+                - cons_info (np.ndarray): Constraint information, shape (n_con, N + 1, 1).
         """
         total_reward = []
-        s_rollout = np.zeros((self.env.Nx, self.env.N))
+        s_rollout = np.zeros((self.env.Nx, self.env.N + 1))
         actions = np.zeros((self.env.env_params["a_space"]["low"].shape[0], self.env.N))
 
         o, info = self.env.reset()
@@ -99,7 +100,7 @@ class policy_eval:
                 self.env.observation_space_base.high - self.env.observation_space_base.low
             ) / 2 + self.env.observation_space_base.low
 
-        for i in range(self.env.N - 1):
+        for i in range(self.env.N):
             a, _s = policy_i.predict(o, deterministic=True)
             o, r, term, trunc, info = self.env.step(a)
             actions[:, i] = (a + 1) * (
@@ -121,11 +122,7 @@ class policy_eval:
         if self.env.constraint_active:
             cons_info = info["cons_info"]
         else:
-            cons_info = np.zeros((1, self.env.N, 1))
-        a, _s = policy_i.predict(o, deterministic=True)
-        actions[:, self.env.N - 1] = (a + 1) * (
-            self.env.env_params["a_space"]["high"] - self.env.env_params["a_space"]["low"]
-        ) / 2 + self.env.env_params["a_space"]["low"]
+            cons_info = np.zeros((1, self.env.N + 1, 1))
 
         return total_reward, s_rollout, actions, cons_info
 
@@ -147,7 +144,7 @@ class policy_eval:
                 r_opt.append(0)
             else:
                 if hasattr(self.env, "custom_reward") and self.env.custom_reward:
-                    r_opt.append(self.env.custom_reward_f(self.env, x[:, i], u[:, i], 0))
+                    r_opt.append(self.env.custom_reward_f(self.env, x[:, i], u[:, i - 1], 0))
                 else:
                     r_opt.append(self.env.SP_reward_fn(x[:, i], False))
         return r_opt
@@ -164,25 +161,26 @@ class policy_eval:
         num_states = self.env.Nx
 
         if self.oracle:
-            r_opt = np.zeros((1, self.env.N, self.reps))
-            x_opt = np.zeros((self.env.Nx_oracle, self.env.N, self.reps))
-            # u_opt = np.zeros((self.env.Nu, self.env.N, self.reps))
-            u_opt = np.zeros((self.env.Nu + self.env.Nd_model, self.env.N, self.reps))
+            r_opt = np.zeros((1, self.env.N + 1, self.reps))
+            x_opt = np.zeros((self.env.Nx_oracle, self.env.N + 1, self.reps))
+            # env.Nu already includes the model disturbances (Nd_model).
+            u_opt = np.zeros((self.env.Nu, self.env.N, self.reps))
 
             oracle_instance = oracle(self.make_env, self.env_params, self.MPC_params)
             for i in range(self.reps):
                 x_opt[:, :, i], u_opt[:, :, i] = oracle_instance.mpc()
-                r_opt[:, :, i] = np.array(self.oracle_reward_fn(x_opt[:, :, i], u_opt[:, :, i])).reshape(1, self.env.N)
+                r_i = self.oracle_reward_fn(x_opt[:, :, i], u_opt[:, :, i])
+                r_opt[:, :, i] = np.array(r_i).reshape(1, self.env.N + 1)
             data.update({"oracle": {"r": r_opt, "x": x_opt, "u": u_opt}})
 
         for pi_name, pi_i in self.policies.items():
-            states = np.zeros((num_states, self.env.N, self.reps))
+            states = np.zeros((num_states, self.env.N + 1, self.reps))
             actions = np.zeros((action_space_shape, self.env.N, self.reps))
-            rew = np.zeros((1, self.env.N, self.reps))
+            rew = np.zeros((1, self.env.N + 1, self.reps))
             try:
-                cons_info = np.zeros((self.env.n_con, self.env.N, 1, self.reps))
+                cons_info = np.zeros((self.env.n_con, self.env.N + 1, 1, self.reps))
             except Exception:
-                cons_info = np.zeros((1, self.env.N, 1, self.reps))
+                cons_info = np.zeros((1, self.env.N + 1, 1, self.reps))
             for r_i in range(self.reps):
                 (
                     rew[:, :, r_i],
@@ -204,7 +202,13 @@ class policy_eval:
             data (dict): Dictionary containing rollout data.
             reward_dist (bool, optional): Whether to plot reward distribution. Defaults to False.
         """
-        t = np.linspace(0, self.env.tsim, self.env.N)
+        # States are sampled at t_0..t_N; actions, setpoints and disturbances are held over each interval.
+        t = np.linspace(0, self.env.tsim, self.env.N + 1)
+
+        def hold(seq):
+            seq = np.asarray(seq).reshape(-1)[: self.env.N]
+            return np.append(seq, seq[-1])
+
         len_d = 0
 
         if self.env.disturbance_active:
@@ -254,7 +258,7 @@ class policy_eval:
             if self.env.model.info()["states"][i] in self.env.SP:
                 plt.step(
                     t,
-                    self.env.SP[self.env.model.info()["states"][i]],
+                    hold(self.env.SP[self.env.model.info()["states"][i]]),
                     where="post",
                     color="black",
                     linestyle="--",
@@ -284,7 +288,8 @@ class policy_eval:
             for ind, (pi_name, pi_i) in enumerate(self.policies.items()):
                 plt.step(
                     t,
-                    np.median(data[pi_name]["u"][j, :, :], axis=1),
+                    hold(np.median(data[pi_name]["u"][j, :, :], axis=1)),
+                    where="post",
                     color=col[ind],
                     lw=3,
                     label=self.env.model.info()["inputs"][j] + " (" + pi_name + ")",
@@ -292,7 +297,8 @@ class policy_eval:
             if self.oracle:
                 plt.step(
                     t,
-                    np.median(data["oracle"]["u"][j, :, :], axis=1),
+                    hold(np.median(data["oracle"]["u"][j, :, :], axis=1)),
+                    where="post",
                     color="tab:blue",
                     lw=3,
                     label="Oracle " + str(self.env.model.info()["inputs"][j]),
@@ -322,7 +328,7 @@ class policy_eval:
                         1,
                         i + j + self.env.Nx_oracle + 1,
                     )
-                    plt.step(t, self.env.disturbances[k], color="tab:orange", label=k)
+                    plt.step(t, hold(self.env.disturbances[k]), where="post", color="tab:orange", label=k)
                     plt.xlabel("Time (min)")
                     plt.ylabel(k)
                     plt.xlim(min(t), max(t))
