@@ -1,3 +1,5 @@
+import copy
+
 import do_mpc
 import numpy as np
 from casadi import DM, reshape, vertcat
@@ -5,8 +7,11 @@ from casadi import DM, reshape, vertcat
 
 class oracle:
     def __init__(self, env, env_params, MPC_params=False):
-        self.env_params = env_params
+        # Work on a copy so forcing the CasADi backend never leaks into the caller's env_params
+        # (previously a JAX env silently became CasADi after plot_rollout(oracle=True)).
+        self.env_params = copy.deepcopy(env_params)
         self.env_params["integration_method"] = "casadi"
+        env_params = self.env_params
         try:
             self.env = env(env_params)
         except Exception:
@@ -30,6 +35,9 @@ class oracle:
         else:
             self.u_0 = None  # Initialize u_0 as None when not using delta_u
         self.has_disturbances = self.env_params.get("disturbances") is not None
+        # The MPC and simulator are built once and reset between rollouts.
+        self._mpc = None
+        self._simulator = None
 
     def _value_at(self, seq, t_now, offset=0):
         """Value of a per-interval sequence (setpoint/disturbance) for the step starting at t_now.
@@ -204,7 +212,12 @@ class oracle:
         return mpc, simulator
 
     def mpc(self):
-        mpc, simulator = self.setup_mpc()
+        if self._mpc is None:
+            self._mpc, self._simulator = self.setup_mpc()
+        else:
+            self._mpc.reset_history()
+            self._simulator.reset_history()
+        mpc, simulator = self._mpc, self._simulator
 
         x0 = np.array(self.x0[: self.env.Nx_oracle])
 

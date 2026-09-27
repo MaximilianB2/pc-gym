@@ -171,11 +171,14 @@ class policy_eval:
             # env.Nu already includes the model disturbances (Nd_model).
             u_opt = np.zeros((self.env.Nu, self.env.N, self.reps))
 
+            # The oracle is deterministic (nominal model, fixed x0), so solve it once and share the result
+            # across repetitions.
             oracle_instance = oracle(self.make_env, self.env_params, self.MPC_params)
-            for i in range(self.reps):
-                x_opt[:, :, i], u_opt[:, :, i] = oracle_instance.mpc()
-                r_i = self.oracle_reward_fn(x_opt[:, :, i], u_opt[:, :, i])
-                r_opt[:, :, i] = np.array(r_i).reshape(1, self.env.N + 1)
+            x_star, u_star = oracle_instance.mpc()
+            r_star = np.array(self.oracle_reward_fn(x_star, u_star)).reshape(1, self.env.N + 1)
+            x_opt[:] = x_star[:, :, None]
+            u_opt[:] = u_star[:, :, None]
+            r_opt[:] = r_star[:, :, None]
             data.update({"oracle": {"r": r_opt, "x": x_opt, "u": u_opt}})
 
         for pi_name, pi_i in self.policies.items():
