@@ -289,8 +289,6 @@ class make_env(gym.Env):
         """
         self.t = 0
 
-        self.int_eng = integration_engine(make_env, self.env_params)
-
         # Initialize state with potential random uncertainties in x0
         state = copy.deepcopy(self.env_params["x0"])
         if self.uncertainty_percentages is not None and "x0" in self.uncertainty_percentages:
@@ -325,6 +323,11 @@ class make_env(gym.Env):
                     setattr(self.model, param, sample)
                     uncertain_params.append(sample)
                 state = np.concatenate((state, uncertain_params))
+
+        # Built once from this env's own model; the engine rebuilds itself if model parameters change
+        # (e.g. resampled uncertain parameters above, or user edits to env.model).
+        if getattr(self, "int_eng", None) is None:
+            self.int_eng = integration_engine(self)
 
         if self.a_delta:
             self.a_save = self.a_0

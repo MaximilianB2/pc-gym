@@ -1,4 +1,5 @@
-from typing import Any, Callable, Dict, List
+import copy
+from typing import Any, Callable, Dict, List, Optional
 
 import jax.numpy as jnp
 import numpy as np
@@ -18,35 +19,28 @@ class integration_engine:
         integration_method: The chosen integration method ('jax' or 'casadi').
     """
 
-    def __init__(self, make_env: Callable, env_params: Dict[str, Any]) -> None:
+    def __init__(self, env: Any, env_params: Optional[Dict[str, Any]] = None) -> None:
         """
         Initialize the integration engine.
 
         Args:
-            make_env: A function to create the environment.
-            env_params: A dictionary of environment parameters.
+            env: The environment that owns this engine. Its model is used directly, so
+                changes to ``env.model`` parameters are reflected in the simulated dynamics.
+            env_params: Deprecated. If given, ``env`` is treated as the ``make_env`` class and
+                a new environment is constructed from these parameters.
         """
-        self.env = make_env(env_params)
-        try:
-            integration_method = env_params["integration_method"]
-        except Exception:
-            integration_method = "casadi"
+        if env_params is not None:
+            env = env(env_params)
+        self.env = env
+        integration_method = getattr(env, "integration_method", "casadi")
         assert integration_method in [
             "jax",
             "casadi",
         ], "integration_method must be either 'jax' or 'casadi'"
+        self.integration_method = integration_method
 
         if integration_method == "casadi":
-            self.sym_x = self.gen_casadi_variable(self.env.Nx_oracle, "x")
-            self.sym_u = self.gen_casadi_variable(self.env.Nu, "u")
-            self.casadi_sym_model = self.casadify(self.env.model, self.sym_x, self.sym_u)
-            self.casadi_model_func = self.gen_casadi_function(
-                [self.sym_x, self.sym_u],
-                [self.casadi_sym_model],
-                "model_func",
-                ["x", "u"],
-                ["model_rhs"],
-            )
+            self._build_casadi()
 
         if integration_method == "jax":
 
@@ -60,7 +54,36 @@ class integration_engine:
             self.dt0 = None
             self.step_controller = PIDController(rtol=1e-8, atol=1e-8)
 
-        pass
+    def _build_casadi(self) -> None:
+        """Build the symbolic model and the discretised CVODES plant from the current model parameters."""
+        self.sym_x = self.gen_casadi_variable(self.env.Nx_oracle, "x")
+        self.sym_u = self.gen_casadi_variable(self.env.Nu, "u")
+        self.casadi_sym_model = self.casadify(self.env.model, self.sym_x, self.sym_u)
+        self.casadi_model_func = self.gen_casadi_function(
+            [self.sym_x, self.sym_u],
+            [self.casadi_sym_model],
+            "model_func",
+            ["x", "u"],
+            ["model_rhs"],
+        )
+        self.discretised_plant = self.discretise_model(self.casadi_model_func, self.env.dt)
+        self._param_snapshot = self._snapshot_params()
+
+    def _snapshot_params(self) -> Dict[str, Any]:
+        return {k: copy.deepcopy(v) for k, v in vars(self.env.model).items()}
+
+    def _params_changed(self) -> bool:
+        current = vars(self.env.model)
+        if current.keys() != self._param_snapshot.keys():
+            return True
+        for k, v in current.items():
+            try:
+                if not np.array_equal(v, self._param_snapshot[k]):
+                    return True
+            except Exception:
+                if v is not self._param_snapshot[k]:
+                    return True
+        return False
 
     def jax_step(self, state: np.ndarray, uk: np.ndarray) -> np.ndarray:
         """
@@ -98,12 +121,13 @@ class integration_engine:
         Returns:
             The next state after integration.
         """
-        plant_func = self.casadi_model_func
-        discretised_plant = self.discretise_model(plant_func, self.env.dt)
+        # CasADi bakes parameter values into the symbolic graph, so rebuild only if the model changed.
+        if self._params_changed():
+            self._build_casadi()
 
         xk = state[: self.env.Nx_oracle]
 
-        Fk = discretised_plant(x0=xk, p=uk)
+        Fk = self.discretised_plant(x0=xk, p=uk)
         return Fk
 
     def casadify(self, model: Callable, sym_x: SX, sym_u: SX) -> SX:

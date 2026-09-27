@@ -46,14 +46,15 @@ class cstr(BaseModel):
     def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         ca, T = x[0], x[1]
         xp = jnp if self.int_method == "jax" else np
+        # Disturbance inputs are read into locals so calling the model never mutates it.
         if u.shape[0] == 1:
-            Tc = u[0]
+            Tc, Ti, Caf = u[0], self.Ti, self.Caf
         else:
-            Tc, self.Ti, self.Caf = u[0], u[1], u[2]
+            Tc, Ti, Caf = u[0], u[1], u[2]
         rA = self.k0 * xp.exp(-self.EA_over_R / T) * ca
-        dcadt = self.q / self.V * (self.Caf - ca) - rA
+        dcadt = self.q / self.V * (Caf - ca) - rA
         dTdt = (
-            self.q / self.V * (self.Ti - T)
+            self.q / self.V * (Ti - T)
             + ((-self.deltaHr) * rA) * (1 / (self.rho * self.C))
             + self.UA * (Tc - T) * (1 / (self.rho * self.C * self.V))
         )
@@ -103,21 +104,22 @@ class complex_cstr(BaseModel):
     def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         ca, cb, cc, T = x[0], x[1], x[2], x[3]
         xp = jnp if self.int_method == "jax" else np
+        # Disturbance inputs are read into locals so calling the model never mutates it.
         if u.shape[0] == 1:
-            Tc = u[0]
+            Tc, Ti, Caf = u[0], self.Ti, self.Caf
         else:
-            Tc, self.Ti, self.Caf = u[0], u[1], u[2]
+            Tc, Ti, Caf = u[0], u[1], u[2]
 
         r1 = self.k01 * xp.exp(-self.EA1_over_R / T) * ca
         r2 = self.k02 * xp.exp(-self.EA2_over_R / T) * cb
 
-        dca_dt = (self.q / self.V) * (self.Caf - ca) - r1
+        dca_dt = (self.q / self.V) * (Caf - ca) - r1
         dcb_dt = (self.q / self.V) * (0 - cb) + 2 * r1 - r2
         dcc_dt = (self.q / self.V) * (0 - cc) + r2
 
         heat_gen = (-self.deltaHr1 * r1) + (-self.deltaHr2 * r2)
         dTdt = (
-            (self.q / self.V) * (self.Ti - T)
+            (self.q / self.V) * (Ti - T)
             + heat_gen / (self.rho * self.C)
             + (self.UA / (self.rho * self.C * self.V)) * (Tc - T)
         )
@@ -394,10 +396,11 @@ class multistage_extraction:
             x[8],
             x[9],
         )
+        # Disturbance inputs are read into locals so calling the model never mutates it.
         if u.shape[0] == 2:
-            L, G = u[0], u[1]
+            L, G, X0, Y6 = u[0], u[1], self.X0, self.Y6
         else:
-            L, G, self.X0, self.Y6 = u[0], u[1], u[2], u[3]
+            L, G, X0, Y6 = u[0], u[1], u[2], u[3]
 
         X1_eq = (Y1**self.eq_exponent) / self.m
         X2_eq = (Y2**self.eq_exponent) / self.m
@@ -412,7 +415,7 @@ class multistage_extraction:
         Q5 = self.Kla * (X5 - X5_eq) * self.Vl
 
         ret = [
-            (1 / self.Vl) * (L * (self.X0 - X1) - Q1),
+            (1 / self.Vl) * (L * (X0 - X1) - Q1),
             (1 / self.Vg) * (G * (Y2 - Y1) + Q1),
             (1 / self.Vl) * (L * (X1 - X2) - Q2),
             (1 / self.Vg) * (G * (Y3 - Y2) + Q2),
@@ -421,7 +424,7 @@ class multistage_extraction:
             (1 / self.Vl) * (L * (X3 - X4) - Q4),
             (1 / self.Vg) * (G * (Y5 - Y4) + Q4),
             (1 / self.Vl) * (L * (X4 - X5) - Q5),
-            (1 / self.Vg) * (G * (self.Y6 - Y5) + Q5),
+            (1 / self.Vg) * (G * (Y6 - Y5) + Q5),
         ]
 
         return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
