@@ -1,8 +1,12 @@
 import copy
 
-import do_mpc
 import numpy as np
 from casadi import DM, reshape, vertcat
+
+from pcgym._optional import LazyModule
+
+# Optional dependency (pcgym[oracle]); imported when the oracle is first used.
+do_mpc = LazyModule("do_mpc")
 
 
 class oracle:

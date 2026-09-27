@@ -79,6 +79,14 @@ The latest production pc-gym version can be installed from PyPI:
 ```bash
 pip install pcgym
 ```
+
+The core install uses the CasADi integrator. Optional extras add the other features:
+
+```bash
+pip install "pcgym[jax]"     # JAX/diffrax integrator (integration_method="jax")
+pip install "pcgym[oracle]"  # MPC oracle for get_rollouts / plot_rollout(oracle=True)
+pip install "pcgym[all]"     # both
+```
 Alternatively, you can install the latest development version directly from GitHub:
 
 ```bash

@@ -1,10 +1,10 @@
 import copy
 from typing import Any, Callable, Dict, List, Optional
 
-import jax.numpy as jnp
 import numpy as np
 from casadi import SX, Function, integrator, vertcat
-from diffrax import ODETerm, PIDController, Tsit5, diffeqsolve
+
+from pcgym._optional import require
 
 
 class integration_engine:
@@ -43,16 +43,21 @@ class integration_engine:
             self._build_casadi()
 
         if integration_method == "jax":
+            # Optional dependencies (pcgym[jax]), only needed for this backend.
+            jnp = require("jax.numpy")
+            diffrax = require("diffrax")
+            self._jnp = jnp
+            self._diffeqsolve = diffrax.diffeqsolve
 
-            def autonomous_model(t: float, x: jnp.ndarray, u: jnp.ndarray) -> jnp.ndarray:
+            def autonomous_model(t: float, x, u):
                 return jnp.array(self.env.model(x, u))
 
-            self.jax_ode = ODETerm(autonomous_model)
-            self.jax_solver = Tsit5()
+            self.jax_ode = diffrax.ODETerm(autonomous_model)
+            self.jax_solver = diffrax.Tsit5()
             self.t0 = 0.0
             self.tf = self.env.dt
             self.dt0 = None
-            self.step_controller = PIDController(rtol=1e-8, atol=1e-8)
+            self.step_controller = diffrax.PIDController(rtol=1e-8, atol=1e-8)
 
     def _build_casadi(self) -> None:
         """Build the symbolic model and the discretised CVODES plant from the current model parameters."""
@@ -96,9 +101,9 @@ class integration_engine:
         Returns:
             The next state after integration.
         """
-        y0 = jnp.array(state[: self.env.Nx_oracle])
-        uk = jnp.array(uk)
-        solution = diffeqsolve(
+        y0 = self._jnp.array(state[: self.env.Nx_oracle])
+        uk = self._jnp.array(uk)
+        solution = self._diffeqsolve(
             self.jax_ode,
             self.jax_solver,
             self.t0,

@@ -280,6 +280,7 @@ def test_disturbances(model_name):
 @pytest.mark.slow
 @pytest.mark.parametrize("model_name", ["cstr", "multistage_extraction", "four_tank", "crystallization"])
 def test_JAX_int(model_name):
+    pytest.importorskip("diffrax", reason="JAX backend needs pcgym[jax]")
     config = model_configs[model_name]
     params = create_base_params(
         model_name,

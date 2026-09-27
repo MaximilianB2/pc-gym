@@ -65,6 +65,14 @@ The latest pc-gym version can be installed from PyPI:
 pip install pcgym
 ```
 
+The core install uses the CasADi integrator. Optional extras add the other features:
+
+```bash
+pip install "pcgym[jax]"     # JAX/diffrax integrator (integration_method="jax")
+pip install "pcgym[oracle]"  # MPC oracle for get_rollouts / plot_rollout(oracle=True)
+pip install "pcgym[all]"     # both
+```
+
 ## Examples
 Example notebooks with training walkthroughs, implementing constraints, disturbances and the policy evaluation tool can be found [here](https://github.com/MaximilianB2/pc-gym/tree/main/example_notebooks).
 

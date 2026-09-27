@@ -6,6 +6,8 @@ import pytest
 from pcgym import make_env
 from pcgym.oracle import oracle
 
+pytest.importorskip("do_mpc", reason="the oracle needs pcgym[oracle]")
+
 # Helper function to create base environment parameters
 base_params = {
     "N": 100,

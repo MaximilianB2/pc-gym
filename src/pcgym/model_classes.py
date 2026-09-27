@@ -1,7 +1,11 @@
 from dataclasses import dataclass
 
-import jax.numpy as jnp
 import numpy as np
+
+from pcgym._optional import LazyModule
+
+# Only imported when a model is evaluated with int_method="jax".
+jnp = LazyModule("jax.numpy")
 
 
 @dataclass(frozen=False, kw_only=True)

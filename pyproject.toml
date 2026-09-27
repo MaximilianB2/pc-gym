@@ -43,8 +43,14 @@ build-backend = "setuptools.build_meta"
 dependencies = { file = ["requirements.txt"] }
 
 [project.optional-dependencies]
+# JAX integration backend (integration_method="jax").
+jax = ["jax[cpu]", "diffrax"]
+# MPC oracle used by get_rollouts / plot_rollout(oracle=True).
+oracle = ["do-mpc[full]"]
+all = ["pcgym[jax,oracle]"]
 optional = ["jupyterlab", "torch", "stable-baselines3", "mkdocs-material"]
 dev = [
+  "pcgym[jax,oracle]",
   "ruff",
   "pytest",
   "pytest-cov",

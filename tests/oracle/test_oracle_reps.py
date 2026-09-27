@@ -4,6 +4,8 @@ import pytest
 from pcgym import make_env
 from pcgym.oracle import oracle
 
+pytest.importorskip("do_mpc", reason="the oracle needs pcgym[oracle]")
+
 N = 10
 
 
