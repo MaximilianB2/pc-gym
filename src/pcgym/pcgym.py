@@ -287,6 +287,95 @@ class make_env(gym.Env):
             else:
                 self.observation_space = spaces.Box(low=extended_obs_low, high=extended_obs_high)
 
+    def _uncertain_param_names(self) -> list:
+        if not self.uncertainty:
+            return []
+        if self.uncertainty_percentages is not None:
+            return [p for p in self.uncertainty_percentages if p != "x0"]
+        return list(self.empirical_distribution)
+
+    def observation_info(self) -> list[tuple[str, str]]:
+        """Describe the observation (and state) vector, one ``(name, kind)`` entry per index.
+
+        The layout is: model states (``"state"``), one entry per setpoint (``"setpoint"``, named
+        ``"<state>_SP"``), active disturbances (``"disturbance"``) and uncertain model parameters
+        (``"uncertainty"``). ``x0`` and ``o_space`` cover the states and setpoints only; the
+        disturbance and uncertainty entries are appended automatically (their bounds come from
+        ``disturbance_bounds`` / ``uncertainty_bounds``).
+
+        Returns:
+            list[tuple[str, str]]: e.g. ``[("Ca", "state"), ("T", "state"), ("Ca_SP", "setpoint")]``.
+        """
+        info = [(name, "state") for name in self.model.info()["states"]]
+        if self.SP is not None:
+            info += [(f"{k}_SP", "setpoint") for k in self.SP]
+        if self.disturbance_active:
+            info += [(k, "disturbance") for k in self.model.info()["disturbances"] if k in self.disturbances]
+        info += [(p, "uncertainty") for p in self._uncertain_param_names()]
+        return info
+
+    def build_obs(
+        self,
+        states,
+        setpoints=None,
+        disturbances=None,
+        uncertainties=None,
+        normalise: bool = False,
+    ) -> np.ndarray:
+        """Assemble a correctly ordered observation vector from named parts.
+
+        Each part is either a dict keyed by name (state name, setpoint state name, disturbance or
+        parameter name) or a sequence in ``observation_info()`` order. Omitted optional parts
+        default to the first setpoint value, the first disturbance value and the nominal parameter
+        value respectively.
+
+        Args:
+            states: Values of the model states.
+            setpoints: Setpoint values, keyed by the tracked state name (e.g. ``{"Ca": 0.85}``).
+            disturbances: Disturbance values, keyed by disturbance name.
+            uncertainties: Uncertain parameter values, keyed by parameter name.
+            normalise: If True, scale the result like the env does when ``normalise_o`` is set.
+
+        Returns:
+            np.ndarray: The observation vector. Its first ``len(states) + len(SP)`` entries are a valid
+            ``x0``.
+        """
+        defaults = {
+            "setpoint": {k: _seq_at(v, 0) for k, v in (self.SP or {}).items()},
+            "disturbance": {k: _seq_at(v, 0) for k, v in self.disturbances.items()} if self.disturbance_active else {},
+            "uncertainty": getattr(self, "original_param_values", {}),
+        }
+        parts = {"state": states, "setpoint": setpoints, "disturbance": disturbances, "uncertainty": uncertainties}
+        layout = self.observation_info()
+
+        values = []
+        for kind in ("state", "setpoint", "disturbance", "uncertainty"):
+            names = [name[:-3] if kind == "setpoint" else name for name, k in layout if k == kind]
+            part = parts[kind]
+            if part is None:
+                if kind == "state":
+                    raise ValueError("states are required")
+                part = defaults[kind]
+            if isinstance(part, dict):
+                missing = [n for n in names if n not in part]
+                unknown = [n for n in part if n not in names]
+                if missing or unknown:
+                    raise ValueError(
+                        f"{kind} values must be given for exactly {names} (missing {missing}, unknown {unknown})"
+                    )
+                values += [part[n] for n in names]
+            else:
+                part = np.asarray(part, dtype=float).reshape(-1)
+                if part.shape[0] != len(names):
+                    raise ValueError(f"expected {len(names)} {kind} values ({names}), got {part.shape[0]}")
+                values += list(part)
+
+        obs = np.asarray(values, dtype=float)
+        if normalise:
+            low, high = self.observation_space_base.low, self.observation_space_base.high
+            obs = 2 * (obs - low) / (high - low) - 1
+        return obs
+
     def apply_uncertainties(self, value, percentage, distribution):
         if distribution == "normal":
             return self.np_random.normal(value, percentage * value)
@@ -445,13 +534,9 @@ class make_env(gym.Env):
                     # if there is no disturbance at this timestep, use the default value
                     disturbance_values.append(default_value)
 
-            # Update the state vector with current disturbance values
-            if self.uncertainty_percentages is not None:
-                self.state[self.Nx_oracle + len(self.SP) + len(self.uncertainty_percentages) :] = (
-                    disturbance_values_state
-                )
-            else:
-                self.state[self.Nx_oracle + len(self.SP) :] = disturbance_values_state
+            # Update the disturbance entries of the state vector (see observation_info for the layout).
+            d_start = self.Nx_oracle + (len(self.SP) if self.SP is not None else 0)
+            self.state[d_start : d_start + len(disturbance_values_state)] = disturbance_values_state
         else:
             uk = action  # Add action to control vector
 
