@@ -6,7 +6,11 @@
         - __init__
         - reset
         - step
-        - reward_fn
+        - simulate
+        - observation_info
+        - build_obs
+        - SP_reward_fn
+        - batch_reward_fn
         - con_checker
         - constraint_check
         - get_rollouts

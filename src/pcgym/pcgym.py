@@ -1,4 +1,5 @@
 import copy
+from types import SimpleNamespace
 
 import gymnasium as gym
 import numpy as np
@@ -624,6 +625,70 @@ class make_env(gym.Env):
                     obs_to_return[i] = 0
 
         return obs_to_return, rew, terminated, truncated, self.info
+
+    def simulate(self, x0, u_seq, params: dict | None = None) -> np.ndarray:
+        """Integrate the model from x0 under an input sequence without touching the episode.
+
+        Intended for model-based control (MPC, shooting, MBRL): candidate input sequences can be
+        evaluated with the env's model, dt and integration backend while the env's t, state,
+        history and info stay unchanged.
+
+        Args:
+            x0: Initial model states (length ``Nx`` of the model). A longer vector, such as a full
+                state/observation vector in physical units, is truncated to the model states.
+            u_seq: Input sequence of shape ``(T, n_u)`` in physical units. ``n_u`` is either the
+                number of control inputs or, when the model has disturbance inputs, the full model input
+                vector (controls followed by disturbances). If only controls are given, disturbance
+                inputs are held at their nominal model values.
+            params: Optional model parameter overrides for this simulation only (e.g. for robust
+                MPC), such as ``{"k0": 8e10}``.
+
+        Returns:
+            np.ndarray: State trajectory of shape ``(T + 1, Nx)``, starting with x0.
+        """
+        model = self.model
+        if params:
+            unknown = [k for k in params if not hasattr(model, k)]
+            if unknown:
+                raise ValueError(f"Unknown model parameter(s) {unknown}")
+            model = copy.copy(model)
+            for k, v in params.items():
+                setattr(model, k, v)
+            engine = integration_engine(
+                SimpleNamespace(
+                    model=model,
+                    Nx_oracle=self.Nx_oracle,
+                    Nu=self.Nu,
+                    dt=self.dt,
+                    integration_method=self.integration_method,
+                )
+            )
+        else:
+            if getattr(self, "int_eng", None) is None:
+                self.int_eng = integration_engine(self)
+            engine = self.int_eng
+
+        u_seq = np.asarray(u_seq, dtype=float)
+        if u_seq.ndim == 1:
+            u_seq = u_seq.reshape(-1, 1)
+        n_controls = len(model.info()["inputs"])
+        disturbance_names = model.info().get("disturbances") or []
+        if self.disturbance_active and u_seq.shape[1] == n_controls:
+            nominal = [model.info()["parameters"][str(k)] for k in disturbance_names]
+            u_seq = np.hstack([u_seq, np.tile(nominal, (u_seq.shape[0], 1))])
+        if u_seq.shape[1] != self.Nu:
+            raise ValueError(f"u_seq must have {n_controls} (controls) or {self.Nu} (model inputs) columns")
+
+        x = np.asarray(x0, dtype=float).reshape(-1)[: self.Nx_oracle].copy()
+        traj = np.zeros((u_seq.shape[0] + 1, self.Nx_oracle))
+        traj[0] = x
+        for k, uk in enumerate(u_seq):
+            if self.integration_method == "casadi":
+                x = np.array(engine.casadi_step(x, uk)["xf"].full()).reshape(self.Nx_oracle)
+            else:
+                x = np.asarray(engine.jax_step(x, uk))
+            traj[k + 1] = x
+        return traj
 
     def batch_reward_fn(self, state: np.array, c_violated: bool) -> float:
         """
