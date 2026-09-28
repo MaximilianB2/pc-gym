@@ -30,6 +30,7 @@ nav:
     - Constraints: guides/constraints.md
     #- Models: guides/models.md
     - Policy Evaluation: guides/Policy Evaluation.md
+    - Adding a Model: guides/adding_a_model.md
   - API Reference:
     - Make Environment: API/make_env.md
     - Evaluation Metrics: API/evaluation_metrics.md

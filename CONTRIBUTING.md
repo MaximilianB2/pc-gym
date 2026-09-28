@@ -58,6 +58,14 @@ ruff check . --fix      # lint and auto-fix safe issues
 Type checks via `pyright` are advisory in CI (warnings, not failures)
 while the type annotations are filled in incrementally.
 
+## Adding a model
+
+Each built-in model is a single file in `src/pcgym/models/` that registers itself with
+`@register_model`. Follow the checklist in
+[docs/guides/adding_a_model.md](docs/guides/adding_a_model.md). It covers units, a verified
+steady state, both integrators, the reference trajectory and the docs page. The PR template
+repeats the checklist.
+
 ## Submitting a PR
 
 1. Branch off `main`.
