@@ -7,7 +7,7 @@ from gymnasium import spaces
 
 from pcgym.integrator import integration_engine
 from pcgym.model_defaults import get_default, has_defaults
-from pcgym.models import get_model_spec
+from pcgym.models import Batch, Regulation, get_model_spec
 from pcgym.policy_evaluation import policy_eval
 
 
@@ -30,6 +30,7 @@ class make_env(gym.Env):
         self.env_params = copy.deepcopy(env_params)
         self._initialize_action_config()
         self._apply_space_defaults()
+        self._apply_reward_defaults()
         self._setup_spaces()
         self._configure_reward()
         self._setup_simulation_params()
@@ -75,6 +76,49 @@ class make_env(gym.Env):
                 )
             self.env_params[key] = get_default(model_name, key)
 
+    def _apply_reward_defaults(self):
+        """Use the model's default task when no reward is configured (no SP, custom_reward or reward_states).
+
+        Regulation models track constant setpoints: ``SP`` is filled in, x0's setpoint entries are set to the
+        setpoint values (added if x0 only has the model states), and unless ``r_scale`` is given, each
+        squared tracking error is scaled by ``1 / (o_space range)**2`` so returns are comparable across
+        models. Batch models get their ``reward_states`` / ``maximise_reward``. Explicitly configured
+        rewards are never modified.
+        """
+        p = self.env_params
+        if p.get("custom_model") is not None or any(
+            p.get(key) is not None for key in ("SP", "custom_reward", "reward_states")
+        ):
+            return
+        spec = get_model_spec(p.get("model"))
+        task = spec.task
+        if task is None:
+            return
+        if isinstance(task, Batch):
+            p["reward_states"] = list(task.reward_states)
+            p.setdefault("maximise_reward", task.maximise)
+            return
+        assert isinstance(task, Regulation)
+        try:
+            states = spec.cls(int_method="casadi", **(p.get("model_params") or {})).info()["states"]
+        except TypeError:
+            return  # invalid model_params; reported with a clear message by _initialize_model
+        n_x, names = len(states), list(task.setpoint)
+        values = [float(task.setpoint[k]) for k in names]
+        p["SP"] = {k: [v] * p["N"] for k, v in zip(names, values)}
+
+        x0 = np.asarray(p["x0"], dtype=float).reshape(-1)
+        if x0.shape[0] in (n_x, n_x + len(names)):
+            p["x0"] = np.concatenate([x0[:n_x], values])
+
+        low = np.asarray(p["o_space"]["low"], dtype=float)
+        high = np.asarray(p["o_space"]["high"], dtype=float)
+        idx = [states.index(k) for k in names]
+        if low.shape[0] == n_x:
+            p["o_space"] = {"low": np.concatenate([low, low[idx]]), "high": np.concatenate([high, high[idx]])}
+        if p.get("r_scale") is None:
+            p["r_scale"] = {k: 1.0 / (high[i] - low[i]) ** 2 for k, i in zip(names, idx)}
+
     def _noise_percentage_setup(self):
         self.noise_percentage = self.env_params.get("noise_percentage")
         if self.noise_percentage is not None:
@@ -107,8 +151,13 @@ class make_env(gym.Env):
             self.reward = "SP_reward_fn"
         elif self.SP is None and self.env_params.get("custom_reward") is None:
             self.reward = "batch_reward_fn"
+            if "reward_states" not in self.env_params:
+                raise ValueError(
+                    "No reward is configured: give a setpoint ('SP'), a 'custom_reward', or 'reward_states' "
+                    "(with 'maximise_reward') for an end-of-episode batch reward. This model has no default task."
+                )
             self.reward_states = self.env_params["reward_states"]
-            self.maximise_reward = self.env_params["maximise_reward"]
+            self.maximise_reward = self.env_params.get("maximise_reward", True)
 
     def _setup_simulation_params(self):
         self.N = self.env_params["N"]

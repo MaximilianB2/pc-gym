@@ -3,13 +3,13 @@ from dataclasses import dataclass
 import numpy as np
 
 from pcgym.models._base import BaseModel, jnp
-from pcgym.models._registry import register_model
+from pcgym.models._registry import Batch, register_model
 
 
 # -------------------------------------------------
 # 4. Batch Reactor (Exothermic consecutive reactions)
 # -------------------------------------------------
-@register_model("batch")
+@register_model("batch", task=Batch(reward_states=("Cb",)))
 @dataclass(frozen=False, kw_only=True)
 class batch(BaseModel):
     k01: float = 1.0

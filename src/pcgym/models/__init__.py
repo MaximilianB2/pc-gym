@@ -5,7 +5,15 @@ default spaces. Adding a model is a single new file plus an import below (see th
 """
 
 from pcgym.models._base import BaseModel
-from pcgym.models._registry import MODEL_REGISTRY, ModelSpec, get_model_spec, list_models, register_model
+from pcgym.models._registry import (
+    MODEL_REGISTRY,
+    Batch,
+    ModelSpec,
+    Regulation,
+    get_model_spec,
+    list_models,
+    register_model,
+)
 
 # Importing each module registers its model.
 from pcgym.models.batch import batch
@@ -31,6 +39,8 @@ from pcgym.models.reactor_separator_recycle import RSR
 
 __all__ = [
     "BaseModel",
+    "Batch",
+    "Regulation",
     "RSR",
     "batch",
     "biofilm_reactor",

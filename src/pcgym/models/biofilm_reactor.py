@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from pcgym.models._base import jnp
-from pcgym.models._registry import register_model
+from pcgym.models._registry import Regulation, register_model
 
 
 def _defaults():
@@ -21,7 +21,7 @@ def _defaults():
     }
 
 
-@register_model("biofilm_reactor", defaults=_defaults)
+@register_model("biofilm_reactor", defaults=_defaults, task=Regulation(setpoint={"S2_A": 2.0}))
 @dataclass(frozen=False, kw_only=True)
 class biofilm_reactor:
     """

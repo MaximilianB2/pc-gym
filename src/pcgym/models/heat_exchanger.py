@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from pcgym.models._base import jnp
-from pcgym.models._registry import register_model
+from pcgym.models._registry import Regulation, register_model
 
 
 def _defaults():
@@ -18,7 +18,7 @@ def _defaults():
     }
 
 
-@register_model("heat_exchanger", defaults=_defaults)
+@register_model("heat_exchanger", defaults=_defaults, task=Regulation(setpoint={"Tt8": 320.0}))
 @dataclass(frozen=False, kw_only=True)
 class heat_exchanger:
     """

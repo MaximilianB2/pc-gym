@@ -7,6 +7,7 @@ A new built-in model is a single file in `src/pcgym/models/`, plus one import li
 Copy this into your PR description and tick every item.
 
 - [ ] **One model file**: `src/pcgym/models/<name>.py`, registered with `@register_model("<name>", defaults=_defaults)` and imported in `src/pcgym/models/__init__.py`.
+- [ ] **Default task**: `task=Regulation(setpoint={...})` (or `Batch(...)`) in `register_model`, with a setpoint inside `o_space` and not already met by `x0` (see [Default tasks](default_tasks.md)).
 - [ ] **Units**: every parameter, state and input has its unit in a comment next to its definition.
 - [ ] **Verified steady state as the default `x0`**: `_defaults()` returns `a_space`, `o_space` and `x0`. `x0` is a checked steady state (or a documented operating point), followed by one entry per canonical setpoint. `o_space` has the same layout (see [Observation layout](observations.md)).
 - [ ] **Works under both integrators**: `__call__` only indexes `x[i]` / `u[i]`, never unpacks with `a, b = x`, never uses NumPy-only operations on the state, and never assigns to `self` (see below).

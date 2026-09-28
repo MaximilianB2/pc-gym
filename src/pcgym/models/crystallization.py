@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from pcgym.models._base import jnp
-from pcgym.models._registry import register_model
+from pcgym.models._registry import Regulation, register_model
 
 # Initial coefficient of variation / mean length, derived from the leading moment initial conditions.
 _CRYST_CV0 = float(np.sqrt(1800863.24079725 * 1478.00986666666 / (22995.8230590611**2) - 1))
@@ -34,7 +34,7 @@ def _defaults():
     }
 
 
-@register_model("crystallization", defaults=_defaults)
+@register_model("crystallization", defaults=_defaults, task=Regulation(setpoint={"CV": 1.0, "Ln": 15.0}))
 @dataclass(frozen=False, kw_only=True)
 class crystallization:
     """

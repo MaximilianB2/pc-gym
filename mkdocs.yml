@@ -26,6 +26,7 @@ nav:
   - User Guides:
     - Training: guides/training.md
     - Observation Layout: guides/observations.md
+    - Default Tasks: guides/default_tasks.md
     - Disturbances: guides/disturbances.md
     - Constraints: guides/constraints.md
     #- Models: guides/models.md

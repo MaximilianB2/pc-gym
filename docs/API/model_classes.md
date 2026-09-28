@@ -10,6 +10,8 @@ Built-in models live in `pcgym.models`, one module per model. Each registers its
         - get_model_spec
         - list_models
         - ModelSpec
+        - Regulation
+        - Batch
       show_root_heading: false
       show_source: false
 

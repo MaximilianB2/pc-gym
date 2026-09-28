@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from pcgym.models._base import jnp
-from pcgym.models._registry import register_model
+from pcgym.models._registry import Regulation, register_model
 
 
 def _defaults():
@@ -15,7 +15,7 @@ def _defaults():
     }
 
 
-@register_model("four_tank", defaults=_defaults)
+@register_model("four_tank", defaults=_defaults, task=Regulation(setpoint={"h3": 0.1, "h4": 0.3}))
 @dataclass(frozen=False, kw_only=True)
 class four_tank:
     """
