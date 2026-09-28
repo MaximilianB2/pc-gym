@@ -47,8 +47,8 @@ class nonsmooth_control:
             np.ndarray: State derivatives [dx1/dt, dx2/dt]
         """
         x1, x2 = x[0], x[1]
-        dx1dt = self.a_11 * x1 + self.a_12 * x2 + self.b_1 * u
-        dx2dt = self.a_21 * x1 + self.a_22 * x2 + self.b_2 * u
+        dx1dt = self.a_11 * x1 + self.a_12 * x2 + self.b_1 * u[0]
+        dx2dt = self.a_21 * x1 + self.a_22 * x2 + self.b_2 * u[0]
 
         ret = [dx1dt, dx2dt]
 
