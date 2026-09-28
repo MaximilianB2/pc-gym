@@ -6,28 +6,8 @@ import numpy as np
 from gymnasium import spaces
 
 from pcgym.integrator import integration_engine
-from pcgym.model_classes import (
-    batch,
-    biofilm_reactor,
-    complex_cstr,
-    coupled_oscillators,
-    crystallization,
-    cstr,
-    cstr_series_recycle,
-    disease_model,
-    distillation_column,
-    first_order_system,
-    four_tank,
-    heat_exchanger,
-    hydraulic_tank,
-    invariant_batch,
-    multistage_extraction,
-    multistage_extraction_reactive,
-    nonsmooth_control,
-    photo_production,
-    polymerisation_reactor,
-)
 from pcgym.model_defaults import get_default, has_defaults
+from pcgym.models import get_model_spec
 from pcgym.policy_evaluation import policy_eval
 
 
@@ -80,6 +60,8 @@ class make_env(gym.Env):
         """
         model_name = self.env_params.get("model")
         is_custom = self.env_params.get("custom_model") is not None
+        if not is_custom:
+            get_model_spec(model_name)  # fail early with the list of models if the name is unknown
 
         for key in ("a_space", "o_space", "x0"):
             if self.env_params.get(key) is not None:
@@ -176,27 +158,6 @@ class make_env(gym.Env):
         return _constraints
 
     def _initialize_model(self):
-        model_mapping = {
-            "cstr": cstr,
-            "complex_cstr": complex_cstr,
-            "first_order_system": first_order_system,
-            "nonsmooth_control": nonsmooth_control,
-            "multistage_extraction": multistage_extraction,
-            "cstr_series_recycle": cstr_series_recycle,
-            "distillation_column": distillation_column,
-            "multistage_extraction_reactive": multistage_extraction_reactive,
-            "four_tank": four_tank,
-            "heat_exchanger": heat_exchanger,
-            "biofilm_reactor": biofilm_reactor,
-            "polymerisation_reactor": polymerisation_reactor,
-            "photobioreactor": photo_production,
-            "crystallization": crystallization,
-            "invariant_batch": invariant_batch,
-            "batch": batch,
-            "coupled_oscillator": coupled_oscillators,
-            "disease": disease_model,
-            "hydraulic_tank": hydraulic_tank,
-        }
 
         model_params = self.env_params.get("model_params") or {}
         if not isinstance(model_params, dict):
@@ -208,10 +169,7 @@ class make_env(gym.Env):
             self._apply_model_params(m, model_params)
             self.model = m
         else:
-            model_name = self.env_params.get("model")
-            if model_name not in model_mapping:
-                raise ValueError(f"Model '{model_name}' not found in model_mapping.")
-            model_cls = model_mapping[model_name]
+            model_cls = get_model_spec(self.env_params.get("model")).cls
             self._validate_model_params(model_cls, model_params)
             # Pass overrides to the constructor so any __post_init__ derived
             # quantities (e.g. state lists sized by a parameter) are rebuilt.

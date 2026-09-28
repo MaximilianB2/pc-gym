@@ -108,39 +108,39 @@ Currently there are six implemented process control environments, this will be e
   <tr>
     <td>CSTR</td>
     <td>Reactor</td> 
-    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py">Code</a></td>
+    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/models/cstr.py">Code</a></td>
     <td><a href="https://maximilianb2.github.io/pc-gym/env/cstr/">Documentation</a></td>
   </tr>
   <tr>
     <td>First Order System</td>
     <td>Simple Model</td> 
-    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py">Code</a></td>
+    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/models/first_order_system.py">Code</a></td>
     <td><a href="https://maximilianb2.github.io/pc-gym/env/first_order_system/">Documentation</a></td>
   </tr>
   <tr>
     <td>Multistage Extration</td>
     <td>Column</td> 
-    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py">Code</a></td>
+    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/models/multistage_extraction.py">Code</a></td>
     <td><a href="https://maximilianb2.github.io/pc-gym/env/extraction-column/">Documentation</a></td>
   </tr>
     <tr>
     <td>Nonsmooth Control</td>
     <td>Linear System</td> 
-    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py">Code</a></td>
+    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/models/nonsmooth_control.py">Code</a></td>
     <td><a href="https://maximilianb2.github.io/pc-gym/env/nonsmooth_control/">Documentation</a></td>
   </tr>
   </tr>
     <tr>
     <td>Crystallisation Reactor</td>
     <td>Reactor</td> 
-    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py">Code</a></td>
+    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/models/crystallization.py">Code</a></td>
     <td><a href="https://maximilianb2.github.io/pc-gym/env/crystallisation/">Documentation</a></td>
   </tr>
    </tr>
     <tr>
     <td>Four Tank System</td>
     <td>Level Control</td> 
-    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py">Code</a></td>
+    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/models/four_tank.py">Code</a></td>
     <td><a href="https://maximilianb2.github.io/pc-gym/env/four_tank/">Documentation</a></td>
   </tr>
   </tr>
@@ -148,14 +148,14 @@ Currently there are six implemented process control environments, this will be e
     <tr>
     <td>Fluidized Biofilm Sand Bed Reactor</td>
     <td>Reactor</td> 
-    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py">Code</a></td>
+    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/models/biofilm_reactor.py">Code</a></td>
     <td><a href="https://maximilianb2.github.io/pc-gym/env/biofilm/">Documentation</a></td>
   </tr>
 
   <tr>
     <td>Photoproduction</td>
     <td>Bioreactor</td> 
-    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py">Code</a></td>
+    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/models/photo_production.py">Code</a></td>
     <td><a href="https://maximilianb2.github.io/pc-gym/env/photoproduction/">Documentation</a></td>
   </tr>
 </table>

@@ -11,21 +11,15 @@ These tests call every model with CasADi symbols of the correct shape -
 mirroring the oracle's evaluation path - to guard against that regression.
 """
 
-import inspect
-
 import pytest
 from casadi import SX, vertcat
 
-import pcgym.model_classes as mc
+from pcgym.models import MODEL_REGISTRY
 
 
 def _model_classes():
-    """All concrete model classes exposed by ``pcgym.model_classes``."""
-    return {
-        name: obj
-        for name, obj in vars(mc).items()
-        if inspect.isclass(obj) and obj.__module__ == mc.__name__ and name != "BaseModel" and hasattr(obj, "info")
-    }
+    """All registered model classes, keyed by class name."""
+    return {spec.cls.__name__: spec.cls for spec in MODEL_REGISTRY.values()}
 
 
 # ``coupled_oscillators`` relies on ``numpy.concatenate`` over symbolic
