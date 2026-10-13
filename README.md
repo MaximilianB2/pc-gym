@@ -76,6 +76,7 @@ Example notebooks with training walkthroughs, implementing constraints, disturba
 |       First Order Sytem       |      N/A  | [Source](https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py)        |               |
 | Multistage Extraction Column  |  [Ingham et al, 2007 (pg 471)](https://onlinelibrary.wiley.com/doi/book/10.1002/9783527614219)         | [Source](https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py)        |               |
 | Nonsmooth Control|[Lim,1969](https://pubs.acs.org/doi/epdf/10.1021/i260031a007)|[Source](https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py) ||
+| Cement Calcination (Precalciner) | Gigaton reference simulator (Craig, M.), unpublished | [Source](https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/model_classes.py) ||
 
 ## Paper 📚
 The associated pre-print paper can be found [here](https://arxiv.org/abs/2410.22093). If you use our software in your work please cite the following:
