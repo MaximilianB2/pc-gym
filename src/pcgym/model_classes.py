@@ -1574,3 +1574,264 @@ class crystallization:
         }
         info["parameters"].pop("int_method", None)  # Remove 'int_method' since it's not a parameter of the model
         return info
+
+
+@dataclass(frozen=False, kw_only=True)
+class cement_calcination(BaseModel):
+    """
+    Cement precalciner model with:
+    - Fuel combustion heating
+    - Fan-driven air cooling
+    - Material heat sink from descending raw meal
+    - Inter-stage gas flow heat exchange
+    - Arrhenius calcination kinetics (CaCO3 -> CaO + CO2)
+      with CO2 equilibrium suppression (Baker 1962)
+    - Ambient heat loss
+
+    Three stages: PC, CY4, CY3.
+    Notes: No time-varying decay, no warmup phase.
+    """
+
+    # Fuel heating
+    split_fuel_heating: bool = False
+    pc_fuel_slope: float = 12.584  # GJ/h per GJ/h
+    kiln_fuel_slope: float = 9.315  # GJ/h per GJ/h
+    kiln_fuel_power: float = 180.0  # GJ/h
+    thermal_mass_fuel: float = 8.244  # GJ/°C
+
+    # Split fuel heating (when split_fuel_heating=True)
+    k_kiln_exhaust: float = 0.5  # °C/h per °C difference
+    k_tertiary: float = 0.3  # °C/h per °C difference
+    kiln_exhaust_gas_temp: float = 900.0  # °C
+    tertiary_air_temp: float = 700.0  # °C
+
+    # Ambient loss
+    k_ambient: float = 0.024  # °C/h per °C difference
+    t_ambient: float = 20.0  # °C
+
+    # Air cooling
+    fan_flow_coefficient: float = 500.0  # m^3/h per %
+    gas_density: float = 0.4  # kg/m^3
+    c_p_air: float = 1.05  # kJ/(kg*K)
+    air_cooling_scale: float = 1.5
+    air_loss_frac_pc: float = 0.5
+    air_loss_frac_cy4: float = 0.3
+    air_loss_frac_cy3: float = 0.2
+    thermal_mass_air: float = 0.35  # GJ/°C
+
+    # Material heat sink
+    material_flow_threshold: float = 100.0  # t/h
+    c_p_material: float = 0.9  # kJ/(kg*K)
+    t_material_inlet: float = 80.0  # °C
+    heat_transfer_efficiency: float = 0.7
+    material_cooling_scale: float = 0.05
+    thermal_mass_material: float = 0.35  # GJ/°C
+
+    # Gas flow exchange
+    k_kiln_to_pc: float = 0.0  # °C/h per °C difference
+    k_pc_to_cy4: float = 0.751  # °C/h per °C difference
+    k_cy4_to_cy3: float = 0.248  # °C/h per °C difference
+    kiln_temp: float = 950.0  # °C
+
+    # Calcination kinetics
+    R_gas: float = 8.314  # J/(mol·K)
+    CO2_MASS_FRAC: float = 0.44  # CO2 mass fraction of CaCO3
+    activation_energy: float = 175700.0  # J/mol (175.7 kJ/mol)
+    effective_pre_exponential: float = 1.224e7  # 1/s (lumped effective rate)
+    limestone_fraction: float = 0.42  # Fraction of raw meal that is CaCO3
+    calcination_enthalpy: float = 1.794  # MJ/kg CaCO3
+    stage_inventory_pc: float = 3.0  # tonnes
+    stage_inventory_cy4: float = 2.0  # tonnes
+    stage_inventory_cy3: float = 2.0  # tonnes
+    initial_doc: float = 0.05  # initial DoC of raw meal entering CY3 from upper cyclones
+    thermal_mass_calc: float = 0.35  # GJ/°C
+    co2_kiln_gas: float = 0.25  # CO2 mole fraction in kiln exit gas entering PC
+    gas_flow_effective: float = 1500.0  # tonnes-equivalent/h
+
+    int_method: str = "jax"
+    states: list = None
+    inputs: list = None
+    disturbances: list = None
+    uncertainties: dict = None
+
+    def __post_init__(self):
+        # t_* is the temperature (deg C) per stage
+        # doc_* is the degree of calcination (0-1) per stage
+        self.states = ["t_pc", "t_cy4", "t_cy3", "doc_pc", "doc_cy4", "doc_cy3"]
+        self.inputs = ["material_flow", "pc_fuel_power", "fan_speed"]  # Actions
+        self.disturbances = []
+        self.uncertainties = {}
+
+    def __call__(self, x, u):
+        """Compute state derivatives.
+        x: [t_pc, t_cy4, t_cy3, doc_pc, doc_cy4, doc_cy3],
+        u: [material_flow, pc_fuel_power, fan_speed].
+        Returns dx/dt."""
+        t_pc, t_cy4, t_cy3 = x[0], x[1], x[2]
+        doc_pc, doc_cy4, doc_cy3 = x[3], x[4], x[5]
+        material_flow, pc_fuel_power, fan_speed = u[0], u[1], u[2]
+
+        xp = jnp if self.int_method == "jax" else np
+
+        # Helpers for CasADi
+        if self.int_method == "casadi":
+            from casadi import fmax as _fmax
+            from casadi import if_else as _if_else
+
+            smax, swhere = _fmax, _if_else
+        else:
+            smax, swhere = xp.maximum, xp.where
+
+        # Ambient loss
+        dT_amb_pc = -self.k_ambient * (t_pc - self.t_ambient)
+        dT_amb_cy4 = -self.k_ambient * (t_cy4 - self.t_ambient)
+        dT_amb_cy3 = -self.k_ambient * (t_cy3 - self.t_ambient)
+
+        # Fuel heating (PC), CY4/CY3 receive heat via GasFlowExchangeModule
+        if self.split_fuel_heating:
+            # Split mode: PC fuel combustion + kiln exhaust heat + tertiary air heat (all into PC)
+            q_pc = smax(0.0, pc_fuel_power) * self.pc_fuel_slope
+            dT_pc_fuel = q_pc / self.thermal_mass_fuel
+            dT_kiln_exhaust = self.k_kiln_exhaust * smax(0.0, self.kiln_exhaust_gas_temp - t_pc)
+            dT_tertiary_air = self.k_tertiary * smax(0.0, self.tertiary_air_temp - t_pc)
+            dT_fuel_pc = dT_pc_fuel + dT_kiln_exhaust + dT_tertiary_air
+        else:
+            # Combined mode: lump PC + kiln fuel into one heating term
+            q_pc = smax(0.0, pc_fuel_power) * self.pc_fuel_slope
+            q_kiln = smax(0.0, self.kiln_fuel_power) * self.kiln_fuel_slope
+            q_total = q_pc + q_kiln
+            dT_fuel_pc = q_total / self.thermal_mass_fuel
+
+        # Air cooling
+        volumetric_flow = smax(0.0, fan_speed) * self.fan_flow_coefficient
+        m_dot_air = volumetric_flow * self.gas_density
+        t_avg = (t_pc + t_cy4 + t_cy3) / 3.0
+        Q_air_total = (
+            m_dot_air * self.c_p_air * (t_avg - self.t_ambient) * self.air_cooling_scale / 1e6
+        )  # total heat removed by the fan's air
+        # dT = -(Q_air_total * share of cooling at this stage) / (energy needed to change 1°C)
+        dT_air_pc = -(Q_air_total * self.air_loss_frac_pc / self.thermal_mass_air)
+        dT_air_cy4 = -(Q_air_total * self.air_loss_frac_cy4 / self.thermal_mass_air)
+        dT_air_cy3 = -(Q_air_total * self.air_loss_frac_cy3 / self.thermal_mass_air)
+
+        # Material heat sink
+        # Material enters CY3 at t_material_inlet, heats up at each stage,
+        # then enters the next stage (CY4 then PC) at the exit temperature.
+        t_mat_in_cy3 = self.t_material_inlet
+        t_mat_in_cy4 = t_mat_in_cy3 + self.heat_transfer_efficiency * (
+            t_cy3 - t_mat_in_cy3
+        )  # = material exit temp from CY3
+        t_mat_in_pc = t_mat_in_cy4 + self.heat_transfer_efficiency * (
+            t_cy4 - t_mat_in_cy4
+        )  # = material exit temp from CY4
+
+        mass_rem_cy3 = 1.0 - self.limestone_fraction * doc_cy3 * self.CO2_MASS_FRAC
+        mass_rem_cy4 = 1.0 - self.limestone_fraction * doc_cy4 * self.CO2_MASS_FRAC
+        mass_rem_pc = 1.0 - self.limestone_fraction * doc_pc * self.CO2_MASS_FRAC
+
+        Q_mat_cy3 = swhere(
+            material_flow > self.material_flow_threshold,
+            material_flow * mass_rem_cy3 * 1000.0 * self.c_p_material * smax(0.0, t_cy3 - t_mat_in_cy3) / 1e6,
+            0.0,
+        )
+        Q_mat_cy4 = swhere(
+            material_flow > self.material_flow_threshold,
+            material_flow * mass_rem_cy4 * 1000.0 * self.c_p_material * smax(0.0, t_cy4 - t_mat_in_cy4) / 1e6,
+            0.0,
+        )
+        Q_mat_pc = swhere(
+            material_flow > self.material_flow_threshold,
+            material_flow * mass_rem_pc * 1000.0 * self.c_p_material * smax(0.0, t_pc - t_mat_in_pc) / 1e6,
+            0.0,
+        )
+
+        dT_mat_pc = -(Q_mat_pc * self.material_cooling_scale / self.thermal_mass_material)
+        dT_mat_cy4 = -(Q_mat_cy4 * self.material_cooling_scale / self.thermal_mass_material)
+        dT_mat_cy3 = -(Q_mat_cy3 * self.material_cooling_scale / self.thermal_mass_material)
+
+        # Gas flow exchange
+        # upward: kiln then PC then CY4 then CY3
+        dT_kiln_pc = self.k_kiln_to_pc * smax(0.0, self.kiln_temp - t_pc)  # Kiln gas to PC
+        delta_pc_cy4 = self.k_pc_to_cy4 * smax(0.0, t_pc - t_cy4)  # PC gas to CY4 (PC cools, CY4 heats)
+        delta_cy4_cy3 = self.k_cy4_to_cy3 * smax(0.0, t_cy4 - t_cy3)  # CY4 gas to CY3 (CY4 cools, CY3 heats)
+
+        dT_gas_pc = dT_kiln_pc - delta_pc_cy4
+        dT_gas_cy4 = delta_pc_cy4 - delta_cy4_cy3
+        dT_gas_cy3 = delta_cy4_cy3
+
+        # Calcination kinetics
+        T_pc_K = t_pc + 273.15  # celsius to kelvins
+        T_cy4_K = t_cy4 + 273.15
+        T_cy3_K = t_cy3 + 273.15
+
+        # Arrhenius rate at each stage (1/s to 1/h)
+        k_r_pc = self.effective_pre_exponential * xp.exp(-self.activation_energy / (self.R_gas * T_pc_K)) * 3600.0
+        k_r_cy4 = self.effective_pre_exponential * xp.exp(-self.activation_energy / (self.R_gas * T_cy4_K)) * 3600.0
+        k_r_cy3 = self.effective_pre_exponential * xp.exp(-self.activation_energy / (self.R_gas * T_cy3_K)) * 3600.0
+
+        _ln10 = 2.302585092994046
+        _P_eq_floor = 1e-12  # prevent division by near-zero in suppression formula
+        P_eq_pc = smax(_P_eq_floor, xp.exp(_ln10 * (7.079 - 8308.0 / T_pc_K)))
+        P_eq_cy4 = smax(_P_eq_floor, xp.exp(_ln10 * (7.079 - 8308.0 / T_cy4_K)))
+        P_eq_cy3 = smax(_P_eq_floor, xp.exp(_ln10 * (7.079 - 8308.0 / T_cy3_K)))
+
+        h_pc = self.stage_inventory_pc * self.limestone_fraction / self.gas_flow_effective
+        h_cy4 = self.stage_inventory_cy4 * self.limestone_fraction / self.gas_flow_effective
+        h_cy3 = self.stage_inventory_cy3 * self.limestone_fraction / self.gas_flow_effective
+
+        # Clamp (1 - doc) to non-negative
+        rem_pc = smax(0.0, 1.0 - doc_pc)
+        rem_cy4 = smax(0.0, 1.0 - doc_cy4)
+        rem_cy3 = smax(0.0, 1.0 - doc_cy3)
+
+        supp_pc = smax(0.0, (1.0 - self.co2_kiln_gas / P_eq_pc) / (1.0 + k_r_pc * rem_pc * h_pc / P_eq_pc))
+        supp_pc = swhere(supp_pc > 1.0, 1.0, supp_pc)  # cap at 1
+        co2_pc = self.co2_kiln_gas + h_pc * k_r_pc * rem_pc * supp_pc
+
+        supp_cy4 = smax(0.0, (1.0 - co2_pc / P_eq_cy4) / (1.0 + k_r_cy4 * rem_cy4 * h_cy4 / P_eq_cy4))
+        supp_cy4 = swhere(supp_cy4 > 1.0, 1.0, supp_cy4)  # cap at 1
+        co2_cy4 = co2_pc + h_cy4 * k_r_cy4 * rem_cy4 * supp_cy4
+
+        supp_cy3 = smax(0.0, (1.0 - co2_cy4 / P_eq_cy3) / (1.0 + k_r_cy3 * rem_cy3 * h_cy3 / P_eq_cy3))
+        supp_cy3 = swhere(supp_cy3 > 1.0, 1.0, supp_cy3)  # cap at 1
+
+        omega_cy3 = material_flow / self.stage_inventory_cy3
+        omega_cy4 = (material_flow * mass_rem_cy3) / self.stage_inventory_cy4
+        omega_pc = (material_flow * mass_rem_cy4) / self.stage_inventory_pc
+
+        d_doc_cy3 = k_r_cy3 * rem_cy3 * supp_cy3 + omega_cy3 * (self.initial_doc - doc_cy3)
+        d_doc_cy4 = k_r_cy4 * rem_cy4 * supp_cy4 + omega_cy4 * (doc_cy3 - doc_cy4)
+        d_doc_pc = k_r_pc * rem_pc * supp_pc + omega_pc * (doc_cy4 - doc_pc)
+
+        Q_calc_pc = (
+            self.stage_inventory_pc * self.limestone_fraction * k_r_pc * rem_pc * supp_pc * self.calcination_enthalpy
+        )
+        Q_calc_cy4 = (
+            self.stage_inventory_cy4
+            * self.limestone_fraction
+            * k_r_cy4
+            * rem_cy4
+            * supp_cy4
+            * self.calcination_enthalpy
+        )
+        Q_calc_cy3 = (
+            self.stage_inventory_cy3
+            * self.limestone_fraction
+            * k_r_cy3
+            * rem_cy3
+            * supp_cy3
+            * self.calcination_enthalpy
+        )
+
+        # Clamp Q_calc to non-negative (reaction only consumes heat)
+        dT_calc_pc = -smax(0.0, Q_calc_pc) / self.thermal_mass_calc
+        dT_calc_cy4 = -smax(0.0, Q_calc_cy4) / self.thermal_mass_calc
+        dT_calc_cy3 = -smax(0.0, Q_calc_cy3) / self.thermal_mass_calc
+
+        # Sum all contributions
+        dT_pc = dT_amb_pc + dT_fuel_pc + dT_air_pc + dT_mat_pc + dT_gas_pc + dT_calc_pc
+        dT_cy4 = dT_amb_cy4 + dT_air_cy4 + dT_mat_cy4 + dT_gas_cy4 + dT_calc_cy4
+        dT_cy3 = dT_amb_cy3 + dT_air_cy3 + dT_mat_cy3 + dT_gas_cy3 + dT_calc_cy3
+
+        ret = [dT_pc, dT_cy4, dT_cy3, d_doc_pc, d_doc_cy4, d_doc_cy3]
+        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)

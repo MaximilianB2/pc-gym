@@ -18,6 +18,7 @@ nav:
     - Extraction Column: env/extraction-column.md
     - Nonsmooth Control: env/nonsmooth_control.md
     - Photoproduction: env/photoproduction.md
+    - Cement Calcination: env/cement_calcination.md
     # - Extraction Column (Reactive): env/extraction-column-react.md
     # - Shell and Tube Heat Exchanger: env/STHE.md
     # - Reactor-Separator-Recycle: env/RSR.md

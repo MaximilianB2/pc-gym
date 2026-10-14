@@ -47,6 +47,7 @@ class integration_engine:
                 ["x", "u"],
                 ["model_rhs"],
             )
+            self._discretised_plant = None
 
         if integration_method == "jax":
 
@@ -98,8 +99,9 @@ class integration_engine:
         Returns:
             The next state after integration.
         """
-        plant_func = self.casadi_model_func
-        discretised_plant = self.discretise_model(plant_func, self.env.dt)
+        if self._discretised_plant is None:
+            self._discretised_plant = self.discretise_model(self.casadi_model_func, self.env.dt)
+        discretised_plant = self._discretised_plant
 
         xk = state[: self.env.Nx_oracle]
 
