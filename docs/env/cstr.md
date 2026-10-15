@@ -34,24 +34,30 @@ The continuously stirred tank reactor (CSTR) is a system which converts species 
 where $C_A$, the concentration of species A in the reactor, and $T$, the temperature of the reactor, are the state variables, $\mathbf{x} = [C_A, T]^\intercal \in \mathbb{R}^2$ while, $u = T_c$, the cooling water temperature, is the action variable.
 
 ## Observation
-The observation of the `CSTR` environment provides information on the state variables and their associated setpoints (if they exist) at the current timestep. The observation is an array of shape `(1, 2 + N_SP)` where `N_SP` is the number of setpoints. Therefore, the observation when there exist a setpoint for both states is
-``[CA, T, CA_Setpoint, T_Setpoint]``.
+The observation is a float32 vector of shape `(2 + N_SP,)`, with model states followed
+by their configured setpoints. The registered task has shape `(3,)`: `[Ca, T, Ca_setpoint]`,
+with a target concentration of `0.9`. Observations are normalized to `[-1, 1]` by default;
+the bounds below are in physical units.
 
 The observation space is defined by the following bounds corresponding to the ordered state variables:
 ```
 [[0.7,1],[300,350],[0.8,0.9]]
 ```
-An example, tested set of initial conditions are as follows:
+The registered initial observation, in physical units, is:
 ```
-[0.8,330,0.8]
+[0.8, 330, 0.9]
 ```
 
 ## Action
-The action space is a `ContinuousBox` of `[290,302]` which corresponds to a jacket temperature between 290 K and 302 K.
+The physical jacket-temperature bounds are `[295, 302]` K. The public action vector has
+shape `(1,)` and is normalized to `[-1, 1]` by default.
 
 ## Reward
 
-The reward is a continuous value corresponding to square error of the state and its setpoint. For multiple states, these are scaled with a factor (`r_scale`) and summed to give a single value.
+The registered reward is `-((Ca - 0.9) / 0.3)**2`, evaluated at the next state. The initial
+training configuration uses 60 transitions over 26 minutes and truncates at the horizon.
+See the [fixed training protocol](../reviews/initial_training_protocol.md). Explicit user
+setpoints and `r_scale` can define a different task.
 
 ## Reference
 

@@ -22,7 +22,13 @@
  
 
 ## Description & Equations
-The fluidized biofilm sand bed reactor is a critical unit operation in biological wastewater treatment that enables the removal of nitrogen (in the form of ammonium) through sequential oxidation reactions. The process involves a three-stage reactor system coupled with an absorber, described by coupled differential equations representing the dynamic concentration changes of multiple species:
+The stage-reaction signs in the implementation now match the nitrification balances below.
+The default task remains under repair: the absorber equilibrium convention, observation bounds
+and target still need reconciliation. Passing the Gymnasium checker does not qualify it for training.
+
+The fluidized biofilm reactor models oxidation of ammonium to nitrite and then nitrate in
+three stages coupled to an absorber. These reactions change nitrogen speciation; they conserve
+total nitrogen in the absence of external flows. The concentration balances are:
 
 For each reactor stage n:
 
@@ -34,35 +40,46 @@ For each reactor stage n:
 \end{align}
 
 
-For the absorber:
+For the absorber, as implemented (with the equilibrium convention still under review):
 
 \begin{align}
-\frac{dS_{1A}}{dt} &= \frac{q_r}{V}(S_{13} - S_{1A}) + \frac{q}{V_A}(S_{1F} - S_{1A}) \\
-\frac{dS_{2A}}{dt} &= \frac{q_r}{V}(S_{23} - S_{2A}) + \frac{q}{V_A}(S_{2F} - S_{2A}) \\
-\frac{dS_{3A}}{dt} &= \frac{q_r}{V}(S_{33} - S_{3A}) + \frac{q}{V_A}(S_{3F} - S_{3A}) \\
-\frac{dO_A}{dt} &= \frac{q_r}{V}(O_3 - O_A) + K_{La}(mO_{Air} - O_A)
+\frac{dS_{1A}}{dt} &= \frac{q_r}{V_A}(S_{13} - S_{1A}) + \frac{q}{V_A}(S_{1F} - S_{1A}) \\
+\frac{dS_{2A}}{dt} &= \frac{q_r}{V_A}(S_{23} - S_{2A}) + \frac{q}{V_A}(S_{2F} - S_{2A}) \\
+\frac{dS_{3A}}{dt} &= \frac{q_r}{V_A}(S_{33} - S_{3A}) + \frac{q}{V_A}(S_{3F} - S_{3A}) \\
+\frac{dO_A}{dt} &= \frac{q_r}{V_A}(O_3 - O_A) + K_{La}(O_{A,eq} - O_A)
 \end{align}
 
 
-Where the concentrations of ammonium ($S_1$), nitrite ($S_2$), nitrate ($S_3$), and oxygen ($O$) in each stage and the absorber are the state variables, $\mathbf{x} \in \mathbb{R}^{16}$. The action variables are the recycle flowrate, feed flowrate, and feed concentrations to the absorber, $\mathbf{u} = [q_r, q, S_{1F}, S_{2F}, S_{3F}]^\intercal \in \mathbb{R}^5$.
+Where the concentrations of ammonium ($S_1$), nitrite ($S_2$), nitrate ($S_3$), and oxygen ($O$) in each stage and the absorber are the state variables, $\mathbf{x} \in \mathbb{R}^{16}$. The implemented action order is feed flowrate, recycle flowrate, then feed concentrations: $\mathbf{u} = [q, q_r, S_{1F}, S_{2F}, S_{3F}]^\intercal \in \mathbb{R}^5$.
+
+The absorber uses its own volume $V_A$ for both flow terms, as required by the inventory balance.
+The code uses $O_{A,eq}=O_{Air}^{\mathrm{eq\_exponent}}/m$ for equilibrium oxygen; earlier
+documentation used $m O_{Air}$. This convention is unresolved against the original source and is
+not changed by the stage-reaction repair. With current defaults, oxygen exceeds its observation
+bound in every tested full episode; conversion of the initial nitrogen inventory can also exceed
+the nitrate bound. These defaults must not be described as a validated operating region.
 
 ## Observation
-The observation of the `Biofilm Reactor` environment provides information on the concentrations of the three nitrogen species at the outlet of the reactor, $\mathbf{y} = [S_{13}, S_{23}, S_{33}]^\intercal \in \mathbb{R}^3$. The observation space is defined by the following bounds:
+The default observation includes all 16 model states followed by the `S2_A` setpoint, as a
+one-dimensional float32 array of shape `(17,)`. Its order is
+`[S1_1, S2_1, S3_1, O_1, ..., S1_A, S2_A, S3_A, O_A, S2_A_SP]`.
+The current physical bounds (which still need repair) are:
 
 ```
-[[0,10],[0,10],[0,10],[0,500],[0,10],[0,10],[0,10],[0,500],[0,10],[0,10],[0,10],[0,500],[0,10],[0,10],[0,10],[0,500],[0.9,1.1]]
+[[0,10],[0,10],[0,10],[0,500],[0,10],[0,10],[0,10],[0,500],[0,10],[0,10],[0,10],[0,500],[0,10],[0,10],[0,10],[0,500],[0.9,2.5]]
 ```
-An example, tested set of initial conditions are as follows:
+The physical initial conditions and the default target exposed by reset are:
 ```
-[2,0.1,10,0.1,2,0.1,10,0.1,2,0.1,10,0.1,2,0.1,10,0.1,1]
+[2,0.1,10,0.1,2,0.1,10,0.1,2,0.1,10,0.1,2,0.1,10,0.1,2]
 ```
 
 
 ## Action
-The action space is a `ContinuousBox` with bounds:
+The physical action bounds are listed below. By default actions and observations are normalized
+to `[-1, 1]`; use `normalise_a=False` / `normalise_o=False` for physical units.
 ```
-[[0.0,10.0],    # Recycle flowrate (L/hr)
- [1.0,30.0],    # Feed flowrate (L/hr)
+[[0.0,10.0],    # Feed flowrate (L/hr)
+ [1.0,30.0],    # Recycle flowrate (L/hr)
  [0.05,1.0],    # Feed ammonium concentration (mg/L)
  [0.05,1.0],    # Feed nitrite concentration (mg/L)
  [0.05,1.0]]    # Feed nitrate concentration (mg/L)

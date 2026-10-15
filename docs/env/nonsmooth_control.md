@@ -29,14 +29,20 @@ The environment used in the this problem is a second-order system with distinct 
 where $x$ is the state variable and $u$ is the action variable.
 
 ## Observation
-The observation of the `Nonsmooth Control` environment provides information on the state variables and their associated setpoints (if they exist) at the current timestep. The observation is an array of shape `(1, 2)`. Therefore, the observation is ``[x_1, x_sp]``.
+The registered task returns a float32 vector of shape `(3,)`: `[X1, X2, X1_setpoint]`.
+The initial model state is `[0.8, 0.0]` and the target for `X1` is zero. Physical bounds
+for all three entries are `[-1, 1]`; observations are normalized by default.
 
 ## Action
-The action space is a `ContinuousBox` of `[-1,1]`.
+The physical input bounds are `[-1, 1]`, with a public action vector of shape `(1,)`.
 
 ## Reward
 
-The reward is a continuous value corresponding to square error of the state and its setpoint. For multiple states, these are scaled with a factor `r_scale` and summed to give a single value. The goal of this environment is to drive the $x_1$ state to the origin.
+The registered reward is `-X1**2 / 4`, evaluated at the next state. The initial training
+configuration uses 60 transitions over 5 model time units and truncates at the horizon.
+The uncontrolled system already decays toward zero; a learned controller must improve its
+transient response to beat the zero-input baseline. See the
+[fixed training protocol](../reviews/initial_training_protocol.md).
 
 ## Reference
 

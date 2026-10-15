@@ -28,19 +28,24 @@ The first order system is an environment which could represent many first order 
 
 
 
-where $x$, is the state variable, $\mathbf{x} \in \mathbb{R}^2$ while, $u$ is the action variable.
+where $x \in \mathbb{R}$ is the state variable and $u$ is the action variable.
 
 ## Observation
-The observation of the `First Order System` environment provides information on the state variables and their associated setpoints (if they exist) at the current timestep. The observation is an array of shape `(1, 1 + N_SP)` where `N_SP` is the number of setpoints. Therefore, the observation when there a setpoint exists
-``[x, x_Setpoint]``.
+The registered task returns a float32 vector of shape `(2,)`: `[x, x_setpoint]`.
+The physical initial state is `x=0.1` and the target is `0.7`. Both entries have physical
+bounds `[0, 1]`; observations are normalized to `[-1, 1]` by default.
 
 ## Action
-The action space is a `ContinuousBox` of `[0,10]`.
+The physical control bounds are `[0, 1]`. The public action is a vector of shape `(1,)`,
+normalized to `[-1, 1]` by default.
 
 ## Reward
 
-The reward is a continuous value corresponding to square error of the state and its setpoint. For multiple states, these are scaled with a factor $\gamma_i$ and summed to give a single value.
+The registered reward is `-(x - 0.7)**2`, evaluated at the next state. The initial training
+configuration uses 60 transitions over 10 model time units and truncates at the horizon.
+See the [fixed training protocol](../reviews/initial_training_protocol.md) for the controller
+and evaluation conditions.
 
 ## Reference
 
-This model implementation and its description were kindly provided by [Akhil Ahmed](https://scholar.google.com/citations?user=AS34x7cAAAAJ). 
+This model implementation and its description were kindly provided by [Akhil Ahmed](https://scholar.google.com/citations?user=AS34x7cAAAAJ).
