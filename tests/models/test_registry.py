@@ -62,7 +62,7 @@ def test_legacy_import_paths_still_work():
     from pcgym.model_defaults import get_default, has_defaults
 
     assert cstr is get_model_spec("cstr").cls
-    assert has_defaults("cstr") and not has_defaults("batch")
+    assert has_defaults("cstr") and has_defaults("batch") and not has_defaults("invariant_batch")
     assert get_default("cstr", "x0") is not get_default("cstr", "x0")  # fresh arrays each call
 
 

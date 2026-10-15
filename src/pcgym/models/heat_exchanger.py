@@ -50,13 +50,25 @@ class heat_exchanger:
     rhos: float = 1.0  # Density of shell side fluid [kg/m3]
     int_method: str = "jax"
 
+    def __post_init__(self):
+        positive = [self.L, self.Dt, self.Dm, self.Ds, self.cpt, self.cpm, self.cps, self.rhot, self.rhom, self.rhos]
+        if not np.isfinite(positive).all() or np.any(np.asarray(positive) <= 0) or not self.Dt < self.Dm < self.Ds:
+            raise ValueError("heat_exchanger requires positive length/capacities/densities and 0 < Dt < Dm < Ds")
+        if not np.isfinite([self.Utm, self.Usm]).all() or min(self.Utm, self.Usm) < 0:
+            raise ValueError("heat_exchanger requires nonnegative heat-transfer coefficients")
+
+    def validate_input_bounds(self, low, high):
+        self.__post_init__()  # Also validate parameters resampled at reset.
+        if np.any(np.asarray(low[:2]) < 0):
+            raise ValueError("heat_exchanger requires nonnegative tube and shell mass flow rates")
+
     def __call__(self, x, u):
         """
         Calculate the state derivatives for the heat exchanger.
 
         Args:
             x (np.ndarray): Current state [Tt1, Tm1, Ts1, ..., Tt8, Tm8, Ts8]
-            u (np.ndarray): Input [Ft, Fs, Tt0, Ts9]
+            u (np.ndarray): Input [Ft, Fs, Tt0, Ts9]; mass flows in kg/s, temperatures in K
 
         Returns:
             np.ndarray: State derivatives
@@ -90,11 +102,12 @@ class heat_exchanger:
         Ft, Fs, Tt0, Ts9 = u[0], u[1], u[2], u[3]
         xp = jnp if self.int_method == "jax" else np
 
-        Vt = self.L * xp.pi * self.Dt**2
+        # Dt, Dm and Ds are diameters, so circular/annular areas include 1/4.
+        Vt = self.L * xp.pi * self.Dt**2 / 4
         At = self.L * xp.pi * self.Dt
-        Vm = self.L * xp.pi * (self.Dm**2 - self.Dt**2)
+        Vm = self.L * xp.pi * (self.Dm**2 - self.Dt**2) / 4
         Am = self.L * xp.pi * self.Dm
-        Vs = self.L * xp.pi * (self.Ds**2 - self.Dm**2)
+        Vs = self.L * xp.pi * (self.Ds**2 - self.Dm**2) / 4
 
         Qt1 = self.Utm * At * (Tt1 - Tm1)
         Qm1 = self.Usm * Am * (Tm1 - Ts1)
@@ -179,5 +192,6 @@ class heat_exchanger:
                 "Ts8",
             ],
             "inputs": ["Ft", "Fs", "Tt0", "Ts9"],
+            "disturbances": [],
         }
         return info

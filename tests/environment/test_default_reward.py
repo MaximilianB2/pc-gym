@@ -40,11 +40,13 @@ def test_cstr_default_reward_is_range_normalised():
     assert r == pytest.approx(-((env.state[0] - 0.9) ** 2) / 0.3**2)
 
 
-def test_explicit_setpoint_keeps_existing_behaviour():
+def test_explicit_setpoint_preserves_configuration_without_default_reward_scaling():
     env = make_env({"model": "cstr", "N": N, "tsim": 2, "SP": {"Ca": [0.85] * N}})
     assert env.SP == {"Ca": [0.85] * N}
     assert "r_scale" not in env.env_params
     np.testing.assert_allclose(env.x0, [0.8, 330, 0.8])  # user/default x0 untouched
+    env.reset()
+    assert env.state[-1] == 0.85  # the active observation takes its target from SP[0]
 
 
 def test_user_r_scale_is_respected():
@@ -88,12 +90,29 @@ def test_batch_model_default_reward_is_end_of_episode_yield():
 
 def test_model_without_task_needs_a_reward():
     params = {
-        "model": "hydraulic_tank",
+        "model": "invariant_batch",
         "N": N,
         "tsim": 2,
-        "x0": np.array([1.0, 0.5]),
-        "a_space": {"low": np.array([-0.5]), "high": np.array([0.5])},
-        "o_space": {"low": np.array([0.0, 0.0]), "high": np.array([2.0, 2.0])},
+        "x0": np.array([1.0, 0.8, 0.0, 0.0]),
+        "a_space": {"low": np.array([]), "high": np.array([])},
+        "o_space": {"low": np.zeros(4), "high": np.ones(4) * 2},
     }
     with pytest.raises(ValueError, match="No reward is configured"):
         make_env(params)
+
+
+def test_explicit_disease_reward_preserves_user_objective_and_episode_type():
+    env = make_env(
+        {
+            "model": "disease",
+            "N": 10,
+            "tsim": 10,
+            "SP": {"I": [0.02] * 10},
+            "x0": np.array([0.99, 0.01, 0.0, 0.02]),
+            "o_space": {"low": np.zeros(4), "high": np.ones(4)},
+        }
+    )
+    assert not env.custom_reward and not env.finite_horizon
+    env.reset(seed=0)
+    _, reward, *_ = env.step(np.array([0.0], dtype=np.float32))
+    assert reward == pytest.approx(-((env.state[1] - 0.02) ** 2))

@@ -2,8 +2,9 @@
 
 Each registered model is integrated from a fixed x0 under a fixed input sequence with a fixed dt, and the
 result is written to tests/reference_trajectories/<model>.npz together with everything needed to reproduce
-it. The CI test re-integrates every case and compares against the stored trajectory, pinning the physics
-against silent regressions (model refactors, integrator changes, dependency bumps).
+it. The CI test re-integrates every case and compares against the stored trajectory, detecting silent
+changes from model refactors, integrator changes or dependency bumps. These self-generated references
+do not independently establish that the process equations are physically correct.
 
 Only regenerate a reference when a change to a model's dynamics is *intended*, and say so in the PR:
 
@@ -41,9 +42,14 @@ DT = {
     "biofilm_reactor": 100 / 60,
     "polymerisation_reactor": 2 / 60,
     "crystallization": 0.5,
+    "batch": 0.25,
+    "complex_cstr": 0.25,
+    "disease": 1.0,
+    "hydraulic_tank": 0.25,
+    "reactor_separator_recycle": 0.5,
 }
 
-# Models without registered default spaces: x0 (model states), input bounds and dt.
+# Fixed legacy simulation fixtures, independent of newly added training defaults.
 EXPLICIT = {
     "batch": {"x0": [1.0, 0.0, 0.0, 300.0], "u": ([290.0], [310.0]), "dt": 0.25},
     "invariant_batch": {"x0": [1.0, 0.8, 0.0, 0.0], "u": ([], []), "dt": 0.05},
@@ -62,11 +68,6 @@ EXPLICIT = {
 # Models whose equations are not CasADi-compatible; their reference is integrated with JAX.
 JAX_ONLY = {"coupled_oscillator"}
 
-# Fraction of the default input range to start from. From the default x0, biofilm_reactor's Monod terms
-# S / (K + S) blow up at low feed rates (substrate is driven negative and CVODES fails), so its
-# reference stays in the top 20% of the input range.
-INPUT_RANGE_START = {"biofilm_reactor": 0.8}
-
 
 def reference_case(model: str) -> dict:
     """x0, input sequence and dt for one model's reference trajectory."""
@@ -81,7 +82,6 @@ def reference_case(model: str) -> dict:
         a_space = get_default(model, "a_space")
         low, high = a_space["low"].astype(float), a_space["high"].astype(float)
         dt = DT[model]
-        low = low + INPUT_RANGE_START.get(model, 0.0) * (high - low)
 
     # Deterministic, persistently exciting inputs within bounds: a phase-shifted sinusoid per input.
     k = np.arange(N_STEPS)[:, None]
@@ -93,18 +93,19 @@ def reference_case(model: str) -> dict:
 def reference_env(case: dict, integration_method: str):
     """A minimal env whose simulate() integrates the case's model with its dt."""
     x0 = np.asarray(case["x0"], dtype=float)
-    n_u = np.asarray(case["u_seq"]).shape[1]
+    inputs = np.asarray(case["u_seq"], dtype=float)
     return make_env(
         {
             "model": str(case["model"]),
             "N": N_STEPS,
             "tsim": float(case["dt"]) * N_STEPS,
             "x0": x0,
-            "a_space": {"low": -np.ones(n_u), "high": np.ones(n_u)},
+            "a_space": {"low": inputs.min(axis=0), "high": inputs.max(axis=0)},
             "o_space": {"low": -np.inf * np.ones(x0.shape[0]), "high": np.inf * np.ones(x0.shape[0])},
             "reward_states": [],
             "maximise_reward": True,
             "normalise_o": False,
+            "normalise_a": False,
             "integration_method": integration_method,
         }
     )

@@ -1,13 +1,14 @@
 from dataclasses import dataclass
 
 import numpy as np
+from casadi import MX, SX, if_else
 
 from pcgym.models._base import jnp
 from pcgym.models._registry import Regulation, register_model
 
 # Initial coefficient of variation / mean length, derived from the leading moment initial conditions.
 _CRYST_CV0 = float(np.sqrt(1800863.24079725 * 1478.00986666666 / (22995.8230590611**2) - 1))
-_CRYST_LN0 = 22995.8230590611 / (1478.00986666666 + 1e-6)
+_CRYST_LN0 = 22995.8230590611 / 1478.00986666666
 
 
 def _defaults():
@@ -16,7 +17,9 @@ def _defaults():
         "a_space": {"low": np.array([10.0]), "high": np.array([40.0])},
         "o_space": {
             "low": np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.9, 14.0]),
-            "high": np.array([1e20, 1e20, 1e20, 1e20, 0.5, 2.0, 20.0, 1.1, 16.0]),
+            # Scales for the nominal 30-minute seeded batch (moments in micrometres).
+            # A 1e20 scale erased all moment changes from float32 observations.
+            "high": np.array([1e6, 1e7, 5e8, 3e10, 0.2, 3.0, 50.0, 1.1, 16.0]),
         },
         "x0": np.array(
             [
@@ -42,6 +45,9 @@ class crystallization:
 
     This model represents a highly nonlinear crystallization process based on population balance equations (PBE).
     It simulates the evolution of crystal size distribution and concentration during the crystallization process.
+    This is a seeded, growth-only approximation: nucleation and growth stop at or
+    below saturation. Dissolution is not represented. CV and Ln are redundant
+    differential states and must start consistently with the leading moments.
 
     Attributes:
         ka (float): Nucleation rate constant
@@ -78,6 +84,30 @@ class crystallization:
     ro: float = 2.658  # [roc] = g/cm^3
     int_method: str = "jax"
 
+    def validate_initial_state(self, state):
+        """Require realizable, nondegenerate seed moments and consistent quality states."""
+        values = np.asarray(state, dtype=float)[:7]
+        if values.shape != (7,) or not np.isfinite(values).all() or np.any(values[:5] < 0):
+            raise ValueError("crystallization requires seven finite states and nonnegative moments/concentration")
+        mu0, mu1, mu2, mu3 = values[:4]
+        if mu0 <= 0 or mu1 <= 0 or mu0 * mu2 <= mu1**2 or mu1 * mu3 < mu2**2:
+            raise ValueError("crystallization requires realizable seed moments with positive number, mean and variance")
+        quality = [np.sqrt(mu0 * mu2 / mu1**2 - 1), mu1 / mu0]
+        if not np.allclose(values[5:7], quality, rtol=1e-7, atol=1e-8):
+            raise ValueError("crystallization initial CV and Ln must be derived from Mu0, Mu1 and Mu2")
+
+    def project_state(self, state):
+        """Recompute redundant quality states after a numerical integration step.
+
+        The five physical states are preserved; this removes accumulated integration
+        error in their algebraic CV/mean-length definitions, without clipping moments.
+        """
+        values = np.asarray(state, dtype=float).copy()
+        mu0, mu1, mu2 = values[:3]
+        values[5] = np.sqrt(mu0 * mu2 / mu1**2 - 1)
+        values[6] = mu1 / mu0
+        return values
+
     def __call__(self, x, u):
         """
         Calculate the state derivatives for the crystallization model.
@@ -95,6 +125,7 @@ class crystallization:
 
             u (np.ndarray): Input vector containing:
                 - T (float): Temperature (°C)
+                - optional ka, kg: Nucleation and growth constants, in that order
 
         Returns:
             np.ndarray: State derivatives vector containing:
@@ -105,13 +136,26 @@ class crystallization:
                 - dconc/dt: Rate of change of solute concentration
         """
         mu0, mu1, mu2, mu3, conc = x[0], x[1], x[2], x[3], x[4]
+        if u.shape[0] not in (1, 3):
+            raise ValueError("crystallization inputs must be [Tc] or [Tc, ka, kg]")
         T = u[0]
+        ka, kg = (self.ka, self.kg) if u.shape[0] == 1 else (u[1], u[2])
         xp = jnp if self.int_method == "jax" else np
 
         Ceq = -686.2686 + 3.579165 * (T + 273.15) - 0.00292874 * (T + 273.15) ** 2
         S = conc * 1e3 - Ceq
-        B0 = self.ka * xp.exp(self.kb / (T + 273.15)) * (S**2) ** (self.kc / 2) * ((mu3**2) ** (self.kd / 2))
-        Ginf = self.kg * xp.exp(self.k1 / (T + 273.15)) * (S**2) ** (self.k2 / 2)
+        # Never extend the fitted supersaturated rate laws using abs(S): that
+        # creates crystals from an undersaturated solution. Keep the fractional
+        # powers away from zero in the inactive branch so symbolic derivatives
+        # remain finite there (kc < 1).
+        if isinstance(S, (SX, MX)):
+            active = if_else(S > 0, 1.0, 0.0)
+            rate_S = if_else(S > 0, S, 1.0)
+        else:
+            active = xp.where(S > 0, 1.0, 0.0)
+            rate_S = xp.where(S > 0, S, 1.0)
+        B0 = active * ka * xp.exp(self.kb / (T + 273.15)) * rate_S**self.kc * (mu3**2) ** (self.kd / 2)
+        Ginf = active * kg * xp.exp(self.k1 / (T + 273.15)) * rate_S**self.k2
 
         dmi0dt = B0
         dmi1dt = Ginf * (self.a * mu0 + self.b * mu1 * 1e-4) * 1e4
@@ -120,13 +164,9 @@ class crystallization:
         dcdt = -0.5 * self.ro * self.alfa * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12)
 
         CV = xp.sqrt(mu2 * mu0 / (mu1**2) - 1)
-        dCVdt = (
-            1
-            / (2 * CV + 1e-10)
-            * ((dmi2dt * mu0 + mu2 * dmi0dt) * mu1**2 - mu2 * mu0 * 2 * mu1 * dmi1dt)
-            / (mu1**4 + 1e-10)
-        )
-        dLndt = (dmi1dt * mu0 - mu1 * dmi0dt) / (mu0**2 + 1e-10)
+        moment_ratio = mu2 * mu0 / mu1**2
+        dCVdt = moment_ratio / (2 * CV) * (dmi2dt / mu2 + dmi0dt / mu0 - 2 * dmi1dt / mu1)
+        dLndt = dmi1dt / mu0 - mu1 / mu0 * dmi0dt / mu0
 
         ret = [dmi0dt, dmi1dt, dmi2dt, dmi3dt, dcdt, dCVdt, dLndt]
 
@@ -151,7 +191,7 @@ class crystallization:
             "parameters": self.__dict__.copy(),
             "states": ["Mu0", "Mu1", "Mu2", "Mu3", "Conc", "CV", "Ln"],
             "inputs": ["Tc"],
-            "disturbances": ["ka", "kg", "UA"],
+            "disturbances": ["ka", "kg"],
         }
         info["parameters"].pop("int_method", None)  # Remove 'int_method' since it's not a parameter of the model
         return info

@@ -63,11 +63,11 @@ def test_model_without_defaults_raises_helpfully():
     with pytest.raises(ValueError, match="has no registered"):
         make_env(
             {
-                "model": "batch",
+                "model": "invariant_batch",
                 "N": 10,
                 "tsim": 10,
                 "integration_method": "casadi",
-                "reward_states": ["Cc"],
+                "reward_states": [],
                 "maximise_reward": True,
             }
         )
@@ -83,7 +83,8 @@ def test_defaults_are_fresh_copies():
 
 def test_has_defaults():
     assert has_defaults("distillation_column")
-    assert not has_defaults("batch")
+    assert has_defaults("batch")
+    assert not has_defaults("invariant_batch")
 
 
 if __name__ == "__main__":

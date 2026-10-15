@@ -10,12 +10,12 @@ def _defaults():
     """Canonical a_space / o_space / x0 used when they are omitted from env_params."""
     return {
         "a_space": {"low": np.array([5.0, 10.0]), "high": np.array([500.0, 1000.0])},
-        "o_space": {"low": np.array([0.0] * 20 + [0.25]), "high": np.array([2.0] * 20 + [0.55])},
-        "x0": np.array([1.0, 0.0, 1.0, 0.0] * 5 + [0.3]),
+        "o_space": {"low": np.array([0.0] * 20 + [1.9]), "high": np.array([2.0] * 20 + [2.0])},
+        "x0": np.array([1.0, 0.0, 1.0, 0.0] * 5 + [1.95]),
     }
 
 
-@register_model("multistage_extraction_reactive", defaults=_defaults, task=Regulation(setpoint={"XA5": 0.5}))
+@register_model("multistage_extraction_reactive", defaults=_defaults, task=Regulation(setpoint={"XA5": 1.95}))
 @dataclass(frozen=False, kw_only=True)
 class multistage_extraction_reactive:
     """
@@ -26,7 +26,7 @@ class multistage_extraction_reactive:
         Vg (float): Gas volume in each stage
         m (float): Equilibrium constant
         Kla (float): Mass transfer capacity constant (1/hr)
-        k (float): Reaction equilibrium constant
+        k (float): Bimolecular reaction rate constant
         eq_exponent (float): Nonlinearity of the equilibrium relationship
         XA0 (float): Feed concentration of component A in liquid phase
         YA6, YB6, YC6 (float): Feed concentrations in gas phase
@@ -37,7 +37,7 @@ class multistage_extraction_reactive:
     Vg: float = 5.0  # Gas volume in each stage
     m: float = 1.0  # Equilibrium constant [-]
     Kla: float = 0.01  # Mass transfer capacity constant 1/hr
-    k: float = 0.1  # Reaction equilibrium constant
+    k: float = 0.1  # Bimolecular reaction rate constant
     eq_exponent: float = 2.0  # Change the nonlinearity of the equilibrium relationship
     XA0: float = 2.00  # Feed concentration of component A in liquid phase
     YA6: float = 0.00  # Feed conc of component A in gas phase

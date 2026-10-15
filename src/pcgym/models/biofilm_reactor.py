@@ -129,19 +129,21 @@ class biofilm_reactor:
 
         O_Aeq = (self.O_air**self.eq_exponent) / self.m
 
+        # rs* and ro* are signed sources: add them to transport. Subtracting
+        # them reverses nitrification and produces oxygen instead of consuming it.
         ret = [
-            (Fr / self.V) * (S1_A - S1_1) - rs1_1,
-            (Fr / self.V) * (S2_A - S2_1) - rs2_1,
-            (Fr / self.V) * (S3_A - S3_1) - rs3_1,
-            (Fr / self.V) * (O_A - O_1) - ro_1,
-            (Fr / self.V) * (S1_1 - S1_2) - rs1_2,
-            (Fr / self.V) * (S2_1 - S2_2) - rs2_2,
-            (Fr / self.V) * (S3_1 - S3_2) - rs3_2,
-            (Fr / self.V) * (O_1 - O_2) - ro_2,
-            (Fr / self.V) * (S1_2 - S1_3) - rs1_3,
-            (Fr / self.V) * (S2_2 - S2_3) - rs2_3,
-            (Fr / self.V) * (S3_2 - S3_3) - rs3_3,
-            (Fr / self.V) * (O_2 - O_3) - ro_3,
+            (Fr / self.V) * (S1_A - S1_1) + rs1_1,
+            (Fr / self.V) * (S2_A - S2_1) + rs2_1,
+            (Fr / self.V) * (S3_A - S3_1) + rs3_1,
+            (Fr / self.V) * (O_A - O_1) + ro_1,
+            (Fr / self.V) * (S1_1 - S1_2) + rs1_2,
+            (Fr / self.V) * (S2_1 - S2_2) + rs2_2,
+            (Fr / self.V) * (S3_1 - S3_2) + rs3_2,
+            (Fr / self.V) * (O_1 - O_2) + ro_2,
+            (Fr / self.V) * (S1_2 - S1_3) + rs1_3,
+            (Fr / self.V) * (S2_2 - S2_3) + rs2_3,
+            (Fr / self.V) * (S3_2 - S3_3) + rs3_3,
+            (Fr / self.V) * (O_2 - O_3) + ro_3,
             (Fr / self.Va) * (S1_3 - S1_A) + (F / self.Va) * (S1_F - S1_A),
             (Fr / self.Va) * (S2_3 - S2_A) + (F / self.Va) * (S2_F - S2_A),
             (Fr / self.Va) * (S3_3 - S3_A) + (F / self.Va) * (S3_F - S3_A),
