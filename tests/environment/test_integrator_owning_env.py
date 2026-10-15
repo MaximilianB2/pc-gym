@@ -61,7 +61,7 @@ def test_discretised_plant_is_reused_across_steps(env_params):
 def test_parametric_uncertainty_affects_dynamics(env_params):
     env_params["uncertainty_percentages"] = {"k0": 0.5}
     env_params["distribution"] = "uniform"
-    env_params["uncertainty_bounds"] = {"low": np.array([1e9]), "high": np.array([1e11])}
+    env_params["uncertainty_bounds"] = {"low": np.array([1e9]), "high": np.array([1.1e11])}
     env = make_env(env_params)
 
     finals = []

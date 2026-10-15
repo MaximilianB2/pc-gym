@@ -9,11 +9,12 @@ class Regulation:
     """Default task: track constant setpoints.
 
     When ``SP`` is omitted, ``make_env`` tracks each state at its value here for the whole episode. The
-    squared tracking error of each state is scaled by ``1 / (o_space range)**2``, so returns are comparable
-    across models.
+    squared tracking error of each state is scaled by ``1 / (o_space range)**2``. This makes errors
+    dimensionless, but does not make control performance comparable across different tasks.
     """
 
     setpoint: dict
+    finite_horizon: bool = False
 
 
 @dataclass(frozen=True)
@@ -22,6 +23,14 @@ class Batch:
 
     reward_states: tuple
     maximise: bool = True
+
+
+@dataclass(frozen=True)
+class CustomReward:
+    """A model-specific default reward using the existing custom_reward callback interface."""
+
+    reward: Callable
+    finite_horizon: bool = False
 
 
 @dataclass(frozen=True)
@@ -34,15 +43,15 @@ class ModelSpec:
         aliases: Alternative names that resolve to this model.
         defaults: Optional callable returning fresh ``a_space`` / ``o_space`` / ``x0`` defaults, used when
             those keys are omitted from ``env_params``.
-        task: Optional default task (:class:`Regulation` or :class:`Batch`), which defines the reward used
-            when neither ``SP`` nor a reward configuration is given.
+        task: Optional default task (:class:`Regulation`, :class:`Batch` or :class:`CustomReward`).
+            Defines the reward used when neither ``SP`` nor a reward configuration is given.
     """
 
     name: str
     cls: type
     aliases: tuple = field(default_factory=tuple)
     defaults: Optional[Callable[[], dict]] = None
-    task: Optional[Union[Regulation, Batch]] = None
+    task: Optional[Union[Regulation, Batch, CustomReward]] = None
 
 
 MODEL_REGISTRY: dict[str, ModelSpec] = {}
@@ -54,7 +63,7 @@ def register_model(
     *,
     aliases: tuple = (),
     defaults: Optional[Callable[[], dict]] = None,
-    task: Optional[Union[Regulation, Batch]] = None,
+    task: Optional[Union[Regulation, Batch, CustomReward]] = None,
 ):
     """Class decorator that registers a model under ``name`` (and any ``aliases``).
 

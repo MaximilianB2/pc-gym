@@ -8,6 +8,7 @@ from pcgym.models._base import BaseModel
 from pcgym.models._registry import (
     MODEL_REGISTRY,
     Batch,
+    CustomReward,
     ModelSpec,
     Regulation,
     get_model_spec,
@@ -40,6 +41,7 @@ from pcgym.models.reactor_separator_recycle import RSR
 __all__ = [
     "BaseModel",
     "Batch",
+    "CustomReward",
     "Regulation",
     "RSR",
     "batch",

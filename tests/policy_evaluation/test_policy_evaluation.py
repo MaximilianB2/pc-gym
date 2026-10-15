@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
@@ -12,6 +13,7 @@ def mock_env():
     env.Nx = 2
     env.N = 3
     env.Nu = 1
+    env.action_space.shape = (1,)
     env.Nd = 0
     env.tsim = 10
     env.env_params = {"a_space": {"low": np.array([0]), "high": np.array([1])}}
@@ -37,6 +39,11 @@ def mock_env():
     env.constraints = {"s1": [1], "u1": [2]}
     env.SP = {"s1": [0.5, 0.5, 0.5]}
     env.partial_observation = False
+    env.reward = "SP_reward_fn"
+    env.custom_reward = False
+    env.uncertainty = False
+    env.a_delta = False
+    env.done_on_constraint = False
     return env
 
 
@@ -87,18 +94,19 @@ def test_rollout(pe, mock_env):
     assert len(total_reward) == 4
     assert s_rollout.shape == (2, 4)
     assert actions.shape == (1, 3)
-    assert cons_info.shape == (1, 1)
+    assert cons_info.shape == (1, 4, 1)
     assert pe.env.step.call_count == 3
 
 
 def test_get_rollouts(pe, mock_env):
     # Mock the rollout method to return consistent shapes
-    def mock_rollout(policy):
+    def mock_rollout(policy, *, seed=None, return_metadata=False):
         return (
             np.array([0, 1, 2, 3]),  # total_reward
             np.random.rand(2, 4),  # s_rollout
             np.random.rand(1, 3),  # actions
             np.random.rand(1, 4, 1),  # cons_info
+            pe._metadata(3, False, True, seed),
         )
 
     with patch.object(pe, "rollout", side_effect=mock_rollout):
@@ -141,6 +149,9 @@ def test_plot_data(pe, reward_dist):
             "r": np.random.rand(1, pe.env.N + 1, pe.reps),
             "g": np.random.rand(pe.env.n_con, pe.env.N + 1, 1, pe.reps),
         }
+    with patch("matplotlib.pyplot.show"):
+        pe.plot_data(data, reward_dist=reward_dist)
+    plt.close("all")
 
 
 if __name__ == "__main__":

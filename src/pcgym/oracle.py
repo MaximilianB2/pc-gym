@@ -44,13 +44,28 @@ class oracle:
         self._simulator = None
 
     def _value_at(self, seq, t_now, offset=0):
-        """Value of a per-interval sequence (setpoint/disturbance) for the step starting at t_now.
+        """Value of a schedule at the state time t_now plus a prediction-stage offset.
 
-        Mirrors make_env.step, which during step i applies disturbance d[i + 1] and rewards x_{i+1}
-        against SP[i + 1]; indices past the end hold the last value.
+        Stage k tracks x_(t+k) against SP[t+k] and integrates its outgoing interval with d[t+k].
+        Indices past the end hold the last value, including the terminal state and MPC lookahead.
         """
         i = int(round(float(np.asarray(t_now).item()) / self.env.dt)) + offset
         return seq[min(max(i, 0), len(seq) - 1)]
+
+    def _setpoint_values(self, t_now, offset=0):
+        return np.array([self._value_at(values, t_now, offset) for values in self.env_params["SP"].values()]).reshape(
+            -1, 1
+        )
+
+    def _disturbance_values(self, t_now, offset=0):
+        return np.array(
+            [
+                self._value_at(self.env_params["disturbances"][name], t_now, offset)
+                if name in self.env_params["disturbances"]
+                else self.model_info["parameters"][name]
+                for name in self.model_info["disturbances"]
+            ]
+        ).reshape(-1, 1)
 
     def setup_mpc(self):
         model_type = "continuous"
@@ -68,13 +83,13 @@ class oracle:
             u = model.set_variable(var_type="_u", var_name="u", shape=(self.env.Nu - self.env.Nd_model, 1))
 
         if self.has_disturbances:
-            d = model.set_variable(var_type="_p", var_name="d", shape=(self.env.Nd_model, 1))
+            d = model.set_variable(var_type="_tvp", var_name="d", shape=(self.env.Nd_model, 1))
             u_full = vertcat(u, d)
         else:
             u_full = u
 
-        # Set point (as a parameter)
-        SP = model.set_variable(var_type="_p", var_name="SP", shape=(len(self.env.SP), 1))
+        # Schedules vary at each predicted state/interval, rather than remaining constant over the horizon.
+        SP = model.set_variable(var_type="_tvp", var_name="SP", shape=(len(self.env.SP), 1))
 
         # System dynamics
         dx_list = self.env.model(x, u_full)
@@ -163,26 +178,21 @@ class oracle:
                     elif self.env_params["cons_type"][k][j] == ">=":
                         mpc.bounds["lower", "_x", "x", state_index] = constraint_value
 
-        # Parameter function
+        def tvp_fun(t_now):
+            tvp_template = mpc.get_tvp_template()
+            for stage in range(self.N + 1):
+                tvp_template["_tvp", stage, "SP"] = self._setpoint_values(t_now, stage)
+                if self.has_disturbances:
+                    tvp_template["_tvp", stage, "d"] = self._disturbance_values(t_now, stage)
+            return tvp_template
+
+        mpc.set_tvp_fun(tvp_fun)
+
+        # Parameters that remain constant within the prediction horizon.
         def p_fun(t_now):
             p_template = mpc.get_p_template(1)
-
-            SP_values = [self._value_at(self.env_params["SP"][k], t_now, offset=1) for k in self.env_params["SP"]]
-
-            p_template["_p", 0, "SP"] = np.array(SP_values).reshape(-1, 1)
-            # Set u_prev only if delta_u is used
             if self.use_delta_u:
                 p_template["_p", 0, "u_prev"] = mpc.u0
-
-            if self.has_disturbances:
-                d = np.zeros((self.env.Nd_model, 1))
-                for i, k in enumerate(self.env.model.info()["disturbances"], start=0):
-                    if k in self.env_params["disturbances"]:
-                        d[i, 0] = self._value_at(self.env_params["disturbances"][k], t_now, offset=1)
-                    else:
-                        d[i, 0] = self.model_info["parameters"][str(k)]
-                p_template["_p", 0, "d"] = d
-
             return p_template
 
         mpc.set_p_fun(p_fun)
@@ -191,26 +201,25 @@ class oracle:
         simulator = do_mpc.simulator.Simulator(model)
         simulator.set_param(t_step=self.env.dt)
 
-        def p_fun_sim(t_now):
-            p_template_sim = simulator.get_p_template()
-
-            SP_values = [self._value_at(self.env_params["SP"][k], t_now, offset=1) for k in self.env_params["SP"]]
-            p_template_sim["SP"] = np.array(SP_values).reshape(-1, 1)
-
+        def tvp_fun_sim(t_now):
+            tvp_template = simulator.get_tvp_template()
+            tvp_template["SP"] = self._setpoint_values(t_now)
             if self.has_disturbances:
-                d = np.zeros((self.env.Nd_model, 1))
-                for i, k in enumerate(self.env.model.info()["disturbances"], start=0):
-                    if k in self.env_params["disturbances"]:
-                        d[i, 0] = self._value_at(self.env_params["disturbances"][k], t_now, offset=1)
-                    else:
-                        d[i, 0] = self.model_info["parameters"][str(k)]
-                p_template_sim["d"] = d
-            return p_template_sim
+                tvp_template["d"] = self._disturbance_values(t_now)
+            return tvp_template
+
+        simulator.set_tvp_fun(tvp_fun_sim)
+
+        def p_fun_sim(t_now):
+            return simulator.get_p_template()
 
         simulator.set_p_fun(p_fun_sim)
 
         simulator.setup()
-        mpc.set_param(nlpsol_opts={"ipopt.print_level": 0, "print_time": 0, "ipopt.sb": "yes"})
+        # The default IPOPT bound relaxation can return inputs outside the plant's action space.
+        mpc.set_param(
+            nlpsol_opts={"ipopt.print_level": 0, "print_time": 0, "ipopt.sb": "yes", "ipopt.bound_relax_factor": 0.0}
+        )
         mpc.setup()
 
         return mpc, simulator
@@ -252,12 +261,16 @@ class oracle:
                 u0 = mpc.make_step(x)
 
             if self.has_disturbances:
-                d = mpc.p_fun(i * self.env.dt)["_p", 0, "d"]
+                d = mpc.tvp_fun(i * self.env.dt)["_tvp", 0, "d"]
                 u_log[:, i] = np.vstack([u0, d]).flatten()
             else:
                 u_log[:, i] = u0.flatten()
 
             x = simulator.make_step(u0)
+            projector = getattr(self.env.model, "project_state", None)
+            if projector is not None:
+                x = np.asarray(projector(x.flatten()), dtype=float).reshape(-1, 1)
+                simulator.x0 = x
             x_log[:, i + 1] = x.flatten()
 
         return x_log, u_log

@@ -42,7 +42,7 @@ model_configs = {
         "disturbances": {"X0": np.random.uniform(0.8, 1.2, 100)},
     },
     "biofilm_reactor": {
-        "action_space": {"low": np.array([0]), "high": np.array([1])},
+        "action_space": {"low": np.zeros(5), "high": np.ones(5)},
         "observation_space": {
             "low": np.array([0, 0, 0, 0] * 4 + [0.9]),
             "high": np.array([10, 10, 10, 500] * 4 + [1.1]),
@@ -66,8 +66,8 @@ model_configs = {
                 1800863.24079725,
                 248516167.940593,
                 0.15861523304,
-                0.5,
-                15,
+                np.sqrt(1800863.24079725 * 1478.00986666666 / 22995.8230590611**2 - 1),
+                22995.8230590611 / 1478.00986666666,
                 1,
                 15,
             ]
@@ -133,8 +133,8 @@ def test_uncertainty(model_name):
                 **uncertain_params,
             },
             "uncertainty_bounds": {
-                "low": np.array([0.9] * (len(uncertain_params))),
-                "high": np.array([1.1] * (len(uncertain_params))),
+                "low": np.array([7.2e10 * 0.9]),
+                "high": np.array([7.2e10 * 1.1]),
             },
         }
     )

@@ -77,3 +77,7 @@ def test_delta_actions_are_denormalised_once_and_clipped():
     np.testing.assert_allclose(env.info["u"], 301.0)
     env.step(np.array([1.0]))  # delta = +2 K, clipped to the 302 K limit
     np.testing.assert_allclose(env.info["u"], 302.0)
+    evaluator = policy_eval(make_env, {"pi": ConstantPolicy([0.5])}, 1, params)
+    _, states, actions, _ = evaluator.rollout(evaluator.policies["pi"])
+    np.testing.assert_allclose(actions[0], [301.0] + [302.0] * (N - 1))
+    np.testing.assert_allclose(states, _raw_trajectory(params, np.array([0.5])))

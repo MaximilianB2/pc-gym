@@ -45,10 +45,10 @@ def create_base_env_params(model_name):
             "x0": np.array([10.0, 5.0, 5.0, 300.0] * 4 + [10]),
         },
         "crystallization": {
-            "a_space": {"low": np.array([-1]), "high": np.array([1])},
+            "a_space": {"low": np.array([10.0]), "high": np.array([40.0])},
             "o_space": {
                 "low": np.array([0, 0, 0, 0, 0, 0, 0, 0.9, 14]),
-                "high": np.array([1e20, 1e20, 1e20, 1e20, 0.5, 2, 20, 1.1, 16]),
+                "high": np.array([1e6, 1e7, 5e8, 3e10, 0.2, 3, 50, 1.1, 16]),
             },
             "SP": {"CV": [1] * 30, "Ln": [15] * 30},
             "x0": np.array(
@@ -207,8 +207,9 @@ def test_oracle_disturbance_performance(model_name):
 
     for sp_key in setpoint_keys:
         sp_index = env.model.info()["states"].index(sp_key)
-        setpoint = np.array(env_params["SP"][sp_key])
-        actual = x_log[sp_index, 1:]  # x_1..x_N, one per setpoint interval
+        schedule = env_params["SP"][sp_key]
+        setpoint = np.array([schedule[min(t, len(schedule) - 1)] for t in range(1, env.N + 1)])
+        actual = x_log[sp_index, 1:]  # x_1..x_N, compared to SP[1]..SP[N]
 
         iae = calculate_iae(setpoint, actual)
         iae_values.append(iae)
@@ -240,11 +241,12 @@ def test_oracle_constraint_handling(model_name):
     }
     if model_name == "crystallization":
         action_space_act = {"low": np.array([10]), "high": np.array([40])}
+        env_params["a_space"] = {"low": np.array([-1.0]), "high": np.array([1.0])}
         env_params["N"] = 30
         env_params["tsim"] = 30
-        env_params["a_delta"] = (True,)
+        env_params["a_delta"] = True
         env_params["a_space_act"] = action_space_act
-        env_params["a_0"] = 39
+        env_params["a_0"] = np.array([39.0])
     elif model_name == "four_tank":
         env_params["tsim"] = 1000
         env_params["N"] = 60
