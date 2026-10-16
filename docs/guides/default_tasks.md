@@ -10,9 +10,10 @@ env = make_env({"model": "cstr", "N": 60, "tsim": 26})
 
 The default task is used only when **no reward is configured**, meaning none of `SP`, `custom_reward` or `reward_states` is given. An explicitly configured reward is never modified.
 
-A registered task is not a readiness certificate. The [current validation record](../plans/training_readiness_plan.md#five-new-default-tasks)
-lists tested horizons and remaining learning/physics gaps. In particular, the biofilm default remains
-provisional because its trajectories exceed the declared observation bounds.
+A registered task is not a readiness certificate. The [current validation record](../plans/training_readiness_plan.md#biofilm-oxygen-balance-and-default-task)
+lists tested horizons and remaining learning/backend gaps. All 18 controlled defaults now have
+nominal CasADi runtime and PPO/SAC compatibility evidence; multi-seed learning and experimental
+calibration are separate claims.
 
 ## Regulation
 
@@ -50,7 +51,7 @@ An explicitly configured reward takes precedence over the registered task, inclu
 | Model | Task | Setpoint | Normalising range |
 |---|---|---|---|
 | [batch](../env/batch.md) | Batch | maximise `Cb` at the final step | – |
-| `biofilm_reactor` | Regulation | `S2_A` = 2 | `S2_A`: 10 |
+| [biofilm_reactor](../env/biofilm.md) | Regulation | `S2_A` = 0.25 mg N/L | `S2_A`: 2.1 |
 | `crystallization` | Regulation | `CV` = 1, `Ln` = 15 | `CV`: 3, `Ln`: 50 |
 | `cstr` | Regulation | `Ca` = 0.9 | `Ca`: 0.3 |
 | [complex_cstr](../env/complex_cstr.md) | Regulation | `Cb` = 0.25 | `Cb`: 2 |
@@ -105,8 +106,46 @@ transfer checks input limits against the conserved total volume. Reactor–separ
 horizon and action box against positive vessel/volatile-inventory bounds; a longer horizon can
 be rejected even when a narrower, specifically analyzed trajectory might be feasible.
 
-All 18 controlled models now have registered spaces, initial states and tasks, although biofilm
-remains provisional. The autonomous invariant-batch and coupled-oscillator models have no default
-training task; explicitly configured simulation examples do not provide a control input.
+The biofilm default uses a 100-hour horizon with 60 transitions. Its oxygen partition coefficient
+is derived from Henry solubility at 298.15 K, the fresh feed is deoxygenated by default, and its
+state bounds follow nitrogen inventories and oxygen supply. This is a synthetic benchmark;
+changes to these assumptions require their own bounds and validation.
+
+All 18 controlled models now have registered spaces, initial states and tasks.
+The autonomous invariant-batch and coupled-oscillator models have no default training task.
 
 The setpoints are the final targets of the benchmark configurations. None of them is already satisfied by the default `x0`.
+
+## Autonomous simulation examples
+
+These two models are explicitly registered with `simulation_only=True`, available as
+`get_model_spec(name).simulation_only`. Both now integrate with CasADi using zero-length action
+vectors. They cannot define an action-dependent learning task without adding a justified actuator.
+The audit reports this classification and its `--strict` training gate rejects these examples.
+
+| Model | Dynamics and checks |
+|---|---|
+| [coupled_oscillator](../../src/pcgym/models/coupled_oscillators.py) | Periodic spring-mass chain; positions followed by momenta. Total momentum and Hamiltonian energy are conserved; trajectories match a matrix exponential and the stored JAX reference. |
+| [invariant_batch](../../src/pcgym/models/invariant_batch.py) | Reversible reactions `A+B <-> C`, `A+C <-> D`; nonnegative concentrations conserve `A+C+2D` and `B+C+D`. |
+
+For example, simulate the invariant batch without introducing a control objective:
+
+```python
+import numpy as np
+from pcgym import make_env
+
+initial = np.array([1.0, 0.8, 0.0, 0.0])
+env = make_env({
+    "model": "invariant_batch", "N": 60, "tsim": 3,
+    "x0": initial,
+    "a_space": {"low": np.empty(0), "high": np.empty(0)},
+    "o_space": {"low": np.zeros(4), "high": np.full(4, np.inf)},
+    "normalise_a": False, "normalise_o": False,
+    "reward_states": [],
+})
+trajectory = env.simulate(initial, np.empty((60, 0)))
+env.close()
+```
+
+Fresh JAX execution remains unvalidated in the selected Python 3.14 environment; comparison with
+the stored oscillator trajectory is historical cross-backend evidence.

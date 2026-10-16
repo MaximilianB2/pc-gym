@@ -1,9 +1,12 @@
 # Plan: make PC-Gym environments usable for training
 
 Status: implementation in progress. The shared CasADi contract and evaluator are repaired.
-Fourteen model implementations now have equation, domain or default-task corrections. All 18 controlled
-models have complete registered tasks; 17 nominal defaults pass strict runtime audits and have PPO/SAC
-compatibility evidence. Learning qualification, biofilm calibration/domain work and optional features remain open.
+Sixteen model implementations now have equation, domain or default-task corrections. All 18 controlled
+models have complete registered tasks; all 18 nominal defaults pass strict runtime audits and have PPO/SAC
+compatibility evidence. Biofilm now has an explicit Henry-law benchmark parameterization and corrected
+oxygen flow accounting. Learning qualification and optional features remain open; experimental plant
+calibration is not established by these synthetic benchmarks. Both autonomous models now support
+CasADi simulation and are explicitly classified as simulation-only.
 Branch: `fix/training-ready-environments`.
 Base: audited `dev` revision `7cf43322fe13341672164f5665703aa57e96baa5`.
 Local validation environment: Conda `python3.14` (Python 3.14.6).
@@ -56,9 +59,9 @@ and any noisy/POMDP variants distinct in their validation records.
 | P1 | Shared environment contract | P0 | Four candidate tasks pass strict API and full-episode tests | Complete for tested CasADi configurations: observations, schedules, episodes, randomness and validation |
 | P2 | Trustworthy evaluation and first training examples | P1 | Four candidates pass PPO/SAC compatibility and learning checks | Evaluator and initial experiment complete; all-task learning gate remains open |
 | P3 | Repair six otherwise runnable default tasks | P1 | Each corrected task meets the readiness definition | Equation/domain/task repairs and compatibility checks complete; learning qualification open |
-| P4 | Repair three major physics/runtime failures | P1; source-model verification | Independent physics tests and training gates pass per model | Polymerization and growth-only crystallization repaired and compatible; biofilm source/domain reconciliation open |
+| P4 | Repair three major physics/runtime failures | P1; source-model verification | Independent physics tests and training gates pass per model | All three benchmark repairs and compatibility checks complete; biofilm assumptions documented; learning qualification open |
 | P5 | Supply tasks for five configuration-only models | P1; relevant physics checks | Each has complete defaults and a demonstrated control objective | Task definitions, physics/domain checks and PPO/SAC compatibility complete; learning gate open |
-| P6 | Validate optional backends/features and classify autonomous models | P1; relevant model fixes | Explicit per-model support matrix and passing feature tests | In progress: oracle forecast timing aligned |
+| P6 | Validate optional backends/features and classify autonomous models | P1; relevant model fixes | Explicit per-model support matrix and passing feature tests | Autonomous CasADi repairs/classification complete; oracle delta, JAX and feature combinations open |
 | P7 | Consolidate CI, documentation and migration evidence | P2–P6 | Supported cases pass their required checks; readiness report updated | Planned |
 
 ### P0 — Convert the audit into acceptance tests
@@ -241,7 +244,7 @@ clear unsupported/simulation-only entries.
 
 ## Reviewable implementation sequence
 
-The implementation is recorded in four dependency-ordered commit groups:
+The initial implementation was recorded in four dependency-ordered commit groups:
 
 1. Shared environment and evaluation contracts, including registry support and focused regressions.
 2. Model dynamics, physical-domain validation and default tasks, with physics checks and updated
@@ -251,6 +254,11 @@ The implementation is recorded in four dependency-ordered commit groups:
 
 Runtime and evaluation changes stay together because their schedule and rollout APIs depend on
 each other. The pre-existing editor-settings change is excluded from these commits.
+
+The model follow-ups use three additional groups: biofilm oxygen physics and default-task repairs
+with their regressions and model documentation; autonomous CasADi support and simulation-only
+classification with their checks and contributor guidance; and the combined readiness and
+default-task documentation.
 
 The chronological checkpoints below record the shared-contract repairs, the initial training
 experiment and subsequent model repairs. Earlier checkpoint counts and outstanding-work lists
@@ -739,6 +747,104 @@ goal and CI/support-matrix consolidation remain incomplete. Implementation chang
 the grouped commits described above. Saved policies affected by new tasks, time entries or the
 corrected phase law need re-evaluation/retraining.
 
+## Biofilm oxygen balance and default task
+
+Validated on 2026-10-16 in Conda Python 3.14.6. This completes the remaining controlled model's
+nominal benchmark repair; it does not establish experimental calibration or learning quality.
+
+Changes in [biofilm_reactor.py](../../src/pcgym/models/biofilm_reactor.py):
+
+- Define the oxygen partition coefficient as gas/liquid concentration, so equilibrium is
+  `O_air / m`. [NIST's oxygen solubility data](https://webbook.nist.gov/cgi/cbook.cgi?ID=C7782447&Mask=10#Solubility)
+  gives `kH=0.0013 mol/(kg bar)` at 298.15 K. With water density 1 kg/L and the ideal-gas law,
+  `m=1/(kH*rho*R*T)=31.03041965`, replacing 0.5. The retained gas boundary of 300 mg O2/L gas
+  gives 9.66793242 mg O2/L water. Henry equilibrium requires `eq_exponent=1`; other exponents
+  now raise a clear error.
+- Include fresh-feed/effluent oxygen, `F/Va*(O_F-O_A)`, in the absorber balance. New parameter
+  `O_F=0` declares deoxygenated feed. Previously, external oxygen outflow was omitted even though
+  nitrogen species had the corresponding washout terms.
+- Use mg N/L for nitrogen species and mg O2/L for oxygen. Initial/feed maxima bound ammonium
+  by 2, ammonium+nitrite by 2.1, and total nitrogen by 12.1. The oxygen supply bounds dissolved
+  oxygen below 10. These yield useful physical observation scales without clipping trajectories.
+- Replace the infeasible nitrite target of 2 with 0.25 mg N/L. Independent steady-state solving
+  finds an admissible constant control that reaches it within the 100-hour nominal episode;
+  lower and higher admissible feed nitrite concentrations bracket the target.
+- Validate physical parameters, initial concentrations and inputs. In
+  [simulate](../../src/pcgym/pcgym.py), run candidate validation before constructing the integrator,
+  so invalid overrides fail clearly rather than causing division by zero during compilation.
+
+The [biofilm page](../env/biofilm.md) separates the cited nitrification mechanism from this
+revised synthetic topology/parameterization. The available Tanaka–Dunn abstract does not establish
+the exact lumped model or its calibration. The separate NIST data and explicit mass balances support
+the revised benchmark assumptions; original experimental reproduction is not claimed.
+
+The [physics tests](../../tests/models/test_initial_task_physics.py) now cover pressure-based Henry
+conversion, open oxygen-equivalent fluxes, analytic washout/aeration, physical parameter rejection,
+target feasibility and both physical/normalized complete episodes, alongside the prior reaction and
+closed-inventory checks. Only the biofilm reference trajectory was regenerated, because its oxygen
+dynamics changed. Its new target and observation scales also require saved policies to be re-evaluated
+or retrained.
+
+Validation:
+
+- **44/44 biofilm scenarios** pass strict bounds and Gymnasium checks at 100 h / 60 transitions:
+  all 32 action corners, midpoint, alternating extremes and ten seeded random action sequences.
+- The combined audit now passes **364/364 scenarios across all 18 controlled defaults**.
+- PPO and SAC each complete **2,048 transitions**, seed 0, CPU, one Torch thread: **4,096 transitions
+  and 68 vectorized resets** total, with finite updates, correct terminal observations and identical
+  deterministic save/load predictions and full reload rollouts. No learning-quality gate is claimed.
+- **574 standard tests pass**, with the existing coupled-oscillator skip/expected failure and 69 slow
+  tests deselected. **44 slow tests pass** with 25 JAX-dependent skips; JAX remains absent.
+- Ruff lint/format checks and editor diagnostics pass for the changed Python files.
+
+Reproduce with the selected Conda interpreter and single-thread BLAS/OpenMP settings:
+
+```bash
+export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
+PCGYM_PYTHON=/data1/conda/envs/python3.14/bin/python
+"$PCGYM_PYTHON" scripts/audit_env_readiness.py biofilm_reactor --strict --seeds 10 \
+  --output /tmp/pcgym-biofilm-repaired-audit.json
+"$PCGYM_PYTHON" scripts/check_training_readiness.py --compatibility-only --models biofilm_reactor \
+  --output /tmp/pcgym-biofilm-training
+"$PCGYM_PYTHON" -m pytest -q -ra --tb=short
+"$PCGYM_PYTHON" -m pytest -q -m slow -ra --tb=short
+```
+
+Next: repair coupled-oscillator CasADi compatibility and classify the two autonomous models as
+simulation-only; fix the known oracle delta-action defects; validate optional backends and feature
+combinations; then complete learning qualification and CI/support-matrix consolidation.
+
+## Autonomous CasADi simulations
+
+Also completed on 2026-10-16:
+
+- [Coupled oscillators](../../src/pcgym/models/coupled_oscillators.py) now assembles derivatives
+  from indexed scalars, avoiding NumPy concatenation of a CasADi symbolic column. The equations
+  are unchanged. Tests compare trajectories against the linear system's matrix exponential for
+  1, 2 and 5 masses, check Hamiltonian energy/total momentum and center-of-mass drift, and complete
+  a default ten-mass zero-input episode.
+- [Invariant batch](../../src/pcgym/models/invariant_batch.py) retains its reaction equations;
+  tests verify nonnegative concentrations, both conserved component inventories and zero-input
+  episode semantics. Both models now reject invalid physical parameters and initial states.
+- Both registry entries explicitly declare `simulation_only=True`, omit a default training task
+  and expose zero inputs. The registry rejects a simulation-only declaration with a default task;
+  audit JSON records the classification, and its strict controlled-task gate rejects these models.
+- Removed the oscillator's CasADi expected failure and reference-test skip. Its existing JAX
+  reference is preserved and compared using the existing cross-backend tolerance, so the repair
+  is checked against earlier independent-backend results. Future reference generation supports
+  all 20 models with core CasADi; no new oscillator reference or physics change was introduced.
+
+The [default-task guide](../guides/default_tasks.md#autonomous-simulation-examples) includes the
+classification and a complete simulation example. Neither model is claimed as an RL control task,
+and historical JAX reference agreement does not establish fresh local JAX support.
+
+Final validation after both repair slices: **589 standard tests pass with no skips or expected
+failures** (69 slow tests deselected). **44 slow tests pass**, with 25 missing-JAX skips. Both
+autonomous audit episodes complete; the strict training gate exits 1 for those models as intended.
+The 18 controlled-default audit remains **364/364**, and the biofilm PPO/SAC compatibility evidence
+above is unchanged. Ruff checks and editor diagnostics pass. The remaining work is oracle delta
+semantics, optional-backend/feature checks, multi-seed learning and CI/support-matrix consolidation.
+
 ## Progress
 
 - [x] Audit all 20 registered models and record reproducible findings.
@@ -753,6 +859,8 @@ corrected phase law need re-evaluation/retraining.
 - [x] Repair all P3 equation/domain/default-task defects and verify PPO/SAC compatibility.
 - [x] Repair polymerization and growth-only crystallization, with independent physics and compatibility checks.
 - [x] Supply all five P5 default tasks, independently check physics/domains and verify PPO/SAC compatibility.
-- [ ] Reconcile biofilm calibration, bounds and objective.
-- [ ] Complete P3–P6 for the remaining controlled models and optional features.
+- [x] Repair biofilm oxygen flow accounting and define a source-backed synthetic equilibrium, bounds and objective.
+- [ ] Establish multi-seed learning qualification for the repaired controlled tasks.
+- [x] Repair oscillator CasADi support, check autonomous invariants and classify simulation-only models.
+- [ ] Complete P6 optional-backend and feature-combination checks.
 - [ ] Complete P7 and update the readiness assessment.

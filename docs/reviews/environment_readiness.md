@@ -9,11 +9,16 @@ This report preserves the historical baseline. Subsequent shared-interface fixes
 their validation are recorded in the linked plan; the model table below describes the audited revision.
 Model repairs now cover biofilm/polymerization reaction laws, crystallization growth and moments,
 distillation flows, heat-exchanger geometry, four-tank pump limits and three infeasible default targets.
-The [latest checkpoint](../plans/training_readiness_plan.md#five-new-default-tasks) adds all five
-missing default tasks and corrects reactor–separator vapour composition. All 18 controlled models
-now have registered tasks, and 17 pass strict runtime checks (320 scenarios) with PPO/SAC
-compatibility evidence. Biofilm still violates its default observation bounds; broader learning,
-optional-backend and oracle qualification remain open.
+All five missing default tasks are now supplied, and reactor–separator vapour composition is
+corrected. The [latest checkpoint](../plans/training_readiness_plan.md#biofilm-oxygen-balance-and-default-task)
+also repairs biofilm oxygen flow accounting and supplies an explicit Henry-law benchmark
+parameterization with inventory-derived bounds and a reachable target. All 18 controlled defaults
+pass strict runtime checks (364 scenarios) and have PPO/SAC compatibility evidence. These are
+nominal synthetic benchmarks; experimental calibration, broader learning, optional-backend and
+oracle qualification remain open.
+The [autonomous-model follow-up](../plans/training_readiness_plan.md#autonomous-casadi-simulations)
+repairs oscillator CasADi compatibility and explicitly classifies both zero-input models as
+simulation-only. All 20 models now support the tested core CasADi simulation configurations.
 See the [current four-task training results](initial_training_results.md) for repaired-interface
 validation, passing training recipes and the learning gaps that remain.
 
