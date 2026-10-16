@@ -990,19 +990,6 @@ class make_env(gym.Env):
             model = copy.copy(model)
             for k, v in params.items():
                 setattr(model, k, v)
-            engine = integration_engine(
-                SimpleNamespace(
-                    model=model,
-                    Nx_oracle=self.Nx_oracle,
-                    Nu=self.Nu,
-                    dt=self.dt,
-                    integration_method=self.integration_method,
-                )
-            )
-        else:
-            if getattr(self, "int_eng", None) is None:
-                self.int_eng = integration_engine(self)
-            engine = self.int_eng
 
         u_seq = np.asarray(u_seq, dtype=float)
         if u_seq.ndim == 1:
@@ -1027,6 +1014,23 @@ class make_env(gym.Env):
             validator = getattr(model, "validate_episode", None)
             if validator is not None:
                 validator(x, low, high, len(u_seq) * self.dt)
+
+        # Validate candidate parameters and inputs before compiling expressions
+        # that may otherwise divide by an invalid volume or partition constant.
+        if params:
+            engine = integration_engine(
+                SimpleNamespace(
+                    model=model,
+                    Nx_oracle=self.Nx_oracle,
+                    Nu=self.Nu,
+                    dt=self.dt,
+                    integration_method=self.integration_method,
+                )
+            )
+        else:
+            if getattr(self, "int_eng", None) is None:
+                self.int_eng = integration_engine(self)
+            engine = self.int_eng
         traj = np.zeros((u_seq.shape[0] + 1, self.Nx_oracle))
         traj[0] = x
         for k, uk in enumerate(u_seq):

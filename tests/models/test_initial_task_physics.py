@@ -113,6 +113,106 @@ def test_biofilm_cannot_consume_an_absent_species(index):
     assert derivative[index] >= 0
 
 
+def test_biofilm_oxygen_equilibrium_matches_henry_solubility_in_pressure_units():
+    model = get_model_spec("biofilm_reactor").cls(int_method="casadi")
+    # Independently convert the gas concentration to pressure, then use NIST's
+    # kH=0.0013 mol/(kg bar) at 298.15 K and water density 1 kg/L.
+    molar_mass = 31_998.8  # mg O2/mol
+    oxygen_pressure = (model.O_air / molar_mass) * 0.08314462618 * 298.15
+    dissolved = 0.0013 * oxygen_pressure * molar_mass
+    derivative = model(np.zeros(16), np.zeros(5))
+    assert derivative[15] / model.Kla == pytest.approx(dissolved)
+    assert dissolved == pytest.approx(9.667932415, abs=1e-8)
+
+
+def test_biofilm_open_oxygen_equivalent_inventory_has_only_external_fluxes():
+    model = get_model_spec("biofilm_reactor").cls(int_method="casadi", V=7.0, Va=19.0, O_F=1.2)
+    state = np.linspace(0.2, 3.2, 16)
+    action = np.array([3.0, 12.0, 0.4, 0.6, 0.8])
+    weights = np.array([0.0, 3.5, 4.6, 1.0])
+    derivative = model(state, action).reshape(4, 4)
+    inventory_rate = np.array([7.0, 7.0, 7.0, 19.0]) @ derivative @ weights
+    feed = np.r_[action[2:], model.O_F]
+    expected = action[0] * ((feed - state[12:]) @ weights)
+    expected += model.Va * model.Kla * (model.O_air / model.m - state[15])
+    assert inventory_rate == pytest.approx(expected, abs=1e-12)
+
+
+@pytest.mark.parametrize("transfer", [0.0, 0.8])
+def test_biofilm_absorber_oxygen_matches_analytic_feed_washout_and_aeration(transfer):
+    env = make_env({"model": "biofilm_reactor", "N": 60, "tsim": 20})
+    initial = np.tile([0.2, 0.3, 0.4, 1.7], 4)
+    parameters = {"vm_1": 0.0, "vm_2": 0.0, "Kla": transfer, "O_F": 1.2, "Va": 19.0}
+    trajectory = env.simulate(initial, np.tile([3.0, 0.0, 0.2, 0.3, 0.4], (60, 1)), params=parameters)
+    washout = 3.0 / 19.0
+    rate = transfer + washout
+    equilibrium = (transfer * env.model.O_air / env.model.m + washout * 1.2) / rate
+    expected = equilibrium + (initial[15] - equilibrium) * np.exp(-rate * np.arange(61) * env.dt)
+    # CVODES uses its default tolerances; allow accumulated step-restart error.
+    np.testing.assert_allclose(trajectory[:, 15], expected, atol=1e-6, rtol=1e-4)
+    np.testing.assert_allclose(trajectory[:, :12], np.tile(initial[:12], (61, 1)), atol=1e-12)
+
+
+def test_biofilm_default_target_has_feasible_steady_control_and_is_reached():
+    env = make_env({"model": "biofilm_reactor", "N": 60, "tsim": 100})
+    target = env.SP["S2_A"][0]
+
+    def action(nitrite):
+        return np.array([8.0, 15.5, 0.525, nitrite, 0.525])
+
+    def residual(candidate):
+        return np.r_[env.model(candidate[:16], action(candidate[16])), candidate[13] - target]
+
+    guess = env.simulate(env.x0, np.tile(action(0.75), (60, 1)))[-1]
+    solution = root(residual, np.r_[guess, 0.75], tol=1e-10)
+    assert solution.success
+    steady, control = solution.x[:16], action(solution.x[16])
+    np.testing.assert_allclose(residual(solution.x), 0, atol=1e-10)
+    assert np.all(control > env.env_params["a_space"]["low"])
+    assert np.all(control < env.env_params["a_space"]["high"])
+    assert np.all(steady > 0) and np.all(steady < env.observation_space_base.high[:16])
+    trajectory = env.simulate(env.x0, np.tile(control, (60, 1)))
+    assert trajectory[-1, 13] == pytest.approx(target, abs=1e-7)
+    # A feasible target must also respond to admissible actions on either side.
+    below = env.simulate(env.x0, np.tile(action(0.05), (60, 1)))[-1, 13]
+    above = env.simulate(env.x0, np.tile(action(1.0), (60, 1)))[-1, 13]
+    assert below < target < above
+
+
+@pytest.mark.parametrize(
+    "parameters",
+    [
+        {"V": 0},
+        {"Va": -1},
+        {"m": 0},
+        {"K1": 0},
+        {"KO_2": 0},
+        {"Kla": -1},
+        {"O_air": -1},
+        {"O_F": -1},
+        {"vm_1": np.nan},
+        {"vm_2": np.inf},
+        {"eq_exponent": 2},
+    ],
+)
+def test_biofilm_rejects_unphysical_parameters(parameters):
+    with pytest.raises(ValueError, match="biofilm_reactor"):
+        make_env({"model": "biofilm_reactor", "N": 60, "tsim": 100, "model_params": parameters})
+
+
+def test_biofilm_rejects_negative_concentrations_and_inputs():
+    env = make_env({"model": "biofilm_reactor", "N": 60, "tsim": 100})
+    initial = env.x0.copy()
+    initial[0] = -0.1
+    with pytest.raises(ValueError, match="nonnegative initial concentrations"):
+        env.simulate(initial, np.ones((1, 5)))
+    with pytest.raises(ValueError, match="nonnegative feed/recycle"):
+        env.simulate(env.x0, np.array([[-1.0, 15.0, 0.5, 0.5, 0.5]]))
+    with pytest.raises(ValueError, match="biofilm_reactor"):
+        env.simulate(env.x0, np.ones((1, 5)), params={"m": 0.0})
+    assert env.model.m > 0
+
+
 @pytest.mark.parametrize("temperature", [320.0, 400.0])
 @pytest.mark.parametrize("flow", [0.0, 1.05])
 def test_polymerisation_has_no_propagation_without_monomer(temperature, flow):
@@ -224,6 +324,7 @@ def test_four_tank_registered_targets_have_feasible_steady_pump_voltages():
 @pytest.mark.parametrize(
     "model,tsim,n_inputs",
     [
+        ("biofilm_reactor", 100, 5),
         ("four_tank", 1000, 2),
         ("polymerisation_reactor", 2, 4),
         ("crystallization", 30, 1),
