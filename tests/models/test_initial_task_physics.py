@@ -12,6 +12,81 @@ from pcgym import make_env
 from pcgym.models import get_model_spec
 
 
+def autonomous_env(name, initial, **parameters):
+    return make_env(
+        {
+            "model": name,
+            "model_params": parameters,
+            "N": 60,
+            "tsim": 3,
+            "x0": initial,
+            "a_space": {"low": np.empty(0), "high": np.empty(0)},
+            "o_space": {"low": np.full(len(initial), -np.inf), "high": np.full(len(initial), np.inf)},
+            "reward_states": [],
+            "normalise_a": False,
+            "normalise_o": False,
+        }
+    )
+
+
+@pytest.mark.parametrize("n", [1, 2, 5])
+def test_autonomous_oscillator_matches_matrix_exponential_and_conserves_energy_momentum(n):
+    initial = np.random.default_rng(7).normal(size=2 * n)
+    stiffness, mass = 1.7, 2.3
+    env = autonomous_env("coupled_oscillator", initial, N=n, k=stiffness, m=mass)
+    trajectory = env.simulate(initial, np.empty((60, 0)))
+    identity = np.eye(n)
+    laplacian = 2 * identity - np.roll(identity, 1, axis=1) - np.roll(identity, -1, axis=1)
+    generator = np.block([[np.zeros((n, n)), identity / mass], [-stiffness * laplacian, np.zeros((n, n))]])
+    times = np.arange(61) * env.dt
+    expected = np.array([expm(generator * t) @ initial for t in times])
+    np.testing.assert_allclose(trajectory, expected, atol=5e-4, rtol=5e-4)
+    positions, momenta = trajectory[:, :n], trajectory[:, n:]
+    energy = np.sum(momenta**2, axis=1) / (2 * mass)
+    energy += stiffness / 2 * np.sum((positions - np.roll(positions, 1, axis=1)) ** 2, axis=1)
+    np.testing.assert_allclose(energy, energy[0], atol=1e-5, rtol=5e-4)
+    np.testing.assert_allclose(momenta.sum(axis=1), initial[n:].sum(), atol=1e-10)
+    np.testing.assert_allclose(
+        positions.mean(axis=1), initial[:n].mean() + times * initial[n:].sum() / (n * mass), atol=1e-10
+    )
+
+
+@pytest.mark.parametrize("name", ["coupled_oscillator", "invariant_batch"])
+def test_autonomous_models_complete_zero_input_episodes(name):
+    initial = (
+        np.array([1.0, 0.8, 0.0, 0.0]) if name == "invariant_batch" else np.r_[np.linspace(-1, 1, 10), np.zeros(10)]
+    )
+    env = autonomous_env(name, initial)
+    expected = env.simulate(initial, np.empty((60, 0)))
+    env.reset(seed=0)
+    assert env.action_space.shape == (0,)
+    for step in range(1, 61):
+        obs, reward, terminated, truncated, _ = env.step(np.empty(0, dtype=np.float32))
+        assert env.observation_space.contains(obs) and reward == 0
+        assert not terminated and truncated == (step == 60)
+        np.testing.assert_allclose(env.state, expected[step], rtol=1e-10, atol=1e-12)
+    if name == "invariant_batch":
+        inventories = expected @ np.array([[1, 0], [0, 1], [1, 1], [2, 1]])
+        np.testing.assert_allclose(inventories, np.tile([1.0, 0.8], (61, 1)), atol=1e-10)
+        assert np.all(expected >= 0)
+
+
+@pytest.mark.parametrize(
+    "name,parameters",
+    [
+        ("coupled_oscillator", {"N": 0}),
+        ("coupled_oscillator", {"N": True}),
+        ("coupled_oscillator", {"N": 2.5}),
+        ("coupled_oscillator", {"m": 0}),
+        ("coupled_oscillator", {"k": -1}),
+        ("invariant_batch", {"k1f": -1}),
+    ],
+)
+def test_autonomous_models_reject_invalid_physical_parameters(name, parameters):
+    with pytest.raises(ValueError, match=name):
+        get_model_spec(name).cls(int_method="casadi", **parameters)
+
+
 @pytest.mark.parametrize("action", [-1.0, 0.0, 1.0])
 def test_nonsmooth_trajectory_matches_linear_system_exponential(action):
     env = make_env({"model": "nonsmooth_control", "N": 60, "tsim": 5})

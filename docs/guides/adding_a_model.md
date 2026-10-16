@@ -56,13 +56,23 @@ class cstr(BaseModel):
 
 `aliases=("other_name",)` lets the model also be found under alternative names.
 
+Autonomous examples without a manipulated input should register with `simulation_only=True`,
+report `inputs=[]`, and omit a default task. This classification is exposed through
+`get_model_spec(name).simulation_only` and the audit report. Registering both `simulation_only=True`
+and a default training task raises `ValueError`. Supply explicit simulation configurations with
+zero-length action vectors; do not add an ignored action to make an autonomous model appear trainable.
+
 ## Backend rules
 
-Every model is evaluated with NumPy arrays, JAX arrays and CasADi symbols (for the MPC oracle and the CasADi integrator). These three rules keep one set of equations working for all of them:
+Every model is evaluated with NumPy arrays, JAX arrays and CasADi symbols (for the MPC oracle and the CasADi integrator). These four rules keep one set of equations working for all of them:
 
 1. **Index, don't unpack.** Write `ca, T = x[0], x[1]`, not `ca, T = x`. CasADi symbols are not iterable.
 2. **Use `xp` for maths functions.** Write `xp.exp(...)` with `xp = jnp if self.int_method == "jax" else np`, and use scalars like `u[0]` rather than the whole `u` vector in the equations.
 3. **Keep `__call__` side-effect free.** Read disturbance inputs into local variables (`Ti = u[1]`), never onto `self`. The same model instance is shared between the environment, the integrator and the oracle.
+4. **Build derivative vectors from scalar entries.** A list of indexed scalars can be converted to
+   NumPy/JAX arrays. NumPy concatenation of a CasADi symbolic column vector attempts an unsupported
+   numeric conversion; the [coupled oscillator](../../src/pcgym/models/coupled_oscillators.py) shows
+   how to assemble a variable-size state derivative without that conversion.
 
 `tests/models/test_casadi_backend.py` and the reference-trajectory tests check all registered models automatically.
 

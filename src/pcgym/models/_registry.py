@@ -45,6 +45,7 @@ class ModelSpec:
             those keys are omitted from ``env_params``.
         task: Optional default task (:class:`Regulation`, :class:`Batch` or :class:`CustomReward`).
             Defines the reward used when neither ``SP`` nor a reward configuration is given.
+        simulation_only: True for autonomous examples without a control input or default training task.
     """
 
     name: str
@@ -52,6 +53,7 @@ class ModelSpec:
     aliases: tuple = field(default_factory=tuple)
     defaults: Optional[Callable[[], dict]] = None
     task: Optional[Union[Regulation, Batch, CustomReward]] = None
+    simulation_only: bool = False
 
 
 MODEL_REGISTRY: dict[str, ModelSpec] = {}
@@ -64,6 +66,7 @@ def register_model(
     aliases: tuple = (),
     defaults: Optional[Callable[[], dict]] = None,
     task: Optional[Union[Regulation, Batch, CustomReward]] = None,
+    simulation_only: bool = False,
 ):
     """Class decorator that registers a model under ``name`` (and any ``aliases``).
 
@@ -75,10 +78,14 @@ def register_model(
     """
 
     def decorator(cls):
+        if simulation_only and task is not None:
+            raise ValueError("A simulation-only model cannot register a default training task")
         for key in (name, *aliases):
             if key in MODEL_REGISTRY or key in _ALIASES:
                 raise ValueError(f"A model is already registered under the name '{key}'")
-        MODEL_REGISTRY[name] = ModelSpec(name=name, cls=cls, aliases=tuple(aliases), defaults=defaults, task=task)
+        MODEL_REGISTRY[name] = ModelSpec(
+            name=name, cls=cls, aliases=tuple(aliases), defaults=defaults, task=task, simulation_only=simulation_only
+        )
         for alias in aliases:
             _ALIASES[alias] = name
         return cls

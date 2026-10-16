@@ -312,6 +312,7 @@ def main():
         params = configuration(name, args.backend)
         model_info = spec.cls(int_method="casadi").info()
         item = {
+            "simulation_only": spec.simulation_only,
             "default_spaces": spec.defaults is not None,
             "default_task": repr(spec.task),
             "states": model_info["states"],
@@ -336,7 +337,8 @@ def main():
         failures = [
             name
             for name, item in report["models"].items()
-            if not item["default_spaces"]
+            if item["simulation_only"]
+            or not item["default_spaces"]
             or not item["inputs"]
             or get_model_spec(name).task is None
             or item["gymnasium_checker"] != "pass"

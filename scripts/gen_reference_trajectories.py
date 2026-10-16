@@ -65,9 +65,6 @@ EXPLICIT = {
     },
 }
 
-# Models whose equations are not CasADi-compatible; their reference is integrated with JAX.
-JAX_ONLY = {"coupled_oscillator"}
-
 
 def reference_case(model: str) -> dict:
     """x0, input sequence and dt for one model's reference trajectory."""
@@ -115,7 +112,7 @@ def main(models: list[str]) -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     for model in models:
         case = reference_case(model)
-        backend = "jax" if model in JAX_ONLY else "casadi"
+        backend = "casadi"
         traj = reference_env(case, backend).simulate(case["x0"], case["u_seq"])
         if not np.all(np.isfinite(traj)):
             raise RuntimeError(f"{model}: non-finite reference trajectory")

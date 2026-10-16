@@ -22,16 +22,8 @@ def _model_classes():
     return {spec.cls.__name__: spec.cls for spec in MODEL_REGISTRY.values()}
 
 
-# ``coupled_oscillators`` relies on ``numpy.concatenate`` over symbolic
-# entries, which is a separate (non-tuple-unpacking) CasADi limitation.
-KNOWN_NON_CASADI = {"coupled_oscillators"}
-
-
 @pytest.mark.parametrize("model_name", sorted(_model_classes()))
 def test_model_callable_with_casadi_symbols(model_name):
-    if model_name in KNOWN_NON_CASADI:
-        pytest.xfail(f"{model_name} uses numpy.concatenate over symbolic types (separate CasADi limitation)")
-
     model = _model_classes()[model_name](int_method="casadi")
     info = model.info()
     n_x = len(info["states"])

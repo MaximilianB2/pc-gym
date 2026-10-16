@@ -43,11 +43,12 @@ def _scaled_error(traj, ref):
 @pytest.mark.parametrize("model", list_models())
 def test_reference_trajectory_casadi(model):
     case, ref, backend = _load(model)
-    if backend != "casadi":
-        pytest.skip(f"{model} is not CasADi-compatible; checked by the JAX test")
     traj = gen.reference_env(case, "casadi").simulate(case["x0"], case["u_seq"])
     assert traj.shape == ref.shape
-    assert _scaled_error(traj, ref) < CASADI_TOL
+    # Keep the original JAX oscillator reference as independent cross-backend evidence.
+    assert backend in {"casadi", "jax"}
+    tolerance = CASADI_TOL if backend == "casadi" else JAX_TOL
+    assert _scaled_error(traj, ref) < tolerance
 
 
 @pytest.mark.slow
