@@ -120,7 +120,7 @@ cython_debug/
 
 # VSCode
 .vscode/*
-!.vscode/settings.json
+# Keep personal settings local; share reusable project configuration below.
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
