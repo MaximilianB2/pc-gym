@@ -8,6 +8,7 @@ from pcgym.integrator import integration_engine
 from pcgym.model_classes import (
     batch,
     biofilm_reactor,
+    cement_calcination,
     complex_cstr,
     coupled_oscillators,
     crystallization,
@@ -163,6 +164,7 @@ class make_env(gym.Env):
             "coupled_oscillator": coupled_oscillators,
             "disease": disease_model,
             "hydraulic_tank": hydraulic_tank,
+            "cement_calcination": cement_calcination,
         }
 
         if self.env_params.get("custom_model") is not None:

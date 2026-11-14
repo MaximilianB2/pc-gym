@@ -83,6 +83,15 @@ model_configs = {
         "uncertain_params": {"a1": 0.1, "a2": 0.1},  # 10% uncertainty in outlet areas
         "disturbances": {"q1": np.random.uniform(0.8, 1.2, 100)},
     },
+    "cement_calcination": {
+        "action_space": {"low": np.array([90.0, 50.0, 50.0]), "high": np.array([180.0, 140.0, 100.0])},
+        "observation_space": {
+            "low": np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+            "high": np.array([1200.0, 1200.0, 1200.0, 1.0, 1.0, 1.0, 1200.0]),
+        },
+        "setpoint": {"t_pc": [875.0] * 100},
+        "x0": np.array([900.5745, 797.9064, 652.4700, 0.9220, 0.05, 0.05, 875.0]),
+    },
 }
 
 
@@ -278,7 +287,9 @@ def test_disturbances(model_name):
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("model_name", ["cstr", "multistage_extraction", "four_tank", "crystallization"])
+@pytest.mark.parametrize(
+    "model_name", ["cstr", "multistage_extraction", "four_tank", "crystallization", "cement_calcination"]
+)
 def test_JAX_int(model_name):
     config = model_configs[model_name]
     params = create_base_params(
