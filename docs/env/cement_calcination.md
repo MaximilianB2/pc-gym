@@ -28,7 +28,7 @@ Each stage temperature follows an energy balance,
 \end{align}
 </div>
 
-with heat loss to ambient, fuel combustion (PC only), cooling by fan-driven air, the heat sink of the descending raw meal, counter-current gas heat exchange between stages (kiln → PC → CY4 → CY3) and the endothermic calcination reaction. Calcination follows Arrhenius kinetics with CO2 equilibrium suppression (Baker, 1962), and material is transported downwards (CY3 → CY4 → PC) at a rate set by the material flow:
+with heat loss to ambient, fuel combustion (heat input to the PC only; in the default combined mode the fixed kiln fuel power is lumped into this term, and in split mode kiln exhaust and tertiary air heat are added instead), cooling by fan-driven air, the heat sink of the descending raw meal, counter-current gas heat exchange between stages (kiln → PC → CY4 → CY3) and the endothermic calcination reaction. Calcination follows Arrhenius kinetics with CO2 equilibrium suppression (Baker, 1962), and material is transported downwards (CY3 → CY4 → PC) at a rate set by the material flow:
 
 <div>
 \begin{align}

@@ -1589,7 +1589,10 @@ class cement_calcination(BaseModel):
     - Ambient heat loss
 
     Three stages: PC, CY4, CY3.
-    Notes: No time-varying decay, no warmup phase.
+    Notes: No time-varying decay, no warmup phase. This is a lumped, empirically
+    tuned model: scale factors such as air_cooling_scale and material_cooling_scale
+    and the effective pre-exponential absorb unmodelled physics, so parameters
+    should not be read as first-principles values.
     """
 
     # Fuel heating
@@ -1675,12 +1678,13 @@ class cement_calcination(BaseModel):
 
         # Helpers for CasADi
         if self.int_method == "casadi":
+            from casadi import exp as _exp
             from casadi import fmax as _fmax
             from casadi import if_else as _if_else
 
-            smax, swhere = _fmax, _if_else
+            smax, swhere, sexp = _fmax, _if_else, _exp
         else:
-            smax, swhere = xp.maximum, xp.where
+            smax, swhere, sexp = xp.maximum, xp.where, xp.exp
 
         # Ambient loss
         dT_amb_pc = -self.k_ambient * (t_pc - self.t_ambient)
@@ -1765,15 +1769,15 @@ class cement_calcination(BaseModel):
         T_cy3_K = t_cy3 + 273.15
 
         # Arrhenius rate at each stage (1/s to 1/h)
-        k_r_pc = self.effective_pre_exponential * xp.exp(-self.activation_energy / (self.R_gas * T_pc_K)) * 3600.0
-        k_r_cy4 = self.effective_pre_exponential * xp.exp(-self.activation_energy / (self.R_gas * T_cy4_K)) * 3600.0
-        k_r_cy3 = self.effective_pre_exponential * xp.exp(-self.activation_energy / (self.R_gas * T_cy3_K)) * 3600.0
+        k_r_pc = self.effective_pre_exponential * sexp(-self.activation_energy / (self.R_gas * T_pc_K)) * 3600.0
+        k_r_cy4 = self.effective_pre_exponential * sexp(-self.activation_energy / (self.R_gas * T_cy4_K)) * 3600.0
+        k_r_cy3 = self.effective_pre_exponential * sexp(-self.activation_energy / (self.R_gas * T_cy3_K)) * 3600.0
 
         _ln10 = 2.302585092994046
         _P_eq_floor = 1e-12  # prevent division by near-zero in suppression formula
-        P_eq_pc = smax(_P_eq_floor, xp.exp(_ln10 * (7.079 - 8308.0 / T_pc_K)))
-        P_eq_cy4 = smax(_P_eq_floor, xp.exp(_ln10 * (7.079 - 8308.0 / T_cy4_K)))
-        P_eq_cy3 = smax(_P_eq_floor, xp.exp(_ln10 * (7.079 - 8308.0 / T_cy3_K)))
+        P_eq_pc = smax(_P_eq_floor, sexp(_ln10 * (7.079 - 8308.0 / T_pc_K)))
+        P_eq_cy4 = smax(_P_eq_floor, sexp(_ln10 * (7.079 - 8308.0 / T_cy4_K)))
+        P_eq_cy3 = smax(_P_eq_floor, sexp(_ln10 * (7.079 - 8308.0 / T_cy3_K)))
 
         h_pc = self.stage_inventory_pc * self.limestone_fraction / self.gas_flow_effective
         h_cy4 = self.stage_inventory_cy4 * self.limestone_fraction / self.gas_flow_effective
