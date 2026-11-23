@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+import gymnasium as gym
 import numpy as np
 
 from pcgym.models._base import BaseModel, jnp
@@ -74,6 +75,46 @@ def inflow_schedule(N, tsim, rng=None, q_nom=20.0, sigma=0.3, theta=0.165, event
     elif kind == "oscillation":
         q += 0.5 * abs(size) * np.sin(2 * np.pi * (t - t0) / rng.uniform(30.0, 90.0)) * (t >= t0)
     return q_nom + q.reshape(N, -1).mean(axis=1)
+
+
+class SurgeTankShifts(gym.Wrapper):
+    """The stochastic-shift benchmark: a fresh inflow schedule every episode, unmetered by default.
+
+    Wraps a ``surge_tank`` env built with a ``Q_in`` disturbance schedule. Each reset draws a new
+    schedule with :func:`inflow_schedule`. With ``metered=False`` the inflow is removed from the
+    observation, as on a drum without an inlet flow meter: the imbalance must then be inferred from
+    how the level moves, which needs memory (frame stacking or a recurrent policy).
+    """
+
+    def __init__(self, env, seed=None, metered=False):
+        super().__init__(env)
+        base = env.unwrapped
+        if not base.disturbance_active or "Q_in" not in base.disturbances:
+            raise ValueError("SurgeTankShifts needs an env built with a 'Q_in' disturbance schedule")
+        self.rng = np.random.default_rng(seed)
+        layout = base.observation_info()
+        self._keep = np.array([kind != "disturbance" for _, kind in layout]) if not metered else None
+        if self._keep is not None:
+            space = env.observation_space
+            self.observation_space = gym.spaces.Box(space.low[self._keep], space.high[self._keep], dtype=space.dtype)
+
+    def _observe(self, obs, info):
+        if self._keep is None:
+            return obs, info
+        info["obs"] = info["obs"][self._keep]  # pc-gym's full-precision copy would leak the inflow
+        return obs[self._keep], info
+
+    def reset(self, *, seed=None, options=None):
+        if seed is not None:
+            self.rng = np.random.default_rng(seed)
+        base = self.env.unwrapped
+        base.disturbances["Q_in"] = inflow_schedule(base.N, base.tsim, rng=self.rng)
+        return self._observe(*self.env.reset(seed=seed, options=options))
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        obs, info = self._observe(obs, info)
+        return obs, reward, terminated, truncated, info
 
 
 @register_model("surge_tank", defaults=_defaults, task=CustomReward(surge_tank_reward()))

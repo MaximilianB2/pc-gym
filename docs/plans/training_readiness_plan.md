@@ -863,8 +863,14 @@ valve travel, starting from a hand-over with the valve 8 % below the inflow.
   8e-4 %-points and its slow reference test passes; JAX is still absent from the Conda environment.
 - The strict audit passes 7/7 scenarios with each backend, and PPO/SAC compatibility passes
   (2,048 transitions, seed 0). Learning quality is not qualified.
+- `SurgeTankShifts` is the stochastic benchmark: a new inflow schedule at every reset and, by
+  default, no inflow in the observation (or in `info["obs"]`), so anticipation needs memory. On 200
+  shifts the best memoryless controllers cost 2.2 (`lam=1`) and 14.8 (`lam=10`); a trend rule
+  using one past reading costs 1.1 and 8.9. A test keeps that headroom (ratio 0.41 on 40 shifts,
+  threshold 0.6). Matching the plant record's heavier upset tail was tried and rejected: upsets
+  no rate-limited valve can absorb then dominate, and good controllers become indistinguishable.
 
-Validation: **617 standard tests pass** (70 slow deselected). The surge-tank model is synthetic:
+Validation: **619 standard tests pass** (70 slow deselected). The surge-tank model is synthetic:
 its parameters are rounded and generic, not a plant calibration.
 
 ## Progress

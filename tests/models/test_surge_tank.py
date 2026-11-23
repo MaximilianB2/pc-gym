@@ -7,7 +7,7 @@ from scipy.integrate import solve_ivp
 
 from pcgym import make_env
 from pcgym.models import get_model_spec
-from pcgym.models.surge_tank import BAND, inflow_schedule, surge_tank_reward
+from pcgym.models.surge_tank import BAND, SurgeTankShifts, inflow_schedule, surge_tank_reward
 
 SHIFT = {"model": "surge_tank", "N": 48, "tsim": 480}  # one 8-h shift, a decision every 10 min
 
@@ -147,34 +147,65 @@ def test_inflow_schedule_drives_and_is_observed_by_the_env():
         inflow_schedule(48, 470)
 
 
-class ResampledInflow(gym.Wrapper):
-    """The docs' recipe: a fresh inflow schedule for every episode."""
-
-    def __init__(self, env, seed=None):
-        super().__init__(env)
-        self.rng = np.random.default_rng(seed)
-
-    def reset(self, *, seed=None, options=None):
-        if seed is not None:
-            self.rng = np.random.default_rng(seed)
-        base = self.env.unwrapped
-        base.disturbances["Q_in"] = inflow_schedule(base.N, base.tsim, rng=self.rng)
-        return self.env.reset(seed=seed, options=options)
-
-
-def test_resampled_inflow_recipe_gives_a_new_schedule_per_episode():
-    env = ResampledInflow(
-        make_env(
-            {
-                **SHIFT,
-                "disturbances": {"Q_in": np.full(48, 20.0)},
-                "disturbance_bounds": {"low": [10.0], "high": [30.0]},
-            }
-        ),
-        seed=0,
+def shifts_env(metered=False, seed=None, **params):
+    env = make_env(
+        {
+            **SHIFT,
+            "x0": np.array([50.0, 20.0, 52.0]),
+            "uncertainty_percentages": {"x0": {2: 0.5 / 52.0}},
+            "disturbances": {"Q_in": np.full(48, 20.0)},
+            "disturbance_bounds": {"low": [10.0], "high": [30.0]},
+            **params,
+        }
     )
+    return SurgeTankShifts(env, seed=seed, metered=metered)
+
+
+def test_shifts_draw_a_new_reproducible_inflow_each_episode():
+    env = shifts_env(metered=True, seed=0)
     first, _ = env.reset()
     second, _ = env.reset()
     assert first[-1] != second[-1]
     again, _ = env.reset(seed=3)
     np.testing.assert_array_equal(again, env.reset(seed=3)[0])
+
+
+def test_unmetered_shifts_hide_the_inflow_everywhere():
+    env = shifts_env()
+    assert env.observation_space.shape == (3,)
+    obs, info = env.reset(seed=0)
+    assert obs.shape == (3,) and env.observation_space.contains(obs) and info["obs"].shape == (3,)
+    obs, _, _, _, info = env.step(env.action_space.sample())
+    assert obs.shape == (3,) and info["obs"].shape == (3,)
+    stacked = gym.wrappers.FrameStackObservation(env, 2)  # the memory the task needs
+    assert stacked.reset(seed=0)[0].shape == (2, 3)
+    with pytest.raises(ValueError, match="'Q_in' disturbance schedule"):
+        SurgeTankShifts(make_env(SHIFT))
+
+
+def run_policy(env, policy, seed):
+    obs, _ = env.reset(seed=seed)
+    previous, total = obs, 0.0
+    for _ in range(48):
+        action = policy(obs, previous)
+        previous = obs
+        obs, reward, *_ = env.step(np.array([action], dtype=np.float32))
+        total += reward
+    return total
+
+
+def test_anticipating_from_the_level_trend_beats_memoryless_feedback():
+    """The benchmark's headroom: one past reading lets a hand rule halve the best memoryless cost."""
+    env = shifts_env(normalise_a=False, normalise_o=False)
+
+    def proportional(obs, previous):
+        return float(np.clip(0.004 * (obs[0] - 50.0), -0.02, 0.02))
+
+    def trend(obs, previous):  # act when the level 30 min ahead leaves [46, 54] %
+        ahead = obs[0] + (obs[0] - previous[0]) * 3.0
+        return 0.02 if ahead > 54.0 else (-0.02 if ahead < 46.0 else 0.0)
+
+    seeds = range(40)
+    p_cost = -np.mean([run_policy(env, proportional, s) for s in seeds])
+    t_cost = -np.mean([run_policy(env, trend, s) for s in seeds])
+    assert t_cost < 0.6 * p_cost

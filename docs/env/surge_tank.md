@@ -99,39 +99,26 @@ On the default task, an 8-hour episode scores:
 The last row moves the valve exactly to the opening that balances the inflow. A finite-horizon
 optimum can do slightly better by leaving a small residual imbalance.
 
-## Stochastic shifts
+## Stochastic shifts: the benchmark
 
 `inflow_schedule(N, tsim, rng)` draws a within-shift inflow: mean-reverting jitter of 0.3 m³/h
 (12-minute correlation time) around 20 m³/h, plus at most one event per shift. The event is either
-a step or a ramp of 0.6–1.2 m³/h, or a 30–90 minute oscillation. Pass it as a
-[disturbance](../guides/disturbances.md). pc-gym appends disturbances to the observation, so the
-agent then sees the inflow acting over the next interval. On a real drum the inflow is often
-unmetered and must be inferred from the level, so this variant is easier than that one.
+a step or a ramp of 0.6–1.2 m³/h, or a 30–90 minute oscillation.
 
-A schedule is fixed when the environment is built. This wrapper draws a new one for every episode:
+`SurgeTankShifts` turns this into the benchmark. It draws a new schedule at every reset (pc-gym
+fixes a [disturbance](../guides/disturbances.md) schedule when the environment is built). It also
+removes the inflow from the observation, as on a drum without an inlet flow meter. The agent then
+sees only `[L, Q_out, OP]` and must infer the imbalance from how the level moves, so it needs
+memory: stack frames or use a recurrent policy.
 
 ```python
 import gymnasium as gym
 import numpy as np
 
 from pcgym import make_env
-from pcgym.models.surge_tank import inflow_schedule
+from pcgym.models.surge_tank import SurgeTankShifts, inflow_schedule
 
-
-class ResampledInflow(gym.Wrapper):
-    def __init__(self, env, seed=None):
-        super().__init__(env)
-        self.rng = np.random.default_rng(seed)
-
-    def reset(self, *, seed=None, options=None):
-        if seed is not None:
-            self.rng = np.random.default_rng(seed)
-        base = self.env.unwrapped
-        base.disturbances["Q_in"] = inflow_schedule(base.N, base.tsim, rng=self.rng)
-        return self.env.reset(seed=seed, options=options)
-
-
-env = ResampledInflow(
+env = SurgeTankShifts(
     make_env(
         {
             "model": "surge_tank",
@@ -139,26 +126,36 @@ env = ResampledInflow(
             "tsim": 480,
             "x0": np.array([50.0, 20.0, 52.0]),  # balanced hand-over
             "uncertainty_percentages": {"x0": {2: 0.5 / 52}},  # opening within +-0.5 %
-            "disturbances": {"Q_in": inflow_schedule(48, 480, rng=0)},
+            "disturbances": {"Q_in": inflow_schedule(48, 480, rng=0)},  # replaced at every reset
             "disturbance_bounds": {"low": np.array([10.0]), "high": np.array([30.0])},
         }
-    )
+    ),
+    seed=0,
 )
+env = gym.wrappers.FrameStackObservation(env, 2)  # the current and the previous reading
 ```
 
-Over 200 shifts of this recipe (seeds 0–199), with returns at two prices of valve travel:
+`SurgeTankShifts(..., metered=True)` keeps the inflow in the observation: an easier variant in
+which the imbalance is visible.
 
-| Controller | %-pt·min outside | Valve travel % | Worst-hour swing of `Q_out`, m³/h | Return, `lam=1` | Return, `lam=10` |
-|---|---:|---:|---:|---:|---:|
-| hold the valve | 262.8 | 0 | 0.20 | −262.8 | −262.8 |
-| proportional, `dOP = 0.004 (L - 50)` | 0.0 | 2.20 | 0.47 | −2.2 | −22.0 |
-| proportional, `dOP = 0.015 (L - 50)` | 0.7 | 5.09 | 0.89 | −5.8 | −51.6 |
-| deadband: hold inside 46–54 %, gain 0.015 outside | 4.0 | 1.22 | 0.57 | −5.2 | −16.2 |
-| feedforward on the observed inflow, with a level trim | 0.0 | 7.52 | 0.67 | −7.5 | −75.2 |
+Over 200 shifts (seeds 0–199), with returns at two prices of valve travel:
 
-Rates are clipped to the action bounds. At `lam=1` a slow proportional controller is close to
-the best of these; once travel is priced higher, holding inside a deadband wins. Chasing the
-observed inflow keeps the level in band but spends the most travel.
+| Controller | Needs | %-pt·min outside | Valve travel % | Writes | Worst-hour swing of `Q_out`, m³/h | Return, `lam=1` | Return, `lam=10` |
+|---|---|---:|---:|---:|---:|---:|---:|
+| hold the valve | – | 262.8 | 0 | 0 | 0.20 | −262.8 | −262.8 |
+| proportional, `dOP = 0.004 (L - 50)` | current reading | 0.0 | 2.20 | 47.0 | 0.47 | −2.2 | −22.0 |
+| deadband: hold inside 47–53 %, gain 0.015 outside | current reading | 0.9 | 1.38 | 12.1 | 0.58 | −2.3 | −14.8 |
+| trend rule: full rate when the level 30 min ahead leaves 46–54 % | one past reading | 0.0 | 1.02 | 5.1 | 0.55 | −1.1 | −10.3 |
+| trend rule: full rate when the level 60 min ahead leaves 44–56 % | one past reading | 1.0 | 0.79 | 4.0 | 0.45 | −1.8 | −8.9 |
+| feedforward toward the opening that passes the inflow, ±0.3 % hysteresis | metered inflow | 0.0 | 3.94 | 19.7 | 0.56 | −3.9 | −39.4 |
+
+Rates are clipped to the action bounds; a write is any step with a nonzero rate. Feedback on the
+current level alone does not anticipate: the best memoryless controllers stay near −2.2 at
+`lam=1` and −14.8 at `lam=10`. A two-parameter rule that extrapolates the level from one past
+reading halves the cost at `lam=1` and cuts it by 40 % at `lam=10`, mostly by moving the valve
+four or five times a shift instead of 12 to 47. A learned policy should at least match it.
+Chasing even a metered inflow spends the most travel, because it follows the jitter as well as the
+upsets.
 
 ## Constraints and randomisation
 
@@ -183,8 +180,9 @@ Useful randomisation axes are `k_valve` (the valve's gain drifts between operati
 - Independent [tests](../../tests/models/test_surge_tank.py) check the capacity against the
   closed-form horizontal-cylinder volume at 15–85 %, and volume conservation to 1e-7 with a tight
   independent integrator. They also check the interior equilibria when the drum empties or floods,
-  the domain rejections, the reward, the band constraint, the inflow schedule's wiring and the
-  per-episode wrapper.
+  the domain rejections, the reward, the band constraint and the inflow schedule's wiring. The
+  benchmark wrapper is checked to hide the inflow everywhere, and the trend rule to stay below
+  0.6 of the proportional controller's cost (0.41 on 40 shifts).
 - The reference trajectory (30 steps of 10 min) agrees between CasADi and JAX to 8e-4 %-points.
 - The strict [readiness audit](../../scripts/audit_env_readiness.py) passes all 7 default action
   scenarios with both backends, including the Gymnasium checker.
