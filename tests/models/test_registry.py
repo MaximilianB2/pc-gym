@@ -30,6 +30,7 @@ def test_all_builtin_models_are_registered():
         "photobioreactor",
         "polymerisation_reactor",
         "reactor_separator_recycle",
+        "surge_tank",
     }
     assert set(list_models()) == expected
 

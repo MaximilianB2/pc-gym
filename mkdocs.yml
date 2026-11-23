@@ -16,6 +16,7 @@ nav:
     - Hydraulic Transfer: env/hydraulic_tank.md
     - SIR Vaccination: env/disease.md
     - Reactor-Separator-Recycle: env/reactor_separator_recycle.md
+    - Surge Tank: env/surge_tank.md
     # - Second Order System: env/second-order-system.md
     # - Four Tank System: env/4-tank-system.md 
     # - CSTR in Series with Recyle Loop: env/CSTR in Series with Recycle loop.md

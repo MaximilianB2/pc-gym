@@ -37,6 +37,7 @@ from pcgym.models.nonsmooth_control import nonsmooth_control
 from pcgym.models.photo_production import photo_production
 from pcgym.models.polymerisation_reactor import polymerisation_reactor
 from pcgym.models.reactor_separator_recycle import RSR
+from pcgym.models.surge_tank import surge_tank
 
 __all__ = [
     "BaseModel",
@@ -63,6 +64,7 @@ __all__ = [
     "nonsmooth_control",
     "photo_production",
     "polymerisation_reactor",
+    "surge_tank",
     "MODEL_REGISTRY",
     "ModelSpec",
     "get_model_spec",

@@ -1,8 +1,8 @@
 # Plan: make PC-Gym environments usable for training
 
 Status: implementation in progress. The shared CasADi contract and evaluator are repaired.
-Sixteen model implementations now have equation, domain or default-task corrections. All 18 controlled
-models have complete registered tasks; all 18 nominal defaults pass strict runtime audits and have PPO/SAC
+Sixteen model implementations now have equation, domain or default-task corrections. All 19 controlled
+models have complete registered tasks; all 19 nominal defaults pass strict runtime audits and have PPO/SAC
 compatibility evidence. Biofilm now has an explicit Henry-law benchmark parameterization and corrected
 oxygen flow accounting. Learning qualification and optional features remain open; experimental plant
 calibration is not established by these synthetic benchmarks. Both autonomous models now support
@@ -845,6 +845,28 @@ The 18 controlled-default audit remains **364/364**, and the biofilm PPO/SAC com
 above is unchanged. Ruff checks and editor diagnostics pass. The remaining work is oracle delta
 semantics, optional-backend/feature checks, multi-seed learning and CI/support-matrix consolidation.
 
+## Surge tank: averaging level control
+
+Added on 2026-11-23: [surge_tank](../../src/pcgym/models/surge_tank.py), a horizontal cylindrical
+drum with one outlet valve, documented on [its page](../env/surge_tank.md). The level is a band, not
+a setpoint. The registered `CustomReward` default charges %-point-minutes outside [43, 58] % plus
+valve travel, starting from a hand-over with the valve 8 % below the inflow.
+
+- The input is the valve rate, so the ±0.2 %-per-10-min actuation contract is the action box.
+  Suction-loss and overflow gates make (0, 100) % invariant for any input and horizon. Horizons
+  over which the rate bound could drive the opening outside [0, 100] % are rejected.
+- Independent tests check the capacity against the closed-form cylinder volume, volume conservation
+  with a tight SciPy integrator (CVODES at its default tolerance agrees to 1e-3), the empty/flood
+  equilibria, the reward, the band constraint, the inflow schedule and a per-episode resampling
+  wrapper. The default task is not met by holding (−5477 over 8 h); an admissible ramp scores −2.0.
+- The reference trajectory is CasADi. JAX 0.8.1 (a throwaway install with diffrax 0.7.2) agrees to
+  8e-4 %-points and its slow reference test passes; JAX is still absent from the Conda environment.
+- The strict audit passes 7/7 scenarios with each backend, and PPO/SAC compatibility passes
+  (2,048 transitions, seed 0). Learning quality is not qualified.
+
+Validation: **617 standard tests pass** (70 slow deselected). The surge-tank model is synthetic:
+its parameters are rounded and generic, not a plant calibration.
+
 ## Progress
 
 - [x] Audit all 20 registered models and record reproducible findings.
@@ -862,5 +884,6 @@ semantics, optional-backend/feature checks, multi-seed learning and CI/support-m
 - [x] Repair biofilm oxygen flow accounting and define a source-backed synthetic equilibrium, bounds and objective.
 - [ ] Establish multi-seed learning qualification for the repaired controlled tasks.
 - [x] Repair oscillator CasADi support, check autonomous invariants and classify simulation-only models.
+- [x] Add the surge-tank averaging-level model with independent physics, both-backend audits and PPO/SAC compatibility.
 - [ ] Complete P6 optional-backend and feature-combination checks.
 - [ ] Complete P7 and update the readiness assessment.

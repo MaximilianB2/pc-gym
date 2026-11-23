@@ -414,6 +414,7 @@ def test_four_tank_registered_targets_have_feasible_steady_pump_voltages():
         ("disease", 60, 1),
         ("hydraulic_tank", 15, 1),
         ("reactor_separator_recycle", 30, 5),
+        ("surge_tank", 600, 1),
     ],
 )
 @pytest.mark.parametrize("normalise_o", [False, True])

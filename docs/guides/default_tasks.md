@@ -10,8 +10,8 @@ env = make_env({"model": "cstr", "N": 60, "tsim": 26})
 
 The default task is used only when **no reward is configured**, meaning none of `SP`, `custom_reward` or `reward_states` is given. An explicitly configured reward is never modified.
 
-A registered task is not a readiness certificate. The [current validation record](../plans/training_readiness_plan.md#biofilm-oxygen-balance-and-default-task)
-lists tested horizons and remaining learning/backend gaps. All 18 controlled defaults now have
+A registered task is not a readiness certificate. The [current validation record](../plans/training_readiness_plan.md#surge-tank-averaging-level-control)
+lists tested horizons and remaining learning/backend gaps. All 19 controlled defaults now have
 nominal CasADi runtime and PPO/SAC compatibility evidence; multi-seed learning and experimental
 calibration are separate claims.
 
@@ -43,7 +43,8 @@ declare `finite_horizon=True`, as the reactor–separator task does.
 
 A registered `CustomReward` task supplies the existing `custom_reward(env, state, action, violation)`
 callback and can declare a finite horizon. The disease default uses this to minimize infection burden
-plus vaccination effort. The callback receives physical measurements and applied physical controls.
+plus vaccination effort; the surge-tank default charges level excursions outside a band plus
+valve travel. The callback receives physical measurements and applied physical controls.
 An explicitly configured reward takes precedence over the registered task, including its horizon flag.
 
 ## Default task per model
@@ -68,6 +69,7 @@ An explicitly configured reward takes precedence over the registered task, inclu
 | `photobioreactor` | Regulation | `c_q` = 0.04 | `c_q`: 0.11 |
 | `polymerisation_reactor` | Regulation | `M` = 2 | `M`: 10 |
 | [reactor_separator_recycle](../env/reactor_separator_recycle.md) | Finite-horizon regulation | `H_R` = `H_M` = `H_B` = 10 | each height: 4 |
+| [surge_tank](../env/surge_tank.md) | Custom reward | minimize `sum dt*(%-pt of L outside [43, 58] + abs(dOP))` | physical %, m³/h and %/min |
 
 The distillation default uses `F >= D = 100 kmol/hr`, nonnegative internal flows and target
 `X0=0.5`. Its old target `0.9` was infeasible: at steady state, nonnegative bottoms require
@@ -111,7 +113,7 @@ is derived from Henry solubility at 298.15 K, the fresh feed is deoxygenated by 
 state bounds follow nitrogen inventories and oxygen supply. This is a synthetic benchmark;
 changes to these assumptions require their own bounds and validation.
 
-All 18 controlled models now have registered spaces, initial states and tasks.
+All 19 controlled models now have registered spaces, initial states and tasks.
 The autonomous invariant-batch and coupled-oscillator models have no default training task.
 
 The setpoints are the final targets of the benchmark configurations. None of them is already satisfied by the default `x0`.

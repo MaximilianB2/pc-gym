@@ -47,6 +47,7 @@ DT = {
     "disease": 1.0,
     "hydraulic_tank": 0.25,
     "reactor_separator_recycle": 0.5,
+    "surge_tank": 10.0,  # minutes: one decision of the 8-h shift task
 }
 
 # Fixed legacy simulation fixtures, independent of newly added training defaults.

@@ -158,6 +158,13 @@ Currently there are six implemented process control environments, this will be e
     <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/models/photo_production.py">Code</a></td>
     <td><a href="https://maximilianb2.github.io/pc-gym/env/photoproduction/">Documentation</a></td>
   </tr>
+
+  <tr>
+    <td>Surge Tank</td>
+    <td>Level Control</td>
+    <td><a href="https://github.com/MaximilianB2/pc-gym/blob/main/src/pcgym/models/surge_tank.py">Code</a></td>
+    <td><a href="https://maximilianb2.github.io/pc-gym/env/surge_tank/">Documentation</a></td>
+  </tr>
 </table>
 </div>
 
