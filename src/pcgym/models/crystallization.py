@@ -6,13 +6,14 @@ from casadi import MX, SX, if_else
 from pcgym.models._base import jnp
 from pcgym.models._registry import Regulation, register_model
 
-# Initial coefficient of variation / mean length, derived from the leading moment initial conditions.
-_CRYST_CV0 = float(np.sqrt(1800863.24079725 * 1478.00986666666 / (22995.8230590611**2) - 1))
-_CRYST_LN0 = 22995.8230590611 / 1478.00986666666
+
+def _quality_from_moments(mu0, mu1, mu2):
+    return (mu0 * mu2 - mu1**2) ** 0.5 / mu1, mu1 / mu0
 
 
 def _defaults():
     """Canonical a_space / o_space / x0 used when they are omitted from env_params."""
+    moments = (1478.00986666666, 22995.8230590611, 1800863.24079725, 248516167.940593)
     return {
         "a_space": {"low": np.array([10.0]), "high": np.array([40.0])},
         "o_space": {
@@ -21,19 +22,7 @@ def _defaults():
             # A 1e20 scale erased all moment changes from float32 observations.
             "high": np.array([1e6, 1e7, 5e8, 3e10, 0.2, 3.0, 50.0, 1.1, 16.0]),
         },
-        "x0": np.array(
-            [
-                1478.00986666666,
-                22995.8230590611,
-                1800863.24079725,
-                248516167.940593,
-                0.15861523304,
-                _CRYST_CV0,
-                _CRYST_LN0,
-                1.0,
-                15.0,
-            ]
-        ),
+        "x0": np.array([*moments, 0.15861523304, *_quality_from_moments(*moments[:3]), 1.0, 15.0]),
     }
 
 
@@ -57,8 +46,8 @@ class crystallization:
         kg (float): Growth rate constant
         k1 (float): Growth activation energy parameter
         k2 (float): Growth supersaturation exponent
-        a (float): Moment model parameter for nucleation
-        b (float): Moment model parameter for growth
+        a (float): Dimensionless intercept of the size-dependent growth law
+        b (float): Slope of the size-dependent growth law (1/cm)
         alfa (float): Shape factor for volume calculation
         ro (float): Crystal density (g/cm^3)
         int_method (str): Integration method ('jax' or other)
@@ -92,58 +81,46 @@ class crystallization:
         mu0, mu1, mu2, mu3 = values[:4]
         if mu0 <= 0 or mu1 <= 0 or mu0 * mu2 <= mu1**2 or mu1 * mu3 < mu2**2:
             raise ValueError("crystallization requires realizable seed moments with positive number, mean and variance")
-        quality = [np.sqrt(mu0 * mu2 / mu1**2 - 1), mu1 / mu0]
-        if not np.allclose(values[5:7], quality, rtol=1e-7, atol=1e-8):
+        quality = _quality_from_moments(mu0, mu1, mu2)
+        if values[5] <= 0 or not np.allclose(values[5:7], quality, rtol=1e-7, atol=1e-8):
             raise ValueError("crystallization initial CV and Ln must be derived from Mu0, Mu1 and Mu2")
 
     def project_state(self, state):
-        """Recompute redundant quality states after a numerical integration step.
+        """Reconcile redundant states after integration, preserving number and solute inventory.
 
-        The five physical states are preserved; this removes accumulated integration
-        error in their algebraic CV/mean-length definitions, without clipping moments.
+        Retain the evolved CV: recovering a small variance by subtracting nearly
+        equal raw moments can turn solver truncation error into artificial dispersion.
         """
         values = np.asarray(state, dtype=float).copy()
-        mu0, mu1, mu2 = values[:3]
-        values[5] = np.sqrt(mu0 * mu2 / mu1**2 - 1)
-        values[6] = mu1 / mu0
+        if values[5] <= 0:
+            raise ValueError("crystallization integration returned a nonpositive CV for a dispersed seed")
+        mean = values[1] / values[0]
+        values[2] = values[1] * mean * (1 + values[5] ** 2)
+        values[6] = mean
         return values
+
+    @staticmethod
+    def equilibrium_concentration(temperature):
+        """Solubility in g/cm³ at °C: the published Kelvin quadratic expanded about 25 °C."""
+        offset = temperature - 25.0
+        return 0.12051372253735 + offset * (0.001832757338 - 0.00000292874 * offset)
 
     def __call__(self, x, u):
         """
-        Calculate the state derivatives for the crystallization model.
+        Return derivatives of [Mu0, Mu1, Mu2, Mu3, Conc, CV, Ln] per minute.
 
-        This method computes the rates of change for the moments of the crystal size distribution
-        and the solute concentration based on the current state and input temperature.
-
-        Args:
-            x (np.ndarray): Current state vector containing:
-                - mu0 (float): 0th moment of crystal size distribution
-                - mu1 (float): 1st moment of crystal size distribution
-                - mu2 (float): 2nd moment of crystal size distribution
-                - mu3 (float): 3rd moment of crystal size distribution
-                - conc (float): Solute concentration
-
-            u (np.ndarray): Input vector containing:
-                - T (float): Temperature (°C)
-                - optional ka, kg: Nucleation and growth constants, in that order
-
-        Returns:
-            np.ndarray: State derivatives vector containing:
-                - dmu0/dt: Rate of change of 0th moment
-                - dmu1/dt: Rate of change of 1st moment
-                - dmu2/dt: Rate of change of 2nd moment
-                - dmu3/dt: Rate of change of 3rd moment
-                - dconc/dt: Rate of change of solute concentration
+        The input is the suspension temperature in °C, optionally followed by ka, kg.
+        A five-state physical snapshot is also accepted; its CV is derived from the moments.
         """
         mu0, mu1, mu2, mu3, conc = x[0], x[1], x[2], x[3], x[4]
         if u.shape[0] not in (1, 3):
             raise ValueError("crystallization inputs must be [Tc] or [Tc, ka, kg]")
-        T = u[0]
+        temperature = u[0]
+        kelvin = temperature + 273.15
         ka, kg = (self.ka, self.kg) if u.shape[0] == 1 else (u[1], u[2])
         xp = jnp if self.int_method == "jax" else np
 
-        Ceq = -686.2686 + 3.579165 * (T + 273.15) - 0.00292874 * (T + 273.15) ** 2
-        S = conc * 1e3 - Ceq
+        S = (conc - self.equilibrium_concentration(temperature)) * 1e3
         # Never extend the fitted supersaturated rate laws using abs(S): that
         # creates crystals from an undersaturated solution. Keep the fractional
         # powers away from zero in the inactive branch so symbolic derivatives
@@ -154,23 +131,21 @@ class crystallization:
         else:
             active = xp.where(S > 0, 1.0, 0.0)
             rate_S = xp.where(S > 0, S, 1.0)
-        B0 = active * ka * xp.exp(self.kb / (T + 273.15)) * rate_S**self.kc * (mu3**2) ** (self.kd / 2)
-        Ginf = active * kg * xp.exp(self.k1 / (T + 273.15)) * rate_S**self.k2
+        births = active * ka * xp.exp(self.kb / kelvin) * rate_S**self.kc * mu3**self.kd
+        growth = active * kg * xp.exp(self.k1 / kelvin) * rate_S**self.k2
+        intercept = 1e4 * self.a * growth
+        slope = self.b * growth
+        dmu1 = intercept * mu0 + slope * mu1
+        dmu2 = 2 * (intercept * mu1 + slope * mu2)
+        dmu3 = 3 * (intercept * mu2 + slope * mu3)
+        dconc = -(self.ro * self.alfa / 6) * 1e-12 * dmu3
 
-        dmi0dt = B0
-        dmi1dt = Ginf * (self.a * mu0 + self.b * mu1 * 1e-4) * 1e4
-        dmi2dt = 2 * Ginf * (self.a * mu1 * 1e-4 + self.b * mu2 * 1e-8) * 1e8
-        dmi3dt = 3 * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12) * 1e12
-        dcdt = -0.5 * self.ro * self.alfa * Ginf * (self.a * mu2 * 1e-8 + self.b * mu3 * 1e-12)
-
-        CV = xp.sqrt(mu2 * mu0 / (mu1**2) - 1)
-        moment_ratio = mu2 * mu0 / mu1**2
-        dCVdt = moment_ratio / (2 * CV) * (dmi2dt / mu2 + dmi0dt / mu0 - 2 * dmi1dt / mu1)
-        dLndt = dmi1dt / mu0 - mu1 / mu0 * dmi0dt / mu0
-
-        ret = [dmi0dt, dmi1dt, dmi2dt, dmi3dt, dcdt, dCVdt, dLndt]
-
-        return jnp.array(ret) if self.int_method == "jax" else np.array(ret)
+        mean = mu1 / mu0
+        cv = x[5] if np.shape(x)[0] > 5 else _quality_from_moments(mu0, mu1, mu2)[0]
+        births_per_crystal = births / mu0
+        dmean = intercept + (slope - births_per_crystal) * mean
+        dcv = births_per_crystal * (1 + cv**2) / (2 * cv) - intercept * cv / mean
+        return xp.array([births, dmu1, dmu2, dmu3, dconc, dcv, dmean])
 
     def info(self):
         # Return a dictionary with the model information

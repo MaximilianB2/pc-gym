@@ -5,6 +5,7 @@ import itertools
 import numpy as np
 import pytest
 from casadi import SX, Function, jacobian, vertcat
+from scipy.integrate import solve_ivp
 from scipy.linalg import expm
 from scipy.optimize import brentq, root
 
@@ -444,6 +445,88 @@ def test_crystallization_growth_only_model_stops_at_or_below_saturation(concentr
     kelvin = 25.0 + 273.15
     state[4] = (-686.2686 + 3.579165 * kelvin - 0.00292874 * kelvin**2) / 1000 + concentration_offset
     np.testing.assert_allclose(env.model(state, np.array([25.0])), 0, atol=1e-8)
+
+
+@pytest.mark.parametrize("temperature", [10.0, 20.0, 25.0, 30.0, 40.0])
+def test_crystallization_resolves_saturation_in_float32(temperature):
+    env = make_env({"model": "crystallization", "N": 60, "tsim": 30})
+    action = np.array([temperature], dtype=np.float32)
+    state = env.x0[:7].astype(np.float32)
+    kelvin = temperature + 273.15
+    state[4] = (-686.2686 + 3.579165 * kelvin - 0.00292874 * kelvin**2) / 1000
+    np.testing.assert_array_equal(env.model(state, action), np.zeros(7))
+    state[4] = np.nextafter(state[4], np.float32(np.inf))
+    rates = env.model(state, action)
+    assert rates[0] > 0 and rates[3] > 0 and rates[4] < 0
+
+
+def test_crystallization_rates_match_growing_particle_population_with_zero_size_births():
+    env = make_env({"model": "crystallization", "N": 60, "tsim": 30})
+    model = env.model
+    lengths = np.array([8.0, 35.0, 120.0])
+    counts = np.array([3000, 2000, 800])
+    moments = np.array([counts @ lengths**order for order in range(4)])
+    mean = np.average(lengths, weights=counts)
+    variance = np.average((lengths - mean) ** 2, weights=counts)
+    concentration, temperature = 0.14, 25.0
+    kelvin = temperature + 273.15
+    excess = 1000 * concentration - (-686.2686 + 3.579165 * kelvin - 0.00292874 * kelvin**2)
+    births = model.ka * np.exp(model.kb / kelvin) * excess**model.kc * moments[3] ** model.kd
+    speed_cm = model.kg * np.exp(model.k1 / kelvin) * excess**model.k2 * (model.a + model.b * lengths * 1e-4)
+    speed_um = speed_cm * 1e4
+    moment_rates = [order * (counts @ (lengths ** (order - 1) * speed_um)) for order in (1, 2, 3)]
+    mass_rate = model.ro * model.alfa / 2 * (counts @ ((lengths * 1e-4) ** 2 * speed_cm))
+    birth_fraction = births / counts.sum()
+    mean_rate = np.average(speed_um, weights=counts) - birth_fraction * mean
+    variance_rate = 2 * np.average((lengths - mean) * speed_um, weights=counts) + birth_fraction * (mean**2 - variance)
+    cv = np.sqrt(variance) / mean
+    cv_rate = variance_rate / (2 * np.sqrt(variance) * mean) - cv * mean_rate / mean
+    state = np.array([*moments, concentration, cv, mean])
+    expected = [births, *moment_rates, -mass_rate, cv_rate, mean_rate]
+    for snapshot in (state, state[:5]):
+        np.testing.assert_allclose(model(snapshot, np.array([temperature])), expected, rtol=1e-11)
+
+
+def test_crystallization_narrow_seed_preserves_width_under_size_independent_growth():
+    env = make_env({"model": "crystallization", "N": 60, "tsim": 30, "model_params": {"ka": 0, "b": 0}})
+    mean, width = 20.0, 0.0001
+    lengths = np.array([mean - width, mean + width])
+    moments = [1000 * np.mean(lengths**order) for order in range(4)]
+    initial = np.array([*moments, 0.14, width / mean, mean])
+    states = env.simulate(initial, np.full((10, 1), 25.0))
+    assert np.all(np.diff(states[:, 6]) > 0)
+    np.testing.assert_allclose(states[:, 5] * states[:, 6], width, rtol=3e-5, atol=0)
+    np.testing.assert_allclose(states[:, 2], states[:, 0] * (states[:, 6] ** 2 + width**2), rtol=1e-12)
+    env.model.validate_initial_state(states[-1])
+
+
+def test_crystallization_replays_published_isothermal_batch():
+    """Selected measurements from de Moraes et al., doi:10.1021/acs.iecr.3c00739.s001, Table S2 (40 ± 0.01 °C)."""
+    env = make_env({"model": "crystallization", "N": 60, "tsim": 30})
+    times = [5.00, 11.28, 17.58, 23.88, 30.18, 36.48, 41.53]
+    measured = np.array(
+        [
+            [1534.3, 20715, 1677000, 223640000, 0.1579],
+            [6896.6, 105630, 4057200, 433250000, 0.1577],
+            [20884, 328490, 11348000, 836080000, 0.1565],
+            [49238, 700950, 23739000, 1501400000, 0.1548],
+            [75278, 1064600, 37599000, 2091200000, 0.1519],
+            [125910, 1437800, 46944000, 2592000000, 0.1500],
+            [154010, 1505600, 48068000, 2900100000, 0.1492],
+        ]
+    )
+    result = solve_ivp(
+        lambda time, state: env.model(state, np.array([40.0]))[:5],
+        (times[0], times[-1]),
+        measured[0],
+        t_eval=times,
+        rtol=1e-8,
+        atol=1e-10,
+    )
+    assert result.success
+    residuals = measured - result.y.T
+    r_squared = 1 - (residuals**2).sum(axis=0) / ((measured - measured.mean(axis=0)) ** 2).sum(axis=0)
+    assert np.all(r_squared > 0.8), r_squared
 
 
 @pytest.mark.parametrize("concentration", [0.1, 0.12])
