@@ -14,14 +14,14 @@ def _defaults():
             "high": np.array([0.01, 0.01, 320.0, 320.0]),
         },
         "o_space": {
-            "low": np.array([0.0, 290.0, 0.0, 290.0, 55.0]),
-            "high": np.array([100.0, 400.0, 100.0, 400.0, 85.0]),
+            "low": np.array([0.0, 290.0, 0.0, 290.0, 95.0]),
+            "high": np.array([100.0, 400.0, 100.0, 400.0, 98.0]),
         },
-        "x0": np.array([90.0, 310.0, 85.0, 310.0, 80.0]),
+        "x0": np.array([90.0, 310.0, 85.0, 310.0, 97.0]),
     }
 
 
-@register_model("cstr_series_recycle", defaults=_defaults, task=Regulation(setpoint={"C2": 60.0}))
+@register_model("cstr_series_recycle", defaults=_defaults, task=Regulation(setpoint={"C2": 97.0}))
 @dataclass(frozen=False, kw_only=True)
 class cstr_series_recycle:
     """

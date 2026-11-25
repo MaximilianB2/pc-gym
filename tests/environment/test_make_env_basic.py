@@ -72,5 +72,6 @@ def test_env_action_space(env_params):
 def test_env_observation_space(env_params):
     env = make_env(env_params)
     assert env.observation_space.shape == (3,)
-    np.testing.assert_array_almost_equal(env.observation_space.low, np.array([-1, -1, -1]))
-    np.testing.assert_array_almost_equal(env.observation_space.high, np.array([1, 1, 1]))
+    # Gaussian measurement noise is unbounded; the setpoint remains noise-free.
+    np.testing.assert_array_equal(env.observation_space.low, [-np.inf, -np.inf, -1])
+    np.testing.assert_array_equal(env.observation_space.high, [np.inf, np.inf, 1])

@@ -3,10 +3,21 @@ from dataclasses import dataclass
 import numpy as np
 
 from pcgym.models._base import BaseModel, jnp
-from pcgym.models._registry import register_model
+from pcgym.models._registry import Regulation, register_model
 
 
-@register_model("complex_cstr")
+def _defaults():
+    return {
+        "a_space": {"low": np.array([295.0]), "high": np.array([302.0])},
+        "o_space": {
+            "low": np.array([0.0, 0.0, 0.0, 290.0, 0.0]),
+            "high": np.array([1.0, 2.0, 2.0, 400.0, 2.0]),
+        },
+        "x0": np.array([0.8, 0.1, 0.1, 330.0, 0.25]),
+    }
+
+
+@register_model("complex_cstr", defaults=_defaults, task=Regulation(setpoint={"Cb": 0.25}))
 @dataclass(frozen=False, kw_only=True)
 class complex_cstr(BaseModel):
     # Reactor parameters
@@ -43,6 +54,16 @@ class complex_cstr(BaseModel):
         self.states = ["Ca", "Cb", "Cc", "T"]
         self.inputs = ["Tc"]
         self.disturbances = ["Ti", "Caf"]
+
+    def validate_initial_state(self, state):
+        if np.any(np.asarray(state)[:3] < 0) or state[3] <= 0:
+            raise ValueError("complex_cstr requires nonnegative concentrations and positive absolute temperature")
+
+    def validate_input_bounds(self, low, high):
+        positive = [self.V, self.rho, self.C, self.Ti]
+        rates = [self.q, self.k01, self.k02, self.EA1_over_R, self.EA2_over_R, self.UA, self.Caf]
+        if not np.isfinite(positive + rates).all() or min(positive) <= 0 or min(rates) < 0 or low[0] <= 0:
+            raise ValueError("complex_cstr requires physical rate/capacity parameters and positive temperatures")
 
     def __call__(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         ca, cb, cc, T = x[0], x[1], x[2], x[3]

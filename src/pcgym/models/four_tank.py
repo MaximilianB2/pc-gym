@@ -9,7 +9,9 @@ from pcgym.models._registry import Regulation, register_model
 def _defaults():
     """Canonical a_space / o_space / x0 used when they are omitted from env_params."""
     return {
-        "a_space": {"low": np.array([0.1, 0.1]), "high": np.array([10.0, 10.0])},
+        # v2 <= 9 V keeps the vector field inside the 0--0.6 m tank-height
+        # box, including h3 at its upper boundary (equilibrium at 9 V: 0.596 m).
+        "a_space": {"low": np.array([0.1, 0.1]), "high": np.array([10.0, 9.0])},
         "o_space": {"low": np.array([0.0] * 6), "high": np.array([0.6] * 6)},
         "x0": np.array([0.141, 0.112, 0.072, 0.42, 0.5, 0.2]),
     }

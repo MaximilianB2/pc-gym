@@ -1,321 +1,141 @@
-"""
-Policy evaluation metrics.
+"""Policy performance and dispersion across valid episode data.
 
-This module implements various metrics for evaluating policies, following the general approach
-described in the paper by Manon Flageat et al (2024) - https://arxiv.org/pdf/2312.07178.pdf
+Rewards reduce to undiscounted episode returns; states/actions retain their time
+axis. Constraint metrics use the greatest positive residual across constraints.
 """
 
 from abc import ABC
-from typing import Any, Callable, Dict, Optional, Type, Union
 
 import numpy as np
 
+COMPONENTS = ("x", "u", "r", "g")
+
+
+def masked_reduce(data, operation, axis=-1):
+    """Ignore NaN padding, returning NaN (without warnings) for unobserved cells."""
+    values = np.ma.masked_invalid(np.asarray(data, dtype=float))
+    return np.ma.filled(getattr(np.ma, operation)(values, axis=axis), np.nan)
+
+
+def component_values(entry, component):
+    """Apply explicit validity masks, also accepting legacy NaN-padded dictionaries."""
+    if component not in COMPONENTS:
+        raise ValueError(f"Unknown evaluation component: {component}")
+    values = np.asarray(entry[component], dtype=float)
+    key = "transition_mask" if component == "u" else "state_mask"
+    if key in entry:
+        mask = np.asarray(entry[key], dtype=bool)
+        if component == "g":
+            mask = mask[:, None, :]
+        values = np.where(mask, values, np.nan)
+    return values
+
+
+def episode_returns(entry):
+    """One undiscounted return per repetition, excluding reset and unused columns."""
+    return np.nansum(component_values(entry, "r")[:, 1:, :], axis=1)
+
 
 class metric_base(ABC):
-    """
-    Abstract base class for policy evaluation metrics.
-    """
+    def __init__(self, scalarised_weight):
+        self.scalarised_weight = scalarised_weight
 
-    def __init__(self, scalarised_weight: float) -> None:
-        """
-        Initialize the metric base.
+    def evaluate(self, policy_evaluator):
+        raise NotImplementedError
 
-        Args:
-            scalarised_weight: The weight for scalarised performance.
-        """
-        pass
+    def policy_dispersion_metric(self, data):
+        raise NotImplementedError
 
-    def evaluate(self, policy_evaluator: Any) -> Any:
-        """
-        Evaluate the given policy using the specified environment.
+    def policy_performance_metric(self, data):
+        raise NotImplementedError
 
-        Args:
-            policy_evaluator: The policy evaluator to generate data for a number of policy rollouts.
-
-        Returns:
-            The evaluation metric value.
-        """
-        raise NotImplementedError("Subclasses must implement the evaluate method.")
-
-    def policy_dispersion_metric(self, data: Dict[str, Any]) -> Any:
-        """
-        Evaluate the dispersion of the policy.
-
-        Args:
-            data: Nested dictionary containing policy data.
-
-        Returns:
-            The policy dispersion metric value.
-        """
-        raise NotImplementedError("Subclasses must implement the policy_dispersion_metric method.")
-
-    def policy_performance_metric(self, data: Dict[str, Any]) -> Any:
-        """
-        Evaluate the performance of the policy.
-
-        Args:
-            data: Nested dictionary containing policy data.
-
-        Returns:
-            The policy performance metric value.
-        """
-        raise NotImplementedError("Subclasses must implement the policy_performance_metric method.")
-
-    def scalarised_performance(self, data: Dict[str, Any]) -> Any:
-        """
-        Evaluate the scalarised performance of the policy.
-
-        Args:
-            data: Nested dictionary containing policy data.
-
-        Returns:
-            The scalarised policy performance metric value.
-        """
-        raise NotImplementedError("Subclasses must implement the scalarised_performance method.")
+    def scalarised_performance(self, data):
+        raise NotImplementedError
 
 
 class standard_deviation:
-    """
-    Class for calculating standard deviation.
-    """
-
-    def __init__(self, data: np.ndarray) -> None:
-        """
-        Initialize the standard deviation calculator.
-
-        Args:
-            data: Input data for standard deviation calculation.
-        """
+    def __init__(self, data):
         self.data = data
 
-    def get_value(self) -> np.ndarray:
-        """
-        Calculate the standard deviation of the data.
-
-        Returns:
-            The standard deviation value.
-        """
-        return np.std(self.data, axis=-1)
+    def get_value(self):
+        return masked_reduce(self.data, "std")
 
 
 class median_absolute_deviation:
-    """
-    Class for calculating median absolute deviation.
-    """
+    def __init__(self, data):
+        self.data = np.asarray(data, dtype=float)
 
-    def __init__(self, data: np.ndarray) -> None:
-        """
-        Initialize the median absolute deviation calculator.
-
-        Args:
-            data: Input data for median absolute deviation calculation.
-        """
-        if data.ndim < 2:
-            data = data.reshape((data.shape[0], 1))
-        self.data = data
-
-    def get_value(self) -> np.ndarray:
-        """
-        Calculate the median absolute deviation of the data.
-
-        Returns:
-            The median absolute deviation value.
-        """
-        return np.median(
-            np.abs(self.data - np.median(self.data, axis=-1)),
-            axis=-1,  # Currently only works for the reward component
-        )
+    def get_value(self):
+        median = np.expand_dims(masked_reduce(self.data, "median"), -1)
+        return masked_reduce(np.abs(self.data - median), "median")
 
 
 class mean_performance:
-    """
-    Class for calculating mean performance.
-    """
-
-    def __init__(self, data: np.ndarray) -> None:
-        """
-        Initialize the mean performance calculator.
-
-        Args:
-            data: Input data for mean performance calculation.
-        """
+    def __init__(self, data):
         self.data = data
 
-    def get_value(self) -> np.ndarray:
-        """
-        Calculate the mean performance of the data.
-
-        Returns:
-            The mean performance value.
-        """
-        return np.mean(self.data, axis=-1)
+    def get_value(self):
+        return masked_reduce(self.data, "mean")
 
 
 class median_performance:
-    """
-    Class for calculating median performance.
-    """
-
-    def __init__(self, data: np.ndarray) -> None:
-        """
-        Initialize the median performance calculator.
-
-        Args:
-            data: Input data for median performance calculation.
-        """
+    def __init__(self, data):
         self.data = data
 
-    def get_value(self) -> np.ndarray:
-        """
-        Calculate the median performance of the data.
-
-        Returns:
-            The median performance value.
-        """
-        return np.median(self.data, axis=-1)
+    def get_value(self):
+        return masked_reduce(self.data, "median")
 
 
 class reproducibility_metric(metric_base):
-    """
-    Class for calculating reproducibility metrics.
-    """
+    """Reduce valid repetitions; scalarisation is performance + weight * dispersion."""
 
-    def __init__(self, dispersion: str, performance: str, scalarised_weight: float) -> None:
-        """
-        Initialize the reproducibility metric.
-
-        Args:
-            dispersion: The dispersion metric to use ('std' or 'mad').
-            performance: The performance metric to use ('mean' or 'median').
-            scalarised_weight: The weight for scalarised performance.
-        """
-        # scalarised weight is defined in terms of the upper confidence bound
-        # it should be negative for the lower confidence bound
-        self.scalarised_weight = scalarised_weight
-        if dispersion == "std":
-            self.dispersion: Union[Type[standard_deviation], Type[median_absolute_deviation]] = standard_deviation
-        elif dispersion == "mad":
-            self.dispersion = median_absolute_deviation
-        else:
+    def __init__(self, dispersion: str, performance: str, scalarised_weight: float):
+        super().__init__(scalarised_weight)
+        dispersions = {"std": standard_deviation, "mad": median_absolute_deviation}
+        performances = {"mean": mean_performance, "median": median_performance}
+        if dispersion not in dispersions:
             raise ValueError("Invalid dispersion metric")
-
-        if performance == "mean":
-            self.performance: Union[Type[mean_performance], Type[median_performance]] = mean_performance
-        elif performance == "median":
-            self.performance = median_performance
-        else:
+        if performance not in performances:
             raise ValueError("Invalid performance metric")
+        self.dispersion = dispersions[dispersion]
+        self.performance = performances[performance]
 
-    def evaluate(self, policy_evaluator: Any, component: Optional[str] = None) -> Dict[str, Dict[str, np.ndarray]]:
-        """
-        Evaluate the given policy using the specified environment.
-
-        Args:
-            policy_evaluator: The policy evaluator to generate data for a number of policy rollouts.
-            component: The specific component to evaluate (optional).
-
-        Returns:
-            The evaluation metric value.
-        """
-        try:
-            # Reuse cached rollouts if the evaluator has already produced them; otherwise generate.
-            self.data = policy_evaluator.data
-        except Exception:
+    def evaluate(self, policy_evaluator, component=None):
+        self.data = getattr(policy_evaluator, "data", None)
+        if self.data is None:
             self.data = policy_evaluator.get_rollouts()
-
         return self.scalarised_performance(self.data, component)
 
-    def policy_dispersion_metric(
-        self, data: Dict[str, Dict[str, np.ndarray]], component: Optional[str]
-    ) -> Dict[str, Dict[str, np.ndarray]]:
-        """
-        Evaluate the dispersion of the policy.
+    def _measure(self, data, component, measure):
+        if component is not None:
+            self.determine_op(component)  # Validate even for empty data.
+        result = {}
+        for policy, entry in data.items():
+            components = [component] if component else [key for key in COMPONENTS if key in entry]
+            result[policy] = {
+                key: measure(self.determine_op(key)(component_values(entry, key))).get_value() for key in components
+            }
+        return result
 
-        Args:
-            data: Nested dictionary containing policy data.
-            component: The specific component to evaluate.
+    def policy_dispersion_metric(self, data, component=None):
+        return self._measure(data, component, self.dispersion)
 
-        Returns:
-            The policy dispersion metric value.
-        """
-        values: Dict[str, Dict[str, np.ndarray]] = {k: {} for k in data.keys()}
+    def policy_performance_metric(self, data, component=None):
+        return self._measure(data, component, self.performance)
 
-        for policy in data.keys():  # has structure n_x x T x reps  - operation always applied along the reps row
-            if component is None:
-                for comp in data[policy].keys():
-                    operation = self.determine_op(comp)
-                    values[policy][comp] = self.dispersion(operation(data[policy][comp])).get_value()
-            else:
-                operation = self.determine_op(component)
-                values[policy][component] = self.dispersion(operation(data[policy][component])).get_value()
-
-        return values
-
-    def policy_performance_metric(
-        self, data: Dict[str, Dict[str, np.ndarray]], component: Optional[str]
-    ) -> Dict[str, Dict[str, np.ndarray]]:
-        """
-        Evaluate the performance of the policy.
-
-        Args:
-            data: Nested dictionary containing policy data.
-            component: The specific component to evaluate.
-
-        Returns:
-            The policy performance metric value.
-        """
-        values: Dict[str, Dict[str, np.ndarray]] = {k: {} for k in data.keys()}
-
-        for policy in data.keys():
-            if component is None:
-                for comp in data[policy].keys():
-                    operation = self.determine_op(comp)
-                    values[policy][comp] = self.performance(operation(data[policy][comp])).get_value()
-            else:
-                operation = self.determine_op(component)
-                values[policy][component] = self.performance(operation(data[policy][component])).get_value()
-
-        return values
-
-    def scalarised_performance(
-        self, data: Dict[str, Dict[str, np.ndarray]], component: Optional[str]
-    ) -> Dict[str, Dict[str, np.ndarray]]:
-        """
-        Evaluate the scalarised performance of the policy.
-
-        Args:
-            data: Nested dictionary containing policy data.
-            component: The specific component to evaluate
-                (set to None to scalarise over all components).
-
-        Returns:
-            The scalarised policy performance metric value.
-        """
+    def scalarised_performance(self, data, component=None):
         performance = self.policy_performance_metric(data, component)
         dispersion = self.policy_dispersion_metric(data, component)
         return {
-            k: {
-                comp: performance[k][comp] + self.scalarised_weight * dispersion[k][comp]
-                for comp in performance[k].keys()
-            }
-            for k in performance.keys()
+            policy: {key: value + self.scalarised_weight * dispersion[policy][key] for key, value in entry.items()}
+            for policy, entry in performance.items()
         }
 
-    def determine_op(self, component: str) -> Callable[[np.ndarray], np.ndarray]:
-        """
-        Determine the operation to be applied based on the component.
-
-        Args:
-            component: The component to determine the operation for.
-
-        Returns:
-            A lambda function representing the operation to be applied.
-        """
-        if component == "x":
-            return lambda x: x
-        elif component == "u":
-            return lambda x: x
-        elif component == "r":
-            return lambda x: x  # sum over discrete time indices (undiscounted)
-        elif component == "g":
-            return lambda x: np.max(x, axis=0)  # return the greatest constraint violation of n_g defined
+    def determine_op(self, component):
+        if component in ("x", "u"):
+            return lambda values: values
+        if component == "r":
+            return lambda values: np.nansum(values[:, 1:, :], axis=1)
+        if component == "g":
+            return lambda values: masked_reduce(np.maximum(values, 0), "max", axis=0)
+        raise ValueError(f"Unknown evaluation component: {component}")

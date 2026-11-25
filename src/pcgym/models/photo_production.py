@@ -11,15 +11,16 @@ def _defaults():
     return {
         "a_space": {"low": np.array([100.0, 0.0]), "high": np.array([400.0, 10.0])},
         "o_space": {
-            "low": np.array([0.0, 0.0, 0.0, 50.0]),
-            "high": np.array([10.0, 1000.0, 300.0, 200.0]),
+            "low": np.array([0.0, 0.0, 0.0, 0.0]),
+            # Nominal 200-hour product bound from nutrient inventory: c_q <= 0.10494.
+            "high": np.array([10.0, 1000.0, 0.11, 0.11]),
         },
-        "x0": np.array([1.0, 150.0, 0.0, 80.0]),
+        "x0": np.array([1.0, 150.0, 0.0, 0.04]),
     }
 
 
 @register_model(
-    "photobioreactor", aliases=("photo_production",), defaults=_defaults, task=Regulation(setpoint={"c_q": 120.0})
+    "photobioreactor", aliases=("photo_production",), defaults=_defaults, task=Regulation(setpoint={"c_q": 0.04})
 )
 @dataclass(frozen=False, kw_only=True)
 class photo_production:

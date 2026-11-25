@@ -25,17 +25,22 @@
 The multistage extraction column is a key unit operation in chemical engineering that enables mass transfer between liquid and gas phases across multiple theoretical stages, described by coupled differential equations representing the dynamic concentration changes in each phase:
 
 \begin{align}
-  \nonumber\frac{\mathrm{d}X_i}{\mathrm{d}t} &= \frac{L}{V_L}(X_{i-1}-X_i) - K_{La}\left(X_i - \frac{Y_i}{m}\right)\\
+  \nonumber\frac{\mathrm{d}X_i}{\mathrm{d}t} &= \frac{L}{V_L}(X_{i-1}-X_i) - K_{La}\left(X_i - \frac{Y_i^p}{m}\right)\\
 \end{align}
 \begin{align}
-  \nonumber\frac{\mathrm{d}Y_i}{\mathrm{d}t} &= \frac{G}{V_G}(Y_{i+1}-Y_i) + K_{La}\left(X_i - \frac{Y_i}{m}\right)\\
+  \nonumber\frac{\mathrm{d}Y_i}{\mathrm{d}t} &= \frac{G}{V_G}(Y_{i+1}-Y_i) + K_{La}\frac{V_L}{V_G}\left(X_i - \frac{Y_i^p}{m}\right)\\
 \end{align}
 
-Where the concentration of the solute in the liquid and gas at each stage, $X_i$ and $Y_i$ are the state variables, $\mathbf{x} = [X_1..X_{10},Y_1...Y_{10}]^\intercal  \in \mathbb{R}^{10}$. The action variables are the flowrate of the gas and liquid phases through the column, $\mathbf{u} = [L, G]^\intercal \in \mathbb{R}^2$.
+There are five stages, with interleaved liquid/gas concentrations
+$\mathbf{x} = [X_1,Y_1,\ldots,X_5,Y_5]^\intercal \in \mathbb{R}^{10}$.
+The implementation uses `p = eq_exponent = 2` by default. The control vector is
+$\mathbf{u} = [L,G]^\intercal \in \mathbb{R}^2$.
 
 ## Observation
-The observation of the `Multistage Extraction` environment provides information on the state variables and their associated setpoints (if they exist) at the current timestep. The observation is an array of shape `(1, 10 + N_SP)` where `N_SP` is the number of setpoints. Therefore, the observation when there a setpoint exists for $X_1$ and $Y_1$ is
-``[X_n..., Y_n..., X_1, Y_1]``.
+The registered observation is a float32 vector of shape `(11,)`:
+`[X1, Y1, X2, Y2, X3, Y3, X4, Y4, X5, Y5, X5_setpoint]`.
+The target is `X5=0.4`. Observations are normalized to `[-1, 1]` by default;
+the bounds below are in physical units.
 
 The observation space is defined by the following bounds corresponding to the ordered state variables: 
 ```
@@ -43,7 +48,7 @@ The observation space is defined by the following bounds corresponding to the or
 ```
 An example, tested set of initial conditions are as follows:
 ```
-[0.55, 0.3, 0.45, 0.25, 0.4, 0.20, 0.35, 0.15, 0.25, 0.1,0.3]
+[0.55, 0.3, 0.45, 0.25, 0.4, 0.20, 0.35, 0.15, 0.25, 0.1, 0.4]
 ```
 
 ## Action
@@ -51,7 +56,10 @@ The action space is a `ContinuousBox` of `[[5,10],[500,1000]]` which corresponds
 
 ## Reward
 
-The reward is a continuous value corresponding to square error of the state and its setpoint. For multiple states, these are scaled with a factor (`r_scale`)and summed to give a single value.
+The registered reward is `-(X5 - 0.4)**2`, evaluated at the next state. The initial training
+configuration uses 60 transitions over 60 hours and truncates at the horizon. See the
+[fixed training protocol](../reviews/initial_training_protocol.md). The public action vector
+has shape `(2,)`, normalized to `[-1, 1]` by default.
 
 ## Reference
 

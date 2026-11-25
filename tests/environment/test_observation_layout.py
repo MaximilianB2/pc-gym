@@ -15,6 +15,7 @@ def _params(**extra):
         "a_space": {"low": np.array([295]), "high": np.array([302])},
         "o_space": {"low": np.array([0.7, 300, 0.8]), "high": np.array([1, 350, 0.9])},
         "x0": np.array([0.8, 330, 0.8]),
+        "normalise_a": False,  # the stepping tests supply coolant temperatures in kelvin
         "normalise_o": False,
         "integration_method": "casadi",
     }
@@ -56,7 +57,8 @@ def test_disturbance_and_uncertainty_slots_are_not_overwritten():
     env = make_env(_params(**DIST, **UNC))
     obs, _ = env.reset(seed=0)
     k0 = obs[4]
-    assert k0 == env.model.k0
+    assert k0 == np.float32(env.model.k0)
+    assert env.state[4] == env.model.k0  # integration retains the parameter's full precision
     for t in range(3):
         obs, *_ = env.step(np.array([298.5]))
         assert obs[4] == k0  # uncertain parameter stays fixed during the episode
@@ -77,7 +79,7 @@ def test_disturbances_without_setpoints():
 def test_build_obs_from_named_parts_matches_reset():
     env = make_env(_params(**DIST))
     obs, _ = env.reset()
-    built = env.build_obs(states={"T": 330, "Ca": 0.8}, setpoints={"Ca": 0.8}, disturbances={"Ti": 350})
+    built = env.build_obs(states={"T": 330, "Ca": 0.8}, setpoints={"Ca": 0.85}, disturbances={"Ti": 350})
     np.testing.assert_allclose(built, obs)
 
 
@@ -91,14 +93,14 @@ def test_build_obs_normalise_matches_env():
     params = _params(normalise_o=True)
     env = make_env(params)
     obs, _ = env.reset()
-    np.testing.assert_allclose(env.build_obs(states=[0.8, 330], setpoints=[0.8], normalise=True), obs)
+    np.testing.assert_allclose(env.build_obs(states=[0.8, 330], setpoints=[0.85], normalise=True), obs)
 
 
 def test_build_obs_rejects_missing_or_unknown_names():
     env = make_env(_params())
-    with pytest.raises(ValueError, match="missing \['T'\]"):
+    with pytest.raises(ValueError, match=r"missing \['T'\]"):
         env.build_obs(states={"Ca": 0.8})
-    with pytest.raises(ValueError, match="unknown \['Cb'\]"):
+    with pytest.raises(ValueError, match=r"unknown \['Cb'\]"):
         env.build_obs(states={"Ca": 0.8, "T": 330, "Cb": 1})
     with pytest.raises(ValueError, match="expected 2 state values"):
         env.build_obs(states=[0.8])

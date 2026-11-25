@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from pcgym import make_env
-from pcgym.models import MODEL_REGISTRY, BaseModel, get_model_spec, list_models, register_model
+from pcgym.models import MODEL_REGISTRY, BaseModel, Regulation, get_model_spec, list_models, register_model
 from pcgym.models._registry import _ALIASES
 
 
@@ -30,8 +30,25 @@ def test_all_builtin_models_are_registered():
         "photobioreactor",
         "polymerisation_reactor",
         "reactor_separator_recycle",
+        "surge_tank",
     }
     assert set(list_models()) == expected
+
+
+def test_autonomous_models_are_explicitly_simulation_only():
+    autonomous = {name for name in list_models() if get_model_spec(name).simulation_only}
+    assert autonomous == {"coupled_oscillator", "invariant_batch"}
+    for name in list_models():
+        spec = get_model_spec(name)
+        assert spec.simulation_only == (not spec.cls(int_method="casadi").info()["inputs"])
+        if spec.simulation_only:
+            assert spec.task is None and spec.defaults is None
+
+
+def test_simulation_only_registration_rejects_a_default_training_task():
+    with pytest.raises(ValueError, match="simulation-only"):
+        register_model("autonomous_task", simulation_only=True, task=Regulation({"x": 0.0}))(BaseModel)
+    assert "autonomous_task" not in MODEL_REGISTRY
 
 
 @pytest.mark.parametrize(
@@ -62,7 +79,7 @@ def test_legacy_import_paths_still_work():
     from pcgym.model_defaults import get_default, has_defaults
 
     assert cstr is get_model_spec("cstr").cls
-    assert has_defaults("cstr") and not has_defaults("batch")
+    assert has_defaults("cstr") and has_defaults("batch") and not has_defaults("invariant_batch")
     assert get_default("cstr", "x0") is not get_default("cstr", "x0")  # fresh arrays each call
 
 

@@ -38,5 +38,6 @@ Built-in models live in `pcgym.models`, one module per model. Each registers its
         - nonsmooth_control
         - photo_production
         - polymerisation_reactor
+        - surge_tank
       show_root_heading: true
       show_source: false

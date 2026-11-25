@@ -25,4 +25,5 @@ from pcgym.models import (  # noqa: F401
     nonsmooth_control,
     photo_production,
     polymerisation_reactor,
+    surge_tank,
 )
